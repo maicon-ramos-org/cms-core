@@ -2,7 +2,7 @@ import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHo
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, uniqueCupomPorLoja } from '../hooks/validations'
+import { draftOnlyIngestao, efetivo, uniqueCupomPorLoja } from '../hooks/validations'
 
 /** beforeValidate: trim + uppercase (contrato colecoes.md). */
 const normalizaCodigo: CollectionBeforeValidateHook = ({ data }) => {
@@ -12,10 +12,11 @@ const normalizaCodigo: CollectionBeforeValidateHook = ({ data }) => {
 
 /** "verificado_em / metodo — ✔ ao publicar": estado publicado exige o selo. */
 const exigeSeloAoPublicar: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
-  const estado = data?.estado ?? originalDoc?.estado
+  const estado = efetivo(data, originalDoc, 'estado')
   if (estado === 'publicado') {
-    const verificadoEm = data?.verificado_em ?? originalDoc?.verificado_em
-    const metodo = data?.metodo ?? originalDoc?.metodo
+    // efetivo(): PATCH {verificado_em: null} não pode passar herdando o valor antigo
+    const verificadoEm = efetivo(data, originalDoc, 'verificado_em')
+    const metodo = efetivo(data, originalDoc, 'metodo')
     if (!verificadoEm || !metodo) {
       throw new ValidationError({
         collection: 'cupons',
@@ -31,8 +32,16 @@ const exigeSeloAoPublicar: CollectionBeforeValidateHook = ({ data, originalDoc }
   return data
 }
 
+/** fontes presentes ⇒ fontes_count reflete a trilha (coerência da corroboração). */
+const derivaFontesCount: CollectionBeforeValidateHook = ({ data }) => {
+  if (data && Array.isArray(data.fontes)) data.fontes_count = data.fontes.length
+  return data
+}
+
 export const Cupons: CollectionConfig = {
   slug: 'cupons',
+  // backstop de banco contra corrida — o hook uniqueCupomPorLoja dá o 400 amigável
+  indexes: [{ fields: ['loja', 'codigo'], unique: true }],
   admin: { useAsTitle: 'codigo', group: 'Catálogo', defaultColumns: ['codigo', 'loja', 'estado', 'validade'] },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -42,7 +51,7 @@ export const Cupons: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [normalizaCodigo, uniqueCupomPorLoja, exigeSeloAoPublicar],
+    beforeValidate: [normalizaCodigo, derivaFontesCount, uniqueCupomPorLoja, exigeSeloAoPublicar],
     beforeChange: [draftOnlyIngestao],
     afterChange: [revalidateAfterChange('cupons')],
     afterDelete: [revalidateAfterDelete('cupons')],
@@ -92,7 +101,7 @@ export const Cupons: CollectionConfig = {
       options: ['pendente', 'publicado', 'expirando', 'expirado', 'revisao'],
       admin: { description: 'máquina de estados PRD 07' },
     },
-    { name: 'fontes_count', type: 'number', required: true, defaultValue: 1, min: 0 },
+    { name: 'fontes_count', type: 'number', required: true, defaultValue: 1, min: 0, admin: { description: 'derivado de fontes[] quando a trilha existe' } },
     {
       name: 'fontes',
       type: 'array',

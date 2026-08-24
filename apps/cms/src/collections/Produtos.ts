@@ -2,12 +2,12 @@ import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHo
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, uniquePorTenant } from '../hooks/validations'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
 /** "preco + preco_em ✔ juntos — NUNCA preço sem timestamp" (contrato). */
 const precoComTimestamp: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
-  const preco = data?.preco ?? originalDoc?.preco
-  const precoEm = data?.preco_em ?? originalDoc?.preco_em
+  const preco = efetivo(data, originalDoc, 'preco')
+  const precoEm = efetivo(data, originalDoc, 'preco_em')
   if ((preco === null || preco === undefined) !== (precoEm === null || precoEm === undefined)) {
     throw new ValidationError({
       collection: 'produtos',
@@ -19,9 +19,9 @@ const precoComTimestamp: CollectionBeforeValidateHook = ({ data, originalDoc }) 
 
 /** Máquina PRD 08 — estado indexavel exige imagem + gate anti-thin completo. */
 const gateIndexavel: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
-  const estado = data?.estado ?? originalDoc?.estado
+  const estado = efetivo(data, originalDoc, 'estado')
   if (estado !== 'indexavel') return data
-  const imagem = data?.imagem ?? originalDoc?.imagem
+  const imagem = efetivo(data, originalDoc, 'imagem')
   const gate = { ...(originalDoc?.gate_antithin ?? {}), ...(data?.gate_antithin ?? {}) } as Record<string, boolean>
   const faltas: string[] = []
   if (!imagem) faltas.push('imagem')
@@ -47,6 +47,7 @@ const derivaIndexavel: CollectionBeforeChangeHook = ({ data }) => {
 
 export const Produtos: CollectionConfig = {
   slug: 'produtos',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'titulo', group: 'Catálogo', defaultColumns: ['titulo', 'loja', 'estado', 'indexavel'] },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -63,7 +64,7 @@ export const Produtos: CollectionConfig = {
   },
   fields: [
     { name: 'titulo', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true, admin: { description: 'página /p/{slug}' } },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab, admin: { description: 'página /p/{slug}' } },
     { name: 'loja', type: 'relationship', relationTo: 'lojas', required: true, index: true },
     { name: 'imagem', type: 'upload', relationTo: 'midia', admin: { description: 'obrigatória p/ estado indexavel' } },
     { name: 'preco', type: 'number', min: 0 },

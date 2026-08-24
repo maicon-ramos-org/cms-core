@@ -5,15 +5,17 @@
  * - sempre rel="sponsored nofollow"
  */
 interface Props {
+  tipo: 'cupom' | 'produto' | 'oferta'
   docId: string | number
   rotulo?: string
   ref?: string
 }
 
-const { docId, rotulo = 'Usar cupom na loja', ref = 'pagina' } = Astro.props
+const PREFIXO = { cupom: 'c', produto: 'p', oferta: 'o' } as const
+const { tipo, docId, rotulo = 'Usar cupom na loja', ref = 'pagina' } = Astro.props
 ---
 
-<a class="cta" href={`/r/${docId}?ref=${ref}`} rel="sponsored nofollow">
+<a class="cta" href={`/r/${PREFIXO[tipo]}${docId}?ref=${ref}`} rel="sponsored nofollow">
   {rotulo}
 </a>
 

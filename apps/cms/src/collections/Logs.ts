@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated, nunca, sistemaOnly, superAdminOnly } from '../access/roles'
+import { nunca, sistemaOnly, superAdminOnly } from '../access/roles'
 
 /** Flywheel de demanda — toda query (chat|mcp|busca) logada. Retenção 12 meses (job PRD 09). */
 export const QueriesLog: CollectionConfig = {
@@ -9,7 +9,7 @@ export const QueriesLog: CollectionConfig = {
   access: {
     create: sistemaOnly,
     delete: superAdminOnly,
-    read: authenticated,
+    read: sistemaOnly, // least-privilege: ip_hash/queries não são pra agente de conteúdo
     update: nunca,
   },
   fields: [
@@ -29,7 +29,7 @@ export const Cliques: CollectionConfig = {
   access: {
     create: sistemaOnly,
     delete: superAdminOnly,
-    read: authenticated,
+    read: sistemaOnly, // least-privilege: ip_hash/queries não são pra agente de conteúdo
     update: nunca,
   },
   fields: [

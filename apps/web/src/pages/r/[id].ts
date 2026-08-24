@@ -1,17 +1,21 @@
 /**
  * Contrato docs/contratos/redirect-afiliado.md — TODO clique de monetização passa aqui.
- * GET /r/{id}?ref={pagina|chat|mcp|grupo-wa|grupo-tg}
- * 1. lookup cupom → produto → oferta
- * 2. builder por programa (@runzos/afflinks), IDs de env do tenant — nunca hardcoded
- * 3. log ANTES do redirect (falha de log nunca bloqueia)
- * 4. 302; falha de lookup → 302 pra página da loja (nunca 500 pro usuário)
+ * GET /r/{tipo}{id}?ref=...  →  tipo ∈ {c: cupom, p: produto, o: oferta} (IDs seriais
+ * colidem entre coleções, então o tipo faz parte do id público).
+ *
+ * Regras:
+ * 1. lookup ESCOPADO pelo tenant do host (nada cruza tenant) e por _status published
+ * 2. só monetiza estado apto: cupom publicado|expirando|expirado; produto landing|indexavel
+ * 3. builder por programa (@runzos/afflinks); sem ID de afiliado configurado → redireciona
+ *    a URL fonte CRUA (sem comissão) e loga mesmo assim — nunca 500 pro usuário
+ * 4. log ANTES do redirect (falha de log nunca bloqueia)
  */
-import { buildAffiliateUrl, normalizaRef, type Programa } from '@runzos/afflinks'
+import { AfflinkError, buildAffiliateUrl, normalizaRef, type Programa } from '@runzos/afflinks'
 import type { APIRoute } from 'astro'
 
 import { classificaUserAgent } from '../../lib/agentClass'
 import {
-  cmsFindById,
+  cmsFindOneNoTenant,
   logClique,
   type CupomDTO,
   type LojaDTO,
@@ -29,21 +33,32 @@ interface Destino {
 const lojaDe = (doc: { loja?: LojaDTO | string | number }): LojaDTO | null =>
   doc.loja && typeof doc.loja === 'object' ? doc.loja : null
 
-async function resolveDestino(id: string): Promise<Destino | null> {
-  const cupom = await cmsFindById<CupomDTO>('cupons', id)
-  if (cupom) return { tipo_doc: 'cupom', urlFonte: cupom.url_afiliado_fonte ?? null, loja: lojaDe(cupom) }
-  const produto = await cmsFindById<ProdutoDTO>('produtos', id)
-  if (produto) return { tipo_doc: 'produto', urlFonte: produto.url_afiliado_fonte, loja: lojaDe(produto) }
-  const oferta = await cmsFindById<OfertaDTO>('ofertas', id, 2)
-  if (oferta) {
-    const cupomDaOferta = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
-    return {
-      tipo_doc: 'oferta',
-      urlFonte: cupomDaOferta?.url_afiliado_fonte ?? null,
-      loja: lojaDe(oferta),
-    }
+const CUPOM_MONETIZAVEL = new Set(['publicado', 'expirando', 'expirado'])
+const PRODUTO_MONETIZAVEL = new Set(['landing', 'indexavel'])
+
+async function resolveDestino(idPublico: string, tenantId: string | number): Promise<Destino | null> {
+  const m = /^([cpo])(\d{1,12})$/.exec(idPublico)
+  if (!m) return null
+  const [, tipo, id] = m as unknown as [string, 'c' | 'p' | 'o', string]
+
+  if (tipo === 'c') {
+    const cupom = await cmsFindOneNoTenant<CupomDTO>('cupons', id!, tenantId)
+    if (!cupom || !CUPOM_MONETIZAVEL.has(cupom.estado)) return null
+    return { tipo_doc: 'cupom', urlFonte: cupom.url_afiliado_fonte ?? null, loja: lojaDe(cupom) }
   }
-  return null
+  if (tipo === 'p') {
+    const produto = await cmsFindOneNoTenant<ProdutoDTO & { estado?: string }>('produtos', id!, tenantId)
+    if (!produto || !PRODUTO_MONETIZAVEL.has(produto.estado ?? '')) return null
+    return { tipo_doc: 'produto', urlFonte: produto.url_afiliado_fonte, loja: lojaDe(produto) }
+  }
+  const oferta = await cmsFindOneNoTenant<OfertaDTO>('ofertas', id!, tenantId, 2)
+  if (!oferta) return null
+  const cupomDaOferta = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
+  return {
+    tipo_doc: 'oferta',
+    urlFonte: cupomDaOferta?.url_afiliado_fonte ?? null,
+    loja: lojaDe(oferta),
+  }
 }
 
 export const GET: APIRoute = async (context) => {
@@ -55,7 +70,7 @@ export const GET: APIRoute = async (context) => {
 
   if (!id) return fallback()
 
-  const destino = await resolveDestino(id)
+  const destino = await resolveDestino(id, tenant.id)
   if (!destino) return fallback()
 
   const urlFonte = destino.urlFonte ?? destino.loja?.url_site ?? null
@@ -70,8 +85,15 @@ export const GET: APIRoute = async (context) => {
   try {
     destinoFinal = buildAffiliateUrl({ programa, urlFonte, subid: ref, afiliadoId })
   } catch (err) {
-    console.error('[/r] builder falhou:', (err as Error).message)
-    return fallback(destino.loja)
+    if (err instanceof AfflinkError) {
+      // sem ID de afiliado (ou builder recusou): serve o usuário mesmo assim,
+      // sem parâmetros de comissão — e o log registra o clique perdido
+      console.warn(`[/r] sem monetização (${programa}): ${err.message}`)
+      destinoFinal = urlFonte
+    } else {
+      console.error('[/r] builder falhou:', (err as Error).message)
+      return fallback(destino.loja)
+    }
   }
 
   // log ANTES do redirect (contrato) — falha não bloqueia

@@ -2,11 +2,12 @@ import type { CollectionConfig } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, uniquePorTenant } from '../hooks/validations'
+import { draftOnlyIngestao, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
 /** Migração WP (PRD 03) — paridade de URL /{slug}. */
 export const Posts: CollectionConfig = {
   slug: 'posts',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'titulo', group: 'Conteúdo' },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -23,7 +24,7 @@ export const Posts: CollectionConfig = {
   },
   fields: [
     { name: 'titulo', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab },
     { name: 'corpo', type: 'richText', required: true },
     { name: 'categoria', type: 'relationship', relationTo: 'categorias' },
     { name: 'tags', type: 'relationship', relationTo: 'tags', hasMany: true },

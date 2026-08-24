@@ -79,10 +79,27 @@ export async function cmsFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return (await res.json()) as T
 }
 
-/** Busca um doc por id sem estourar exceção em 404 (usado no /r/{id}). */
-export async function cmsFindById<T>(colecao: string, id: string, depth = 1): Promise<T | null> {
+/**
+ * Busca UM doc por id, ESCOPADO pelo tenant do host e por _status published —
+ * usado no /r/{id}: nada cruza tenant, e draft/despublicado não monetiza.
+ * (o nome lembra: o chamador passa o tenant explicitamente, nunca confie no id cru)
+ */
+export async function cmsFindOneNoTenant<T>(
+  colecao: string,
+  id: string,
+  tenantId: string | number,
+  depth = 1,
+): Promise<T | null> {
   try {
-    return await cmsFetch<T>(`/api/${colecao}/${encodeURIComponent(id)}?depth=${depth}`)
+    const q = new URLSearchParams({
+      'where[and][0][id][equals]': id,
+      'where[and][1][tenant][equals]': String(tenantId),
+      'where[and][2][_status][equals]': 'published',
+      limit: '1',
+      depth: String(depth),
+    })
+    const r = await cmsFetch<FindResult<T>>(`/api/${colecao}?${q}`)
+    return r.docs[0] ?? null
   } catch {
     return null
   }
@@ -125,6 +142,7 @@ export async function getCuponsDaLoja(lojaId: string | number): Promise<CupomDTO
   const q = new URLSearchParams({
     'where[and][0][loja][equals]': String(lojaId),
     'where[and][1][estado][in]': 'publicado,expirando',
+    'where[and][2][_status][equals]': 'published',
     sort: '-verificado_em',
     limit: '100',
     depth: '0',
@@ -136,6 +154,7 @@ export async function getCuponsRecentes(tenantId: string | number, limit = 12): 
   const q = new URLSearchParams({
     'where[and][0][tenant][equals]': String(tenantId),
     'where[and][1][estado][in]': 'publicado,expirando',
+    'where[and][2][_status][equals]': 'published',
     sort: '-verificado_em',
     limit: String(limit),
     depth: '1',

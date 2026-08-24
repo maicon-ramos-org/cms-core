@@ -2,11 +2,12 @@ import type { CollectionConfig } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, uniquePorTenant } from '../hooks/validations'
+import { draftOnlyIngestao, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
 /** Páginas de oferta/empresa (ex-WooCommerce) — contrato colecoes.md. */
 export const Ofertas: CollectionConfig = {
   slug: 'ofertas',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'titulo', group: 'Catálogo' },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -24,7 +25,7 @@ export const Ofertas: CollectionConfig = {
   fields: [
     { name: 'loja', type: 'relationship', relationTo: 'lojas', required: true, index: true },
     { name: 'titulo', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab },
     {
       name: 'tipo',
       type: 'select',

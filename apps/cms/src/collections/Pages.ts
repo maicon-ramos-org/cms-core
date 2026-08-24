@@ -1,12 +1,33 @@
-import type { CollectionConfig } from 'payload'
+import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, uniquePorTenant } from '../hooks/validations'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
+
+/** Template define o que é obrigatório: conteudo/institucional → corpo; apps/calculadora → dados. */
+const exigeCampoDoTemplate: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
+  const template = efetivo<string>(data, originalDoc, 'template') ?? 'conteudo'
+  const corpo = efetivo(data, originalDoc, 'corpo')
+  const dados = efetivo(data, originalDoc, 'dados')
+  if ((template === 'apps' || template === 'calculadora') && (dados === null || dados === undefined)) {
+    throw new ValidationError({
+      collection: 'pages',
+      errors: [{ message: `template "${template}" exige o campo dados (json do template).`, path: 'dados' }],
+    })
+  }
+  if ((template === 'conteudo' || template === 'institucional') && (corpo === null || corpo === undefined)) {
+    throw new ValidationError({
+      collection: 'pages',
+      errors: [{ message: `template "${template}" exige corpo (richText).`, path: 'corpo' }],
+    })
+  }
+  return data
+}
 
 /** Pages WP: corpo livre OU template (apps re-render de data/{slug}.json, calculadora como ilha). */
 export const Pages: CollectionConfig = {
   slug: 'pages',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'titulo', group: 'Conteúdo' },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -16,14 +37,14 @@ export const Pages: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug')],
+    beforeValidate: [uniquePorTenant('slug'), exigeCampoDoTemplate],
     beforeChange: [draftOnlyIngestao],
     afterChange: [revalidateAfterChange('pages')],
     afterDelete: [revalidateAfterDelete('pages')],
   },
   fields: [
     { name: 'titulo', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab },
     {
       name: 'template',
       type: 'select',

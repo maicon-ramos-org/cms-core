@@ -3,15 +3,36 @@ import { APIError, ValidationError, type CollectionBeforeValidateHook, type Coll
 import { hasRole, isSuperAdmin } from '../access/roles'
 
 /**
+ * Valor EFETIVO de um campo num update parcial: se o PATCH menciona o campo
+ * (mesmo com null), vale o que veio; senão vale o que está no banco.
+ * NUNCA usar `data?.x ?? originalDoc?.x` em validação de invariante — um PATCH
+ * {campo: null} passaria na validação e persistiria o null (bypass).
+ */
+export const efetivo = <T = unknown>(
+  data: Record<string, unknown> | undefined,
+  originalDoc: Record<string, unknown> | undefined,
+  campo: string,
+): T | undefined => {
+  if (data && campo in data) return data[campo] as T
+  return originalDoc?.[campo] as T | undefined
+}
+
+const vazio = (v: unknown): boolean => v === null || v === undefined
+
+/** Convenção global do contrato: slug kebab-case em toda coleção de conteúdo. */
+export const validaSlugKebab = (value: string | null | undefined): true | string =>
+  !value || /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value) || 'slug deve ser kebab-case ([a-z0-9-], sem espaços/maiúsculas)'
+
+/**
  * Unicidade composta (tenant, campo) — contrato colecoes.md: "slug unique POR tenant".
- * O plugin multi-tenant não cria índice composto; garantimos por validação
- * (e o erro volta como 400 com `path` — o contrato pro agente).
+ * Primeira linha de defesa (erro 400 com `path` — o contrato pro agente); o índice
+ * único composto `indexes` de cada coleção é o backstop contra corrida no banco.
  */
 export const uniquePorTenant =
   (campo: string): CollectionBeforeValidateHook =>
   async ({ data, originalDoc, req, collection }) => {
-    const valor = (data?.[campo] ?? originalDoc?.[campo]) as string | undefined
-    const tenant = (data?.tenant ?? originalDoc?.tenant) as string | number | { id?: string | number } | undefined
+    const valor = efetivo<string>(data, originalDoc, campo)
+    const tenant = efetivo<string | number | { id?: string | number }>(data, originalDoc, 'tenant')
     if (!valor || !tenant || !collection) return data
     const tenantId = typeof tenant === 'object' ? tenant.id : tenant
     if (!tenantId) return data
@@ -36,10 +57,10 @@ export const uniquePorTenant =
     return data
   }
 
-/** Cupons — unicidade (loja, codigo) dentro do tenant. */
+/** Cupons — unicidade (loja, codigo); backstop no banco via indexes da coleção. */
 export const uniqueCupomPorLoja: CollectionBeforeValidateHook = async ({ data, originalDoc, req }) => {
-  const codigo = (data?.codigo ?? originalDoc?.codigo) as string | undefined
-  const loja = (data?.loja ?? originalDoc?.loja) as string | number | { id?: string | number } | undefined
+  const codigo = efetivo<string>(data, originalDoc, 'codigo')
+  const loja = efetivo<string | number | { id?: string | number }>(data, originalDoc, 'loja')
   if (!codigo || !loja) return data
   const lojaId = typeof loja === 'object' ? loja.id : loja
   if (!lojaId) return data
@@ -64,7 +85,10 @@ export const uniqueCupomPorLoja: CollectionBeforeValidateHook = async ({ data, o
   return data
 }
 
-/** PRD 01 RF3 — role `ingestao` só cria/edita DRAFT; publicar é de outro papel. */
+/**
+ * PRD 01 RF3 — role `ingestao` só trabalha em DRAFT e nunca marca cupom como
+ * publicado: nem _status published, nem estado da máquina em "publicado".
+ */
 export const draftOnlyIngestao: CollectionBeforeChangeHook = ({ data, req }) => {
   const user = req.user as { roles?: string[] } | null
   if (!user) return data
@@ -73,8 +97,12 @@ export const draftOnlyIngestao: CollectionBeforeChangeHook = ({ data, req }) => 
     !isSuperAdmin(user) &&
     !hasRole(user, 'agente') &&
     !hasRole(user, 'editor')
-  if (soIngestao && data?._status === 'published') {
+  if (!soIngestao) return data
+  if (data?._status === 'published') {
     throw new APIError('Papel "ingestao" só pode salvar rascunhos (draft). Publicação é de outro papel.', 403)
+  }
+  if (data?.estado === 'publicado' || data?.estado === 'indexavel') {
+    throw new APIError(`Papel "ingestao" não pode definir estado "${data.estado}" — verificação/publicação é de outro papel.`, 403)
   }
   return data
 }

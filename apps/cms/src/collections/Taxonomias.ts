@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
-import { uniquePorTenant } from '../hooks/validations'
+import { uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
 const base = {
   access: {
@@ -16,11 +16,12 @@ const base = {
 export const Categorias: CollectionConfig = {
   ...base,
   slug: 'categorias',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'nome', group: 'Conteúdo' },
   hooks: { beforeValidate: [uniquePorTenant('slug')] },
   fields: [
     { name: 'nome', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab },
     { name: 'descricao_seo', type: 'textarea' },
     { name: 'wordpress_id', type: 'text', unique: true, index: true },
     { name: 'slug_wp', type: 'text', index: true },
@@ -30,26 +31,30 @@ export const Categorias: CollectionConfig = {
 export const Tags: CollectionConfig = {
   ...base,
   slug: 'tags',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'nome', group: 'Conteúdo' },
   hooks: { beforeValidate: [uniquePorTenant('slug')] },
   fields: [
     { name: 'nome', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab },
     { name: 'wordpress_id', type: 'text', unique: true, index: true },
+    { name: 'slug_wp', type: 'text', index: true },
   ],
 }
 
 export const Autores: CollectionConfig = {
   ...base,
   slug: 'autores',
+  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'nome', group: 'Conteúdo' },
   hooks: { beforeValidate: [uniquePorTenant('slug')] },
   fields: [
     { name: 'nome', type: 'text', required: true },
-    { name: 'slug', type: 'text', required: true, index: true },
+    { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab },
     { name: 'bio', type: 'textarea' },
     { name: 'avatar', type: 'upload', relationTo: 'midia' },
     { name: 'sameAs', type: 'text', hasMany: true, admin: { description: 'LinkedIn, GitHub etc. (fonte: perfil-maicon) — E-E-A-T' } },
     { name: 'wordpress_id', type: 'text', unique: true, index: true },
+    { name: 'slug_wp', type: 'text', index: true },
   ],
 }
