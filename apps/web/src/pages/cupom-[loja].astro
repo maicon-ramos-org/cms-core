@@ -1,0 +1,94 @@
+---
+/**
+ * PRD 02 RF5 — página /cupom-{loja}:
+ * - title "{n} Cupons {Loja} Testados em {Mês} {Ano}" com N e mês REAIS (pattern do tenant)
+ * - selo por cupom + bloco de última verificação + FAQ visível + FAQPage JSON-LD
+ * - SSR + cache tags [tenant:{slug}, loja:{slug}]
+ */
+import CupomCard from '../components/CupomCard.astro'
+import Base from '../layouts/Base.astro'
+import { getCuponsDaLoja, getLojaBySlug } from '../lib/cms'
+
+const tenant = Astro.locals.tenant
+const slugLoja = Astro.params.loja ?? ''
+
+const loja = await getLojaBySlug(tenant.id, slugLoja)
+if (!loja) {
+  return new Response('Loja não encontrada.', { status: 404 })
+}
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 300, swr: 60, tags: [`tenant:${tenant.slug}`, `loja:${loja.slug}`] })
+}
+
+const cupons = await getCuponsDaLoja(loja.id)
+
+const agora = new Date()
+const mes = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(agora)
+const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1)
+const pattern = tenant.seo?.title_pattern_loja ?? '{n} Cupons {loja} Testados em {mes} {ano}'
+let titulo = pattern
+  .replace('{n}', String(cupons.length))
+  .replace('{loja}', loja.nome)
+  .replace('{mes}', mesCapitalizado)
+  .replace('{ano}', String(agora.getFullYear()))
+// singular sem quebrar o pattern configurável do tenant
+if (cupons.length === 1) titulo = titulo.replace(/\b1 Cupons\b/, '1 Cupom').replace(/\bTestados\b/, 'Testado')
+
+const ultimaVerificacao = cupons
+  .map((c) => (c.verificado_em ? new Date(c.verificado_em) : null))
+  .filter((d): d is Date => d !== null)
+  .sort((a, b) => b.getTime() - a.getTime())[0]
+
+const faq = loja.faq ?? []
+const jsonLd =
+  faq.length > 0
+    ? JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faq.map((item) => ({
+          '@type': 'Question',
+          name: item.pergunta,
+          acceptedAnswer: { '@type': 'Answer', text: item.resposta },
+        })),
+      })
+    : null
+---
+
+<Base titulo={titulo} descricao={`Cupons ${loja.nome} com selo de verificação — atualizado em ${mesCapitalizado} de ${agora.getFullYear()}.`}>
+  <h1>{titulo}</h1>
+
+  {
+    ultimaVerificacao && (
+      <p class="ultima-verificacao">
+        Última verificação deste catálogo:{' '}
+        {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' }).format(ultimaVerificacao)}
+      </p>
+    )
+  }
+
+  {cupons.length === 0 && <p>Nenhum cupom ativo pra {loja.nome} agora — volte em breve.</p>}
+  {cupons.map((cupom) => <CupomCard cupom={cupom} />)}
+
+  {
+    faq.length > 0 && (
+      <section>
+        <h2>Perguntas frequentes</h2>
+        {faq.map((item) => (
+          <details>
+            <summary>{item.pergunta}</summary>
+            <p>{item.resposta}</p>
+          </details>
+        ))}
+      </section>
+    )
+  }
+
+  {jsonLd && <script is:inline type="application/ld+json" set:html={jsonLd} />}
+</Base>
+
+<style>
+  .ultima-verificacao { font-size: 0.9rem; color: #555; }
+  details { margin-bottom: 0.5rem; }
+  summary { cursor: pointer; font-weight: 600; }
+</style>

@@ -1,0 +1,77 @@
+---
+/**
+ * Layout base — tema vem dos tokens do TENANT (zero marca hardcoded, PRD 02 RF1).
+ * HTML 100% renderizado no servidor: dado de cupom NUNCA em Server Island (regra dura).
+ */
+interface Props {
+  titulo: string
+  descricao?: string
+  noindex?: boolean
+}
+
+const { titulo, descricao, noindex = false } = Astro.props
+const tenant = Astro.locals.tenant
+const corPrimaria = tenant.tema?.cor_primaria ?? '#0ea5e9'
+const corFundo = tenant.tema?.cor_fundo ?? '#ffffff'
+---
+
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{titulo}</title>
+    {descricao && <meta name="description" content={descricao} />}
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <style define:vars={{ corPrimaria, corFundo }}>
+      :root {
+        --cor-primaria: var(--corPrimaria);
+        --cor-fundo: var(--corFundo);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--cor-fundo);
+        color: #1a1a1a;
+        line-height: 1.6;
+      }
+      header.site {
+        border-bottom: 2px solid var(--cor-primaria);
+        padding: 1rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      header.site a.marca {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--cor-primaria);
+        text-decoration: none;
+      }
+      main { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
+      footer.site {
+        max-width: 960px;
+        margin: 2rem auto 0;
+        padding: 1.5rem;
+        border-top: 1px solid #e5e5e5;
+        font-size: 0.85rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <a class="marca" href="/">{tenant.nome}</a>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer class="site">
+      <p>
+        {tenant.nome} é um site independente de cupons e ofertas. Podemos receber comissão
+        por compras feitas através dos nossos links, sem custo extra pra você.
+      </p>
+    </footer>
+  </body>
+</html>

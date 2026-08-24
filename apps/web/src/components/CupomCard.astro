@@ -1,0 +1,82 @@
+---
+/**
+ * Card de cupom — dado 100% do banco, renderizado no servidor.
+ * Selo de verificação: verificado há Xh + método (+ taxa quando houver) — PRD 02 RF5.
+ */
+import type { CupomDTO } from '../lib/cms'
+import CtaAfiliado from './CtaAfiliado.astro'
+
+interface Props {
+  cupom: CupomDTO
+}
+
+const { cupom } = Astro.props
+
+const descontoLabel = (() => {
+  switch (cupom.desconto_tipo) {
+    case 'percentual':
+      return `${cupom.desconto_valor ?? '?'}% OFF`
+    case 'valor':
+      return `R$ ${cupom.desconto_valor ?? '?'} OFF`
+    case 'frete':
+      return 'FRETE GRÁTIS'
+    default:
+      return 'OFERTA'
+  }
+})()
+
+const seloVerificacao = (() => {
+  if (!cupom.verificado_em) return null
+  const horas = Math.max(0, Math.round((Date.now() - new Date(cupom.verificado_em).getTime()) / 3_600_000))
+  const quando = horas < 1 ? 'agora há pouco' : horas < 48 ? `há ${horas}h` : `há ${Math.round(horas / 24)} dias`
+  const metodo =
+    cupom.metodo === 'api' ? 'via API da loja' : cupom.metodo === 'corroboracao' ? 'por corroboração' : 'manualmente'
+  return `Verificado ${quando} ${metodo}`
+})()
+---
+
+<article class="cupom">
+  <div class="desconto">{descontoLabel}</div>
+  <div class="corpo">
+    <code class="codigo">{cupom.codigo}</code>
+    {cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
+    {
+      seloVerificacao && (
+        <p class="selo">
+          ✓ {seloVerificacao}
+          {typeof cupom.taxa_sucesso === 'number' && ` · funcionou pra ${cupom.taxa_sucesso}% de quem usou`}
+        </p>
+      )
+    }
+  </div>
+  <CtaAfiliado docId={cupom.id} />
+</article>
+
+<style>
+  .cupom {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid #e2e2e2;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .desconto {
+    min-width: 110px;
+    text-align: center;
+    font-weight: 800;
+    color: var(--cor-primaria);
+  }
+  .corpo { flex: 1; }
+  .codigo {
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: #f5f5f5;
+    border: 1px dashed #bbb;
+    border-radius: 6px;
+    padding: 0.2rem 0.6rem;
+  }
+  .condicoes { margin: 0.35rem 0 0; font-size: 0.9rem; color: #444; }
+  .selo { margin: 0.35rem 0 0; font-size: 0.82rem; color: #15803d; }
+</style>
