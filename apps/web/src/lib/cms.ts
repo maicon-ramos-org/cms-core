@@ -72,6 +72,8 @@ export interface CupomDTO {
   metodo?: string | null
   taxa_sucesso?: number | null
   url_afiliado_fonte?: string | null
+  /** sobre qual preço o cupom incide — sem isso a composição não afirma total (spec §1) */
+  aplica_sobre?: 'preco_cheio' | 'preco_ja_descontado' | 'desconhecido' | null
   loja?: LojaDTO | string | number
 }
 
@@ -93,6 +95,14 @@ export interface OfertaDTO {
   cupom?: CupomDTO | string | number | null
   url_afiliado_fonte?: string | null
   ancoras_alvo?: string[] | null
+  /** desconto que a LOJA já dá — a outra metade do formato empilhado (spec §1) */
+  desconto_loja?: {
+    valor?: number | null
+    tipo?: 'percentual' | 'valor' | null
+    moeda?: string | null
+    verificado_em?: string | null
+    fonte?: string | null
+  } | null
   loja?: LojaDTO | string | number
 }
 
@@ -269,6 +279,12 @@ export async function getMidiaPorUrlAntiga(
   return r.docs[0] ?? null
 }
 
+export interface CategoriaChip {
+  id: string | number
+  nome: string
+  slug: string
+}
+
 export interface PostDTO {
   id: string | number
   titulo: string
@@ -358,6 +374,7 @@ export async function getPostsPaginados(
   tenantId: string | number,
   pagina: number,
   porPagina: number,
+  categoriaId?: string | number,
 ): Promise<{ docs: PostDTO[]; totalDocs: number; totalPages: number }> {
   const q = new URLSearchParams({
     'where[and][0][tenant][equals]': String(tenantId),
@@ -367,8 +384,37 @@ export async function getPostsPaginados(
     page: String(pagina),
     depth: '0',
   })
+  if (categoriaId !== undefined) q.set('where[and][2][categoria][equals]', String(categoriaId))
   const r = await cmsFetch<FindResult<PostDTO> & { totalPages?: number }>(`/api/posts?${q}`)
   return { docs: r.docs, totalDocs: r.totalDocs, totalPages: r.totalPages ?? 1 }
+}
+
+/** As 7 categorias curadas do blog — a taxonomia dos chips editoriais (spec §3). */
+export async function getCategorias(tenantId: string | number): Promise<Array<{ id: string | number; nome: string; slug: string }>> {
+  const q = new URLSearchParams({
+    'where[tenant][equals]': String(tenantId),
+    sort: 'nome',
+    limit: '50',
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<{ id: string | number; nome: string; slug: string }>>(`/api/categorias?${q}`)).docs
+}
+
+export async function getCategoriaBySlug(
+  tenantId: string | number,
+  slug: string,
+): Promise<{ id: string | number; nome: string; slug: string; descricao_seo?: string | null } | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    limit: '1',
+    depth: '0',
+  })
+  return (
+    (await cmsFetch<FindResult<{ id: string | number; nome: string; slug: string; descricao_seo?: string | null }>>(
+      `/api/categorias?${q}`,
+    )).docs[0] ?? null
+  )
 }
 
 /** Hub /ofertas: catálogo inteiro do tenant (51 hoje), com loja resolvida. */

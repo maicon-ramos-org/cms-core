@@ -9,6 +9,8 @@
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
 import Base from '../../layouts/Base.astro'
+import { compor } from '@runzos/desconto'
+
 import { getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { lexicalParaHtml, lexicalParaTexto } from '../../lib/lexical'
 
@@ -46,6 +48,20 @@ if (Astro.cache.enabled) {
 }
 
 const relacionadas = loja ? await getOfertasDaLoja(loja.id, oferta.id) : []
+
+/**
+ * Desconto empilhado (spec §1). `compor()` devolve null quando falta dado ou quando o
+ * modo de incidência é desconhecido — e aí a página mostra os dois descontos SEPARADOS,
+ * nunca um total inventado. (O "77%" do mockup era impossível: 70+10 dá 73 ou 80.)
+ */
+const composto = compor(oferta.desconto_loja, cupomVisivel)
+const decomposicao = composto
+  ? composto.parcelas.map((p) => `${p.valor_pct}% ${p.rotulo}`).join(' + ')
+  : null
+const descontoLojaIsolado =
+  !composto && oferta.desconto_loja?.tipo === 'percentual' && typeof oferta.desconto_loja.valor === 'number'
+    ? oferta.desconto_loja
+    : null
 
 /** Link de afiliado desta oferta/cupom que apareça no corpo migrado vira /r/{id}. */
 const destinos = new Map<string, string>()
@@ -136,6 +152,21 @@ const jsonLd = JSON.stringify({
 
   <div class="destaque">
     <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
+
+    {composto && (
+      <p class="empilhado">
+        <span class="empilhado-total">até {composto.total_pct}%</span>
+        <span class="empilhado-partes">{decomposicao}</span>
+      </p>
+    )}
+
+    {/* sem composição possível, o que se sabe aparece separado — nunca somado no chute */}
+    {descontoLojaIsolado && (
+      <p class="empilhado">
+        <span class="empilhado-total">{descontoLojaIsolado.valor}%</span>
+        <span class="empilhado-partes">da loja{cupomVisivel ? ' · cupom soma no checkout' : ''}</span>
+      </p>
+    )}
     {precoFormatado && (
       <p class="preco">
         {precoFormatado}
@@ -204,7 +235,15 @@ const jsonLd = JSON.stringify({
     align-items: center;
     gap: 1rem;
   }
-  .tipo { margin: 0; font-weight: 600; color: var(--cor-primaria); }
+  .tipo { margin: 0; font-weight: 600; color: var(--rz-brand); }
+  .empilhado { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
+  .empilhado-total {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--rz-deal);
+  }
+  .empilhado-partes { font-size: 0.78rem; color: var(--rz-muted); }
   .preco { margin: 0; font-size: 1.5rem; font-weight: 700; }
   .ciclo { font-size: 0.9rem; font-weight: 400; color: #555; }
   .preco-em { display: block; font-size: 0.75rem; font-weight: 400; color: #666; }

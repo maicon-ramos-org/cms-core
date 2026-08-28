@@ -90,6 +90,21 @@ export const Cupons: CollectionConfig = {
         return true
       },
     },
+    {
+      name: 'aplica_sobre',
+      type: 'select',
+      required: true,
+      defaultValue: 'desconhecido',
+      options: [
+        { label: 'Sobre o preço cheio (soma direta)', value: 'preco_cheio' },
+        { label: 'Sobre o preço já com desconto da loja', value: 'preco_ja_descontado' },
+        { label: 'Desconhecido', value: 'desconhecido' },
+      ],
+      admin: {
+        description:
+          'sobre QUAL preço o cupom incide. Varia por loja e campanha — errar isso é prometer desconto que o usuário não recebe. Desconhecido faz a composição não exibir total.',
+      },
+    },
     { name: 'condicoes', type: 'textarea', admin: { description: 'mínimo de compra, primeira compra etc.' } },
     { name: 'validade', type: 'date', admin: { description: 'null = sem data conhecida (decay cuida)' } },
     {

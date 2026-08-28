@@ -1,0 +1,102 @@
+---
+/**
+ * /categoria/{slug} — arquivo editorial por categoria. Estas 7 URLs existem no sitemap
+ * do WordPress e davam 404 aqui: é paridade que faltava, e é o destino dos chips.
+ */
+import ChipsCategorias from '../../components/ChipsCategorias.astro'
+import Base from '../../layouts/Base.astro'
+import { getCategoriaBySlug, getCategorias, getPostsPaginados } from '../../lib/cms'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+const categoria = await getCategoriaBySlug(tenant.id, slug)
+if (!categoria) {
+  return new Response('Categoria não encontrada.', { status: 404 })
+}
+
+const POR_PAGINA = 20
+const pedida = Number(Astro.url.searchParams.get('pagina') ?? '1')
+const pagina = Number.isFinite(pedida) && pedida > 0 ? Math.floor(pedida) : 1
+
+const [{ docs: posts, totalDocs, totalPages }, categorias] = await Promise.all([
+  getPostsPaginados(tenant.id, pagina, POR_PAGINA, categoria.id),
+  getCategorias(tenant.id),
+])
+
+if (pagina > 1 && posts.length === 0) {
+  return new Response('Página não encontrada.', { status: 404 })
+}
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({
+    maxAge: 600,
+    swr: 120,
+    tags: [`tenant:${tenant.slug}`, `categorias:${categoria.id}`],
+  })
+}
+
+const base = `https://${tenant.canonical_host}/categoria/${categoria.slug}`
+const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
+const titulo = pagina > 1 ? `${categoria.nome} — página ${pagina}` : `${categoria.nome}: ${totalDocs} artigos`
+const descricao = categoria.descricao_seo || `Artigos sobre ${categoria.nome} — teste prático e preço conferido.`
+
+const dataLegivel = (iso?: string | null) =>
+  iso ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(iso)) : null
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `https://${tenant.canonical_host}/blog` },
+        { '@type': 'ListItem', position: 3, name: categoria.nome, item: base },
+      ],
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a> › <a href="/blog">Blog</a><span> › {categoria.nome}</span>
+  </nav>
+
+  <h1>{categoria.nome}</h1>
+  <ChipsCategorias categorias={categorias} ativa={categoria.slug} />
+  <p class="intro">{totalDocs} artigos — página {pagina} de {totalPages}.</p>
+
+  <ul class="lista">
+    {
+      posts.map((p) => (
+        <li>
+          <a href={`/${p.slug}`}>{p.titulo}</a>
+          {dataLegivel(p.publicado_em) && <span class="data"> · {dataLegivel(p.publicado_em)}</span>}
+        </li>
+      ))
+    }
+  </ul>
+
+  <nav class="paginacao" aria-label="Paginação">
+    {pagina > 1 && (
+      <a rel="prev" href={pagina - 1 === 1 ? `/categoria/${categoria.slug}` : `/categoria/${categoria.slug}?pagina=${pagina - 1}`}>← Anteriores</a>
+    )}
+    {pagina < totalPages && <a rel="next" href={`/categoria/${categoria.slug}?pagina=${pagina + 1}`}>Próximos →</a>}
+  </nav>
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-subtle); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .intro { color: var(--rz-muted); font-size: 0.9rem; }
+  .lista { padding-left: 1.2rem; }
+  .lista li { margin-bottom: 0.45rem; }
+  .data { color: var(--rz-muted); font-size: 0.85rem; }
+  .paginacao { display: flex; gap: 1.5rem; margin-top: 1.5rem; }
+</style>

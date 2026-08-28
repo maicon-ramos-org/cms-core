@@ -11,9 +11,11 @@
  * Esta rota é o curinga de 1 segmento: rotas com prefixo estático (`/cupom-{loja}`)
  * têm prioridade no Astro, então não há conflito.
  */
+import ChipsCategorias from '../components/ChipsCategorias.astro'
 import PaginaConteudo from '../components/PaginaConteudo.astro'
 import Base from '../layouts/Base.astro'
 import {
+  getCategorias,
   getMapaAfiliados,
   getPageBySlug,
   getPostBySlug,
@@ -43,7 +45,7 @@ if (!post && (!page || page.template === 'apps')) {
   return new Response('Página não encontrada.', { status: 404 })
 }
 
-const mapaAfiliados = await getMapaAfiliados(tenant.id)
+const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.id), post ? getCategorias(tenant.id) : Promise.resolve([])])
 
 const categoria = post?.categoria && typeof post.categoria === 'object' ? post.categoria : null
 const autor = post?.autor && typeof post.autor === 'object' ? post.autor : null
@@ -129,6 +131,8 @@ const jsonLd = JSON.stringify({
     <a href="/">Início</a>
     {categoria && <span> › {categoria.nome}</span>}
   </nav>
+
+  <ChipsCategorias categorias={categorias} ativa={categoria?.slug ?? null} />
 
   <article>
     <h1>{post?.titulo}</h1>

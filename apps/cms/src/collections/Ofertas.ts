@@ -1,8 +1,28 @@
-import type { CollectionConfig } from 'payload'
+import { ValidationError, type CollectionBeforeValidateHook, type CollectionConfig } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
+
+/**
+ * Desconto sem timestamp não existe (mesma regra de `produtos.preco` + `preco_em`):
+ * um "70% OFF" sem data é promessa que ninguém pode auditar.
+ */
+const exigeTimestampDoDesconto: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
+  const desconto = efetivo<{ valor?: number | null; verificado_em?: string | null }>(data, originalDoc, 'desconto_loja')
+  if (desconto && typeof desconto.valor === 'number' && !desconto.verificado_em) {
+    throw new ValidationError({
+      collection: 'ofertas',
+      errors: [
+        {
+          message: 'desconto_loja.valor exige desconto_loja.verificado_em — desconto sem timestamp não é auditável.',
+          path: 'desconto_loja.verificado_em',
+        },
+      ],
+    })
+  }
+  return data
+}
 
 /** Páginas de oferta/empresa (ex-WooCommerce) — contrato colecoes.md. */
 export const Ofertas: CollectionConfig = {
@@ -17,7 +37,7 @@ export const Ofertas: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug')],
+    beforeValidate: [uniquePorTenant('slug'), exigeTimestampDoDesconto],
     beforeChange: [draftOnlyIngestao],
     afterChange: [revalidateAfterChange('ofertas')],
     afterDelete: [revalidateAfterDelete('ofertas')],
@@ -41,6 +61,22 @@ export const Ofertas: CollectionConfig = {
         { name: 'moeda', type: 'text', defaultValue: 'BRL' },
         { name: 'ciclo', type: 'select', options: ['unico', 'mensal', 'anual'] },
         { name: 'preco_em', type: 'date', admin: { description: 'quando o preço foi visto — nunca preço sem timestamp' } },
+      ],
+    },
+    {
+      name: 'desconto_loja',
+      type: 'group',
+      admin: { description: 'o desconto que a LOJA já dá — alimenta o formato empilhado (spec-desconto-e-historico)' },
+      fields: [
+        { name: 'valor', type: 'number', min: 0, max: 95 },
+        { name: 'tipo', type: 'select', options: ['percentual', 'valor'], defaultValue: 'percentual' },
+        { name: 'moeda', type: 'text', defaultValue: 'BRL', admin: { condition: (_d, sibling) => sibling?.tipo === 'valor' } },
+        {
+          name: 'verificado_em',
+          type: 'date',
+          admin: { description: 'quando esse desconto foi visto — obrigatório junto com o valor' },
+        },
+        { name: 'fonte', type: 'select', options: ['site-loja', 'programa', 'manual'] },
       ],
     },
     { name: 'cupom', type: 'relationship', relationTo: 'cupons' },
