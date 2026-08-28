@@ -20,9 +20,9 @@ const { categorias, ativa = null } = Astro.props
 {
   categorias.length > 0 && (
     <nav class="chips" aria-label="Categorias do blog">
-      <a class:list={['chip', { ativo: ativa === null }]} href="/blog">Todos</a>
+      <a class:list={['chip', { ativo: ativa === null }]} href="/blog/">Todos</a>
       {categorias.map((c) => (
-        <a class:list={['chip', { ativo: ativa === c.slug }]} href={`/categoria/${c.slug}`}>
+        <a class:list={['chip', { ativo: ativa === c.slug }]} href={`/categoria/${c.slug}/`}>
           {c.nome}
         </a>
       ))}

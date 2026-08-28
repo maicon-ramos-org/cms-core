@@ -26,7 +26,7 @@ if (Astro.cache.enabled) {
   Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, 'posts:hub'] })
 }
 
-const base = `https://${tenant.canonical_host}/blog`
+const base = `https://${tenant.canonical_host}/blog/`
 // canonical da paginada é ela mesma (nunca a página 1: seriam páginas distintas)
 const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
 const titulo = pagina > 1 ? `Blog — página ${pagina}` : `Blog: ${totalDocs} artigos sobre VPS, automação e IA`
@@ -65,7 +65,7 @@ const jsonLd = JSON.stringify({
     {
       posts.map((p) => (
         <li>
-          <a href={`/${p.slug}`}>{p.titulo}</a>
+          <a href={`/${p.slug}/`}>{p.titulo}</a>
           {dataLegivel(p.publicado_em) && <span class="data"> · {dataLegivel(p.publicado_em)}</span>}
         </li>
       ))
@@ -73,8 +73,8 @@ const jsonLd = JSON.stringify({
   </ul>
 
   <nav class="paginacao" aria-label="Paginação">
-    {pagina > 1 && <a rel="prev" href={pagina - 1 === 1 ? '/blog' : `/blog?pagina=${pagina - 1}`}>← Anteriores</a>}
-    {pagina < totalPages && <a rel="next" href={`/blog?pagina=${pagina + 1}`}>Próximos →</a>}
+    {pagina > 1 && <a rel="prev" href={pagina - 1 === 1 ? '/blog/' : `/blog/?pagina=${pagina - 1}`}>← Anteriores</a>}
+    {pagina < totalPages && <a rel="next" href={`/blog/?pagina=${pagina + 1}`}>Próximos →</a>}
   </nav>
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />

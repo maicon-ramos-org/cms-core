@@ -36,7 +36,7 @@ if (Astro.cache.enabled) {
   })
 }
 
-const base = `https://${tenant.canonical_host}/categoria/${categoria.slug}`
+const base = `https://${tenant.canonical_host}/categoria/${categoria.slug}/`
 const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
 const titulo = pagina > 1 ? `${categoria.nome} — página ${pagina}` : `${categoria.nome}: ${totalDocs} artigos`
 const descricao = categoria.descricao_seo || `Artigos sobre ${categoria.nome} — teste prático e preço conferido.`
@@ -63,7 +63,7 @@ const jsonLd = JSON.stringify({
 
 <Base titulo={titulo} descricao={descricao} canonical={canonical}>
   <nav class="trilha" aria-label="Você está em">
-    <a href="/">Início</a> › <a href="/blog">Blog</a><span> › {categoria.nome}</span>
+    <a href="/">Início</a> › <a href="/blog/">Blog</a><span> › {categoria.nome}</span>
   </nav>
 
   <h1>{categoria.nome}</h1>
@@ -74,7 +74,7 @@ const jsonLd = JSON.stringify({
     {
       posts.map((p) => (
         <li>
-          <a href={`/${p.slug}`}>{p.titulo}</a>
+          <a href={`/${p.slug}/`}>{p.titulo}</a>
           {dataLegivel(p.publicado_em) && <span class="data"> · {dataLegivel(p.publicado_em)}</span>}
         </li>
       ))
@@ -83,9 +83,9 @@ const jsonLd = JSON.stringify({
 
   <nav class="paginacao" aria-label="Paginação">
     {pagina > 1 && (
-      <a rel="prev" href={pagina - 1 === 1 ? `/categoria/${categoria.slug}` : `/categoria/${categoria.slug}?pagina=${pagina - 1}`}>← Anteriores</a>
+      <a rel="prev" href={pagina - 1 === 1 ? `/categoria/${categoria.slug}/` : `/categoria/${categoria.slug}/?pagina=${pagina - 1}`}>← Anteriores</a>
     )}
-    {pagina < totalPages && <a rel="next" href={`/categoria/${categoria.slug}?pagina=${pagina + 1}`}>Próximos →</a>}
+    {pagina < totalPages && <a rel="next" href={`/categoria/${categoria.slug}/?pagina=${pagina + 1}`}>Próximos →</a>}
   </nav>
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />

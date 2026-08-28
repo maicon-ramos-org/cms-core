@@ -26,7 +26,7 @@ const corpoHtml = lexicalParaHtml(page.corpo, {
 
 const titulo = page.meta?.title || page.titulo
 const descricao = page.meta?.description || lexicalParaTexto(page.corpo, 155)
-const canonical = `https://${tenant.canonical_host}/${page.slug}`
+const canonical = `https://${tenant.canonical_host}/${page.slug}/`
 const atualizado = page.updatedAt ? new Date(page.updatedAt) : null
 
 const jsonLd = JSON.stringify({

@@ -34,7 +34,7 @@ const rotuloTipo: Record<string, string> = {
   desconto_api: 'desconto em API',
 }
 
-const canonical = `https://${tenant.canonical_host}/ofertas`
+const canonical = `https://${tenant.canonical_host}/ofertas/`
 const titulo = `Ofertas verificadas: ${ofertas.length} em ${grupos.length} lojas`
 const descricao = `Catálogo de ${ofertas.length} ofertas com preço e data de conferência — cupom, crédito e lifetime.`
 
@@ -56,7 +56,7 @@ const jsonLd = JSON.stringify({
         '@type': 'ListItem',
         position: i + 1,
         name: o.titulo,
-        url: `https://${tenant.canonical_host}/ofertas/${o.slug}`,
+        url: `https://${tenant.canonical_host}/ofertas/${o.slug}/`,
       })),
     },
   ],
@@ -79,7 +79,7 @@ const jsonLd = JSON.stringify({
         <ul class="lista">
           {itens.map((o) => (
             <li>
-              <a href={`/ofertas/${o.slug}`}>{o.titulo}</a>
+              <a href={`/ofertas/${o.slug}/`}>{o.titulo}</a>
               <span class="meta">
                 {o.tipo && <span class="etiqueta">{rotuloTipo[o.tipo] ?? o.tipo}</span>}
                 {preco(o) && <span class="preco">{preco(o)}</span>}

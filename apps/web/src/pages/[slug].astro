@@ -76,7 +76,7 @@ const corpoHtml = lexicalParaHtml(post?.corpo, {
 // title/description do Rank Math quando vieram na migração — são os que já ranqueiam
 const titulo = post?.meta?.title || post?.titulo || ''
 const descricao = post?.meta?.description || lexicalParaTexto(post?.corpo, 155)
-const canonical = `https://${tenant.canonical_host}/${post?.slug ?? slug}`
+const canonical = `https://${tenant.canonical_host}/${post?.slug ?? slug}/`
 
 // datas do WP (createdAt/updatedAt do Payload são do import — publicá-las diria que o
 // acervo inteiro nasceu no dia da migração)
@@ -174,7 +174,7 @@ const jsonLd = JSON.stringify({
         <h2>Continue lendo</h2>
         <ul>
           {relacionados.map((p) => (
-            <li><a href={`/${p.slug}`}>{p.titulo}</a></li>
+            <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
           ))}
         </ul>
       </section>
