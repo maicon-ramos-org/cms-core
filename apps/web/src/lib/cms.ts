@@ -54,7 +54,12 @@ export interface OfertaDTO {
   id: string | number
   titulo: string
   slug: string
+  tipo?: 'cupom' | 'credito' | 'lifetime' | 'desconto_api'
+  preco?: { valor?: number | null; moeda?: string | null; ciclo?: string | null; preco_em?: string | null } | null
+  corpo?: unknown
   cupom?: CupomDTO | string | number | null
+  url_afiliado_fonte?: string | null
+  ancoras_alvo?: string[] | null
   loja?: LojaDTO | string | number
 }
 
@@ -148,6 +153,37 @@ export async function getCuponsDaLoja(lojaId: string | number): Promise<CupomDTO
     depth: '0',
   })
   return (await cmsFetch<FindResult<CupomDTO>>(`/api/cupons?${q}`)).docs
+}
+
+/**
+ * Página /ofertas/{slug}: depth 2 para trazer loja, cupom E o upload dentro do corpo
+ * (o nó upload do Lexical só vira objeto com url quando o depth alcança).
+ */
+export async function getOfertaBySlug(tenantId: string | number, slug: string): Promise<OfertaDTO | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    'where[and][2][_status][equals]': 'published',
+    limit: '1',
+    depth: '2',
+  })
+  return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs[0] ?? null
+}
+
+/** Outras ofertas da mesma loja — evita página órfã (checklist da skill nova-rota). */
+export async function getOfertasDaLoja(
+  lojaId: string | number,
+  excetoId: string | number,
+  limit = 6,
+): Promise<OfertaDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][loja][equals]': String(lojaId),
+    'where[and][1][id][not_equals]': String(excetoId),
+    'where[and][2][_status][equals]': 'published',
+    limit: String(limit),
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
 }
 
 export async function getCuponsRecentes(tenantId: string | number, limit = 12): Promise<CupomDTO[]> {

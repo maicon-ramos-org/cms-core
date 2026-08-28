@@ -1,0 +1,196 @@
+---
+/**
+ * PRD 02/03 — página /ofertas/{slug} (paridade de URL com o WordPress atual).
+ *
+ * Decisão de render: SSR + cache por tag. A oferta muda com o catálogo (preço, cupom,
+ * estado), então NÃO é prerender — e o dado de cupom nunca vai pra Server Island: sai
+ * inteiro no HTML inicial, porque crawler de IA não executa JS.
+ */
+import CtaAfiliado from '../../components/CtaAfiliado.astro'
+import CupomCard from '../../components/CupomCard.astro'
+import Base from '../../layouts/Base.astro'
+import { getOfertaBySlug, getOfertasDaLoja, type CupomDTO, type LojaDTO } from '../../lib/cms'
+import { lexicalParaHtml, lexicalParaTexto } from '../../lib/lexical'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+const oferta = await getOfertaBySlug(tenant.id, slug)
+if (!oferta) {
+  return new Response('Oferta não encontrada.', { status: 404 })
+}
+
+const loja: LojaDTO | null = oferta.loja && typeof oferta.loja === 'object' ? oferta.loja : null
+const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
+
+/**
+ * Cupom migrado do WP entra em `revisao` (sem selo de verificação) e o /r/{id} se recusa
+ * a monetizá-lo — corretamente. Então a página só mostra o card do cupom quando ele está
+ * num estado visível; senão o CTA é o da oferta, que funciona. Mesma régua do
+ * /cupom-{loja}: sem selo, sem cupom na tela.
+ */
+const CUPOM_VISIVEL = new Set(['publicado', 'expirando'])
+const cupomVisivel = cupom && CUPOM_VISIVEL.has(cupom.estado) ? cupom : null
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({
+    maxAge: 300,
+    swr: 60,
+    tags: [
+      `tenant:${tenant.slug}`,
+      `ofertas:${oferta.id}`,
+      ...(loja ? [`loja:${loja.slug}`] : []),
+      ...(cupom ? [`cupons:${cupom.id}`] : []),
+    ],
+  })
+}
+
+const relacionadas = loja ? await getOfertasDaLoja(loja.id, oferta.id) : []
+
+/** Link de afiliado desta oferta/cupom que apareça no corpo migrado vira /r/{id}. */
+const destinos = new Map<string, string>()
+if (oferta.url_afiliado_fonte) destinos.set(oferta.url_afiliado_fonte, `/r/o${oferta.id}?ref=corpo`)
+if (cupom?.url_afiliado_fonte) destinos.set(cupom.url_afiliado_fonte, `/r/c${cupom.id}?ref=corpo`)
+
+const corpoHtml = lexicalParaHtml(oferta.corpo, {
+  reescreveAfiliado: (url) => destinos.get(url) ?? destinos.get(url.replace(/\/$/, '')) ?? null,
+})
+const resumo = lexicalParaTexto(oferta.corpo, 155)
+const descricao = resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`
+
+// canonical absoluto no host do tenant (nunca o host da requisição: staging não canoniza pra si)
+const canonical = `https://${tenant.canonical_host}/ofertas/${oferta.slug}`
+
+const precoValido = typeof oferta.preco?.valor === 'number' && oferta.preco.valor > 0
+const moeda = oferta.preco?.moeda ?? 'BRL'
+const precoFormatado = precoValido
+  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(oferta.preco!.valor!)
+  : null
+const precoEm = oferta.preco?.preco_em ? new Date(oferta.preco.preco_em) : null
+
+const rotuloTipo: Record<string, string> = {
+  cupom: 'Cupom de desconto',
+  credito: 'Crédito grátis',
+  lifetime: 'Oferta lifetime',
+  desconto_api: 'Desconto em API',
+}
+
+/**
+ * JSON-LD em GRAFO com @id (regra do projeto): Offer com preço/moeda REAIS do banco +
+ * BreadcrumbList. Sem preço no banco não se inventa `price` — o nó Offer sai sem ele.
+ */
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Offer',
+      '@id': `${canonical}#offer`,
+      name: oferta.titulo,
+      url: canonical,
+      ...(precoValido ? { price: oferta.preco!.valor, priceCurrency: moeda } : {}),
+      ...(precoEm ? { availabilityStarts: precoEm.toISOString() } : {}),
+      // seller SEM url: `lojas.url_site` foi derivado do link de afiliado na migração e
+      // costuma ser o domínio da REDE (m.do.co, anrdoezrs.net). Publicar isso seria link
+      // de afiliado cru no HTML — proibido. Volta quando o campo passar pela curadoria.
+      ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
+      // o código vem do banco, nunca de texto gerado
+      ...(cupomVisivel ? { discountCode: cupomVisivel.codigo } : {}),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        ...(loja
+          ? [
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: `Cupons ${loja.nome}`,
+                item: `https://${tenant.canonical_host}/cupom-${loja.slug}`,
+              },
+            ]
+          : []),
+        { '@type': 'ListItem', position: loja ? 3 : 2, name: oferta.titulo, item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+<Base
+  titulo={oferta.titulo}
+  descricao={descricao}
+  canonical={canonical}
+  markdown={`/ofertas/${oferta.slug}.md`}
+>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a>
+    {loja && <> › <a href={`/cupom-${loja.slug}`}>Cupons {loja.nome}</a></>}
+    <span> › {oferta.titulo}</span>
+  </nav>
+
+  <h1>{oferta.titulo}</h1>
+
+  <div class="destaque">
+    <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
+    {precoFormatado && (
+      <p class="preco">
+        {precoFormatado}
+        {oferta.preco?.ciclo === 'mensal' && <span class="ciclo">/mês</span>}
+        {precoEm && (
+          <span class="preco-em">
+            preço visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+          </span>
+        )}
+      </p>
+    )}
+    {!cupomVisivel && (
+      <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
+    )}
+  </div>
+
+  {/* cupom sai no HTML inicial, com selo — nunca atrás de JS */}
+  {cupomVisivel && <CupomCard cupom={cupomVisivel} />}
+
+  {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+  {
+    relacionadas.length > 0 && loja && (
+      <section class="relacionadas">
+        <h2>Outras ofertas {loja.nome}</h2>
+        <ul>
+          {relacionadas.map((o) => (
+            <li><a href={`/ofertas/${o.slug}`}>{o.titulo}</a></li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .destaque {
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+  .tipo { margin: 0; font-weight: 600; color: var(--cor-primaria); }
+  .preco { margin: 0; font-size: 1.5rem; font-weight: 700; }
+  .ciclo { font-size: 0.9rem; font-weight: 400; color: #555; }
+  .preco-em { display: block; font-size: 0.75rem; font-weight: 400; color: #666; }
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(.tabela-rolavel) { overflow-x: auto; }
+  .corpo :global(table) { border-collapse: collapse; min-width: 100%; }
+  .corpo :global(th), .corpo :global(td) { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; }
+  .relacionadas ul { padding-left: 1.2rem; }
+</style>

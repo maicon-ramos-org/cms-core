@@ -44,6 +44,13 @@ export const Ofertas: CollectionConfig = {
       ],
     },
     { name: 'cupom', type: 'relationship', relationTo: 'cupons' },
+    {
+      name: 'url_afiliado_fonte',
+      type: 'text',
+      admin: {
+        description: 'destino do /r/o{id} quando não há cupom (crédito, lifetime, desconto já no link)',
+      },
+    },
     { name: 'corpo', type: 'richText', required: true },
     { name: 'destaque', type: 'checkbox', defaultValue: false, admin: { description: 'home/hubs' } },
     { name: 'wordpress_id', type: 'text', unique: true, index: true, admin: { description: '{post_type}:{ID} — import idempotente' } },

@@ -7,9 +7,13 @@ interface Props {
   titulo: string
   descricao?: string
   noindex?: boolean
+  /** canonical ABSOLUTO no host do tenant (staging nunca canoniza pra si mesmo) */
+  canonical?: string
+  /** gêmeo em markdown da página (agent-readable) */
+  markdown?: string
 }
 
-const { titulo, descricao, noindex = false } = Astro.props
+const { titulo, descricao, noindex = false, canonical, markdown } = Astro.props
 const tenant = Astro.locals.tenant
 const corPrimaria = tenant.tema?.cor_primaria ?? '#0ea5e9'
 const corFundo = tenant.tema?.cor_fundo ?? '#ffffff'
@@ -23,6 +27,8 @@ const corFundo = tenant.tema?.cor_fundo ?? '#ffffff'
     <title>{titulo}</title>
     {descricao && <meta name="description" content={descricao} />}
     {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
     <style define:vars={{ corPrimaria, corFundo }}>
       :root {
         --cor-primaria: var(--corPrimaria);
