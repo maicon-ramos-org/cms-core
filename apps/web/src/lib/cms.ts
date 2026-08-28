@@ -38,6 +38,10 @@ export interface TenantDTO {
     cor_sutil?: string
     cor_superficie?: string
     cor_superficie_marca?: string
+    cor_superficie_verificado?: string
+    cor_borda_codigo?: string
+    cor_superficie_expirado?: string
+    cor_aviso?: string
     fonte_titulos?: string
     fonte_corpo?: string
   }
@@ -451,6 +455,22 @@ export async function getOfertasDaLoja(
     depth: '0',
   })
   return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
+}
+
+/**
+ * Expirados NUNCA somem: viram acordeão "mantidos por transparência" (design v1.1).
+ * É o oposto do padrão do mercado, e é o que sustenta a promessa de verificação.
+ */
+export async function getCuponsExpiradosDaLoja(lojaId: string | number, limit = 20): Promise<CupomDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][loja][equals]': String(lojaId),
+    'where[and][1][estado][equals]': 'expirado',
+    'where[and][2][_status][equals]': 'published',
+    sort: '-verificado_em',
+    limit: String(limit),
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<CupomDTO>>(`/api/cupons?${q}`)).docs
 }
 
 export async function getCuponsRecentes(tenantId: string | number, limit = 12): Promise<CupomDTO[]> {

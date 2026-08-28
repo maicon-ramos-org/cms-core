@@ -34,6 +34,10 @@ const tokens = {
   subtle: t.cor_sutil ?? '#746a90',
   surface: t.cor_superficie ?? '#ffffff',
   surfaceBrand: t.cor_superficie_marca ?? '#faf9ff',
+  surfaceVerified: t.cor_superficie_verificado ?? '#f4fdf7',
+  bordaCodigo: t.cor_borda_codigo ?? '#cbbff0',
+  surfaceExpirado: t.cor_superficie_expirado ?? '#f4f6f9',
+  aviso: t.cor_aviso ?? '#9a5b08',
   fontTitulos: t.fonte_titulos ?? 'Lexend Deca',
   fontCorpo: t.fonte_corpo ?? 'Open Sans',
 }
@@ -63,6 +67,10 @@ const tokens = {
         subtle: tokens.subtle,
         surface: tokens.surface,
         surfaceBrand: tokens.surfaceBrand,
+        surfaceVerified: tokens.surfaceVerified,
+        bordaCodigo: tokens.bordaCodigo,
+        surfaceExpirado: tokens.surfaceExpirado,
+        aviso: tokens.aviso,
         fontTitulos: tokens.fontTitulos,
         fontCorpo: tokens.fontCorpo,
       }}
@@ -79,6 +87,10 @@ const tokens = {
         --rz-subtle: var(--subtle);
         --rz-surface: var(--surface);
         --rz-surface-brand: var(--surfaceBrand);
+        --rz-surface-verificado: var(--surfaceVerified);
+        --rz-borda-codigo: var(--bordaCodigo);
+        --rz-surface-expirado: var(--surfaceExpirado);
+        --rz-aviso: var(--aviso);
         --rz-borda: #e7e4f0;
         --rz-fonte-titulos: var(--fontTitulos), 'Segoe UI', Arial, sans-serif;
         --rz-fonte-corpo: var(--fontCorpo), 'Segoe UI', Arial, sans-serif;
@@ -87,6 +99,9 @@ const tokens = {
         --cor-fundo: var(--bg);
       }
       header.site {
+        position: sticky; /* header fixo, como no site atual (design v1.1) */
+        top: 0;
+        z-index: 20;
         border-bottom: 1px solid var(--rz-borda);
         background: var(--rz-surface);
         padding: 0.75rem 1.5rem;

@@ -1,10 +1,41 @@
-import type { CollectionConfig } from 'payload'
+import { ValidationError, type CollectionBeforeValidateHook, type CollectionConfig } from 'payload'
+
+import { PARES_CRITICOS, contraste } from '../lib/contraste'
+
+/**
+ * Regra 4 do design-tokens.md ("falhou, não sobe") aplicada no schema: cor é dado
+ * editável, então a régua de contraste tem que morar aqui, não só no CI. Erro 400 com
+ * `path` — o contrato pro agente, mesma convenção das outras coleções.
+ */
+const validaContraste: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
+  const tema = { ...(originalDoc?.tema ?? {}), ...(data?.tema ?? {}) } as Record<string, string | undefined>
+  for (const par of PARES_CRITICOS) {
+    const frente = tema[par.frente]
+    const fundo = tema[par.fundo]
+    if (!frente || !fundo) continue
+    const ratio = contraste(frente, fundo)
+    if (ratio === null) continue // hex inválido é problema do validate do campo
+    if (ratio < par.minimo) {
+      throw new ValidationError({
+        collection: 'tenants',
+        errors: [
+          {
+            message: `contraste ${ratio.toFixed(2)}:1 entre ${frente} e ${fundo} (${par.rotulo}) — mínimo WCAG AA é ${par.minimo}:1`,
+            path: `tema.${par.frente}`,
+          },
+        ],
+      })
+    }
+  }
+  return data
+}
 
 import { authenticated, superAdminOnly } from '../access/roles'
 
 /** Contrato colecoes.md — tenants: o coração do multi-tenant. */
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
+  hooks: { beforeValidate: [validaContraste] },
   admin: { useAsTitle: 'nome', group: 'Sistema' },
   access: {
     create: superAdminOnly,
@@ -56,6 +87,10 @@ export const Tenants: CollectionConfig = {
         { name: 'cor_sutil', type: 'text', defaultValue: '#746a90', admin: { description: 'breadcrumb, placeholder' } },
         { name: 'cor_superficie', type: 'text', defaultValue: '#ffffff' },
         { name: 'cor_superficie_marca', type: 'text', defaultValue: '#faf9ff' },
+        { name: 'cor_superficie_verificado', type: 'text', defaultValue: '#f4fdf7', admin: { description: 'fundo do selo de verificação' } },
+        { name: 'cor_borda_codigo', type: 'text', defaultValue: '#cbbff0', admin: { description: 'borda tracejada do código do cupom (que É o botão de copiar)' } },
+        { name: 'cor_superficie_expirado', type: 'text', defaultValue: '#f4f6f9', admin: { description: 'acordeão de cupons expirados — nunca via opacity, que derruba o contraste' } },
+        { name: 'cor_aviso', type: 'text', defaultValue: '#9a5b08', admin: { description: 'aviso dentro do bloco de expirados' } },
         { name: 'logo', type: 'upload', relationTo: 'midia' },
         { name: 'fonte_titulos', type: 'text', defaultValue: 'Lexend Deca', admin: { description: 'família self-hosted (PRD 02)' } },
         { name: 'fonte_corpo', type: 'text', defaultValue: 'Open Sans', admin: { description: 'família self-hosted (PRD 02)' } },

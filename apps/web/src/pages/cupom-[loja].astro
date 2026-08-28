@@ -7,7 +7,7 @@
  */
 import CupomCard from '../components/CupomCard.astro'
 import Base from '../layouts/Base.astro'
-import { getCuponsDaLoja, getLojaBySlug } from '../lib/cms'
+import { getCuponsDaLoja, getCuponsExpiradosDaLoja, getLojaBySlug } from '../lib/cms'
 
 const tenant = Astro.locals.tenant
 const slugLoja = Astro.params.loja ?? ''
@@ -21,7 +21,7 @@ if (Astro.cache.enabled) {
   Astro.cache.set({ maxAge: 300, swr: 60, tags: [`tenant:${tenant.slug}`, `loja:${loja.slug}`] })
 }
 
-const cupons = await getCuponsDaLoja(loja.id)
+const [cupons, expirados] = await Promise.all([getCuponsDaLoja(loja.id), getCuponsExpiradosDaLoja(loja.id)])
 
 const agora = new Date()
 const mes = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(agora)
@@ -70,6 +70,33 @@ const jsonLd =
   {cupons.length === 0 && <p>Nenhum cupom ativo pra {loja.nome} agora — volte em breve.</p>}
   {cupons.map((cupom) => <CupomCard cupom={cupom} />)}
 
+  {/* Expirados ficam, recolhidos: transparência é o argumento do produto (design v1.1) */}
+  {
+    expirados.length > 0 && (
+      <details class="expirados">
+        <summary>
+          {expirados.length} {expirados.length === 1 ? 'cupom expirado' : 'cupons expirados'} — mantidos por transparência
+        </summary>
+        <p class="aviso-expirado">
+          Estes códigos não funcionavam na última verificação. Ficam aqui para você conferir
+          o histórico — nunca apagamos o que já testamos.
+        </p>
+        <ul class="lista-expirada">
+          {expirados.map((c) => (
+            <li>
+              <span class="codigo-expirado">{c.codigo}</span>
+              {c.verificado_em && (
+                <span class="quando">
+                  testado em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(c.verificado_em))}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
+    )
+  }
+
   {
     faq.length > 0 && (
       <section>
@@ -88,7 +115,26 @@ const jsonLd =
 </Base>
 
 <style>
-  .ultima-verificacao { font-size: 0.9rem; color: #555; }
+  .ultima-verificacao { font-size: 0.9rem; color: var(--rz-muted); }
+  /* Sem `opacity` no container: derruba o contraste do texto abaixo do mínimo (v1.1). */
+  .expirados {
+    background: var(--rz-surface-expirado);
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin: 1.5rem 0;
+  }
+  .expirados summary { font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  .aviso-expirado { font-size: 0.85rem; color: var(--rz-aviso); margin: 0.5rem 0; }
+  .lista-expirada { list-style: none; padding: 0; margin: 0; }
+  .lista-expirada li { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.3rem 0; }
+  .codigo-expirado {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    text-decoration: line-through;
+    color: var(--rz-ink);
+  }
+  .quando { font-size: 0.8rem; color: var(--rz-muted); }
   details { margin-bottom: 0.5rem; }
   summary { cursor: pointer; font-weight: 600; }
 </style>

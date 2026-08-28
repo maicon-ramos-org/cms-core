@@ -1,60 +1,128 @@
 ---
 /**
- * Card de cupom — dado 100% do banco, renderizado no servidor.
- * Selo de verificação: verificado há Xh + método (+ taxa quando houver) — PRD 02 RF5.
+ * Card de cupom — dado 100% do banco, renderizado no SERVIDOR (crawler não roda JS).
+ *
+ * Anatomia do design-tokens.md v1.1:
+ * - o CÓDIGO É o botão de copiar (área tocável inteira ≥44px): toque → copia →
+ *   feedback → só então abre a loja. O JS é só melhoria: sem ele o código continua
+ *   visível e o link leva à loja do mesmo jeito.
+ * - selo com escudo SVG (nunca emoji) no formato "testado hoje às 09h14, no checkout".
+ * - o selo SUBSTITUI a escassez artificial do site atual — é o argumento que só nós temos.
  */
 import type { CupomDTO } from '../lib/cms'
 import CtaAfiliado from './CtaAfiliado.astro'
 
 interface Props {
   cupom: CupomDTO
+  /** decomposição do desconto ("70% da loja + 10% nosso cupom") quando houver dado */
+  decomposicao?: string | null
 }
 
-const { cupom } = Astro.props
+const { cupom, decomposicao = null } = Astro.props
 
 const descontoLabel = (() => {
   switch (cupom.desconto_tipo) {
     case 'percentual':
-      return `${cupom.desconto_valor ?? '?'}% OFF`
+      return `${cupom.desconto_valor ?? '?'}%`
     case 'valor':
-      return `R$ ${cupom.desconto_valor ?? '?'} OFF`
+      return `R$ ${cupom.desconto_valor ?? '?'}`
     case 'frete':
-      return 'FRETE GRÁTIS'
+      return 'Frete grátis'
     default:
-      return 'OFERTA'
+      return 'Oferta'
   }
 })()
+const sufixoDesconto = cupom.desconto_tipo === 'percentual' || cupom.desconto_tipo === 'valor' ? 'OFF' : null
 
-const seloVerificacao = (() => {
+/** "testado hoje às 09h14, no checkout · 94%" — o formato do artboard. */
+const selo = (() => {
   if (!cupom.verificado_em) return null
-  const horas = Math.max(0, Math.round((Date.now() - new Date(cupom.verificado_em).getTime()) / 3_600_000))
-  const quando = horas < 1 ? 'agora há pouco' : horas < 48 ? `há ${horas}h` : `há ${Math.round(horas / 24)} dias`
+  const quando = new Date(cupom.verificado_em)
+  const agora = new Date()
+  const mesmoDia = quando.toDateString() === agora.toDateString()
+  const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(quando).replace(':', 'h')
+  const dia = mesmoDia
+    ? 'hoje'
+    : `em ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(quando)}`
   const metodo =
-    cupom.metodo === 'api' ? 'via API da loja' : cupom.metodo === 'corroboracao' ? 'por corroboração' : 'manualmente'
-  return `Verificado ${quando} ${metodo}`
+    cupom.metodo === 'api' ? 'via API da loja' : cupom.metodo === 'corroboracao' ? 'por corroboração' : 'no checkout'
+  const taxa = typeof cupom.taxa_sucesso === 'number' ? ` · ${cupom.taxa_sucesso}%` : ''
+  return `testado ${dia} às ${hora}, ${metodo}${taxa}`
 })()
 ---
 
 <article class="cupom">
-  <div class="desconto">{descontoLabel}</div>
+  <p class="desconto">
+    <span class="desconto-numero">{descontoLabel}</span>
+    {sufixoDesconto && <span class="desconto-sufixo">{sufixoDesconto}</span>}
+    {decomposicao && <span class="desconto-decomposicao">{decomposicao}</span>}
+  </p>
+
   <div class="corpo">
-    <code class="codigo">{cupom.codigo}</code>
+    {/* o código é link de verdade: sem JS ainda leva à loja (e o texto fica copiável) */}
+    <a
+      class="codigo"
+      href={`/r/c${cupom.id}?ref=codigo`}
+      rel="sponsored nofollow"
+      data-copiar={cupom.codigo}
+      aria-label={`Copiar o cupom ${cupom.codigo} e ir para a loja`}
+    >
+      <span class="codigo-texto">{cupom.codigo}</span>
+      <span class="codigo-acao" aria-hidden="true">copiar</span>
+    </a>
+
     {cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
+
     {
-      seloVerificacao && (
+      selo && (
         <p class="selo">
-          ✓ {seloVerificacao}
-          {typeof cupom.taxa_sucesso === 'number' && ` · funcionou pra ${cupom.taxa_sucesso}% de quem usou`}
+          <svg class="escudo" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <path
+              fill="currentColor"
+              d="M8 0 1.5 2.4v5.1c0 3.6 2.7 6.9 6.5 8.5 3.8-1.6 6.5-4.9 6.5-8.5V2.4L8 0Zm3.4 5.8-4 4.4a.8.8 0 0 1-1.2 0L4.6 8.4a.8.8 0 1 1 1.2-1l1 1.2 3.4-3.8a.8.8 0 1 1 1.2 1Z"
+            />
+          </svg>
+          <span>{selo}</span>
         </p>
       )
     }
   </div>
+
   <CtaAfiliado tipo="cupom" docId={cupom.id} />
 </article>
 
+<script>
+  // Melhoria progressiva: copia e SÓ ENTÃO abre a loja. Sem JS, o clique já navega.
+  document.querySelectorAll<HTMLAnchorElement>('a.codigo[data-copiar]').forEach((el) => {
+    el.addEventListener('click', (evento) => {
+      const codigo = el.dataset.copiar
+      if (!codigo || !navigator.clipboard) return // sem suporte: segue o link normalmente
+      evento.preventDefault()
+      const acao = el.querySelector('.codigo-acao')
+      const rotuloOriginal = acao?.textContent ?? 'copiar'
+      void navigator.clipboard
+        .writeText(codigo)
+        .then(() => {
+          el.classList.add('copiado')
+          if (acao) acao.textContent = 'copiado!'
+        })
+        .catch(() => {
+          /* copiar falhou: segue pra loja do mesmo jeito */
+        })
+        .finally(() => {
+          // feedback visível antes de sair da página
+          window.setTimeout(() => {
+            if (acao) acao.textContent = rotuloOriginal
+            window.location.href = el.href
+          }, 600)
+        })
+    })
+  })
+</script>
+
 <style>
-  /* Papéis do design system: desconto em --rz-deal (é o número que vende), selo em
-     --rz-verified. O verde de ação NÃO aparece aqui — só no botão (CtaAfiliado). */
+  /* Papéis: desconto em --rz-deal, selo em --rz-verified. O verde de ação existe só no
+     CtaAfiliado — nenhum outro elemento pode usá-lo (regra 3). */
   .cupom {
     display: flex;
     align-items: center;
@@ -67,33 +135,74 @@ const seloVerificacao = (() => {
     margin-bottom: 0.85rem;
   }
   .desconto {
-    min-width: 108px;
+    min-width: 112px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .desconto-numero {
     font-family: var(--rz-fonte-titulos);
-    font-size: 1.3rem;
+    font-size: 1.6rem;
     font-weight: 700;
-    line-height: 1.15;
     color: var(--rz-deal);
   }
-  .corpo { flex: 1; min-width: 200px; }
+  .desconto-sufixo {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--rz-deal);
+  }
+  .desconto-decomposicao {
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    color: var(--rz-muted);
+  }
+  .corpo { flex: 1; min-width: 220px; }
   .codigo {
     display: inline-flex;
     align-items: center;
-    min-height: 44px; /* alvo de toque: o código é copiável */
+    gap: 0.75rem;
+    min-height: 44px; /* regra 1: o código é alvo de toque */
+    background: var(--rz-surface-brand);
+    border: 1px dashed var(--rz-borda-codigo);
+    border-radius: 8px;
+    padding: 0.25rem 0.85rem;
+    text-decoration: none;
+    color: var(--rz-ink);
+  }
+  .codigo-texto {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 1.05rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
-    background: var(--rz-surface-brand);
-    border: 1px dashed var(--rz-brand);
-    border-radius: 8px;
-    padding: 0.2rem 0.75rem;
-    color: var(--rz-ink);
+    letter-spacing: 0.06em;
   }
-  .condicoes { margin: 0.4rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
+  .codigo-acao {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--rz-brand);
+  }
+  .codigo.copiado { border-style: solid; }
+  .codigo.copiado .codigo-acao { color: var(--rz-verified); }
+  .condicoes { margin: 0.45rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
   .selo {
-    margin: 0.4rem 0 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0.5rem 0 0;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    background: var(--rz-surface-verificado);
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--rz-verified);
+  }
+  .escudo { flex: none; }
+  @media (max-width: 560px) {
+    .cupom { align-items: stretch; }
+    .desconto { flex-direction: row; align-items: baseline; gap: 0.4rem; }
+    .desconto-decomposicao { margin-top: 0; }
   }
 </style>
