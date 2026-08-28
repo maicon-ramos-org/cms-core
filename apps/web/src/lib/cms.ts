@@ -28,7 +28,7 @@ export interface TenantDTO {
   tema?: { cor_primaria?: string; cor_fundo?: string; fonte?: string }
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean
-  seo?: { title_pattern_loja?: string }
+  seo?: { title_pattern_loja?: string; gsc_property?: string; sitemap_enabled?: boolean }
 }
 
 export interface LojaDTO {
@@ -276,6 +276,62 @@ export async function getPostBySlug(tenantId: string | number, slug: string): Pr
     depth: '2',
   })
   return (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs[0] ?? null
+}
+
+/**
+ * Coleta enxuta pro sitemap: só slug e data, em páginas de 500, sem depth. Sem o
+ * `select` a resposta traria o corpo Lexical de 735 posts a cada geração.
+ */
+export async function listarParaSitemap(
+  colecao: 'posts' | 'ofertas' | 'pages' | 'lojas',
+  tenantId: string | number,
+  campoData: string,
+  filtros: Array<{ campo: string; operador: 'equals' | 'not_equals'; valor: string }> = [],
+): Promise<Array<{ id: string | number; slug: string; lastmod?: string | null }>> {
+  const saida: Array<{ id: string | number; slug: string; lastmod?: string | null }> = []
+  let pagina = 1
+  let totalPages = 1
+  do {
+    const q = new URLSearchParams({
+      'where[and][0][tenant][equals]': String(tenantId),
+      'where[and][1][_status][equals]': 'published',
+      'select[slug]': 'true',
+      [`select[${campoData}]`]: 'true',
+      limit: '500',
+      page: String(pagina),
+      depth: '0',
+    })
+    filtros.forEach((f, idx) => q.set(`where[and][${idx + 2}][${f.campo}][${f.operador}]`, f.valor))
+    const r = await cmsFetch<
+      FindResult<Record<string, unknown>> & { totalPages?: number }
+    >(`/api/${colecao}?${q}`)
+    totalPages = r.totalPages ?? 1
+    for (const doc of r.docs) {
+      if (typeof doc.slug === 'string') {
+        saida.push({ id: doc.id as string | number, slug: doc.slug, lastmod: (doc[campoData] as string) ?? null })
+      }
+    }
+    pagina += 1
+  } while (pagina <= totalPages)
+  return saida
+}
+
+/** Ids de loja que têm ao menos uma oferta publicada — evita hub vazio no sitemap. */
+export async function lojasComOferta(tenantId: string | number): Promise<Set<string>> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    'select[loja]': 'true',
+    limit: '500',
+    depth: '0',
+  })
+  const r = await cmsFetch<FindResult<{ loja?: { id?: string | number } | string | number }>>(`/api/ofertas?${q}`)
+  const ids = new Set<string>()
+  for (const o of r.docs) {
+    const id = o.loja && typeof o.loja === 'object' ? o.loja.id : o.loja
+    if (id !== undefined && id !== null) ids.add(String(id))
+  }
+  return ids
 }
 
 /** Hub /blog: acervo por data REAL de publicação, paginado (são 735 posts). */
