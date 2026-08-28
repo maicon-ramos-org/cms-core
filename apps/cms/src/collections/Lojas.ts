@@ -53,5 +53,13 @@ export const Lojas: CollectionConfig = {
     },
     { name: 'ancoras_alvo', type: 'text', hasMany: true, admin: { description: 'consumido pelo auto-linker (PRD 04)' } },
     { name: 'watch_url', type: 'text', validate: urlValida, admin: { description: 'página oficial de cupons (changedetection.io)' } },
+    {
+      name: 'wordpress_id',
+      type: 'text',
+      unique: true,
+      index: true,
+      admin: { description: 'product_brand:{ID} — import idempotente (PRD 03)' },
+    },
+    { name: 'slug_wp', type: 'text', index: true },
   ],
 }
