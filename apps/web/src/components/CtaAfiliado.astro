@@ -20,14 +20,24 @@ const { tipo, docId, rotulo = 'Usar cupom na loja', ref = 'pagina' } = Astro.pro
 </a>
 
 <style>
+  /* --rz-action existe SÓ aqui: é a regra 3 do design system (verde = monetização).
+     Texto escuro dentro do verde porque branco reprova no WCAG (2,44); o par
+     #04240b sobre #07C03B dá 6,82. Altura mínima 44px = alvo de toque. */
   .cta {
-    display: inline-block;
-    background: var(--cor-primaria);
-    color: #fff;
-    padding: 0.55rem 1.1rem;
-    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    background: var(--rz-action);
+    color: var(--rz-on-action);
+    padding: 0.6rem 1.4rem;
+    border-radius: 8px;
     text-decoration: none;
+    font-family: var(--rz-fonte-titulos);
     font-weight: 600;
+    font-size: 1rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
   }
-  .cta:hover { filter: brightness(0.92); }
+  .cta:hover { filter: brightness(0.94); }
+  .cta:active { transform: translateY(1px); }
 </style>

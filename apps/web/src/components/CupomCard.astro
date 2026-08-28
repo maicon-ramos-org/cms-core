@@ -53,30 +53,47 @@ const seloVerificacao = (() => {
 </article>
 
 <style>
+  /* Papéis do design system: desconto em --rz-deal (é o número que vende), selo em
+     --rz-verified. O verde de ação NÃO aparece aqui — só no botão (CtaAfiliado). */
   .cupom {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 1rem;
-    border: 1px solid #e2e2e2;
-    border-radius: 10px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
+    background: var(--rz-surface);
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+    margin-bottom: 0.85rem;
   }
   .desconto {
-    min-width: 110px;
-    text-align: center;
-    font-weight: 800;
-    color: var(--cor-primaria);
+    min-width: 108px;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--rz-deal);
   }
-  .corpo { flex: 1; }
+  .corpo { flex: 1; min-width: 200px; }
   .codigo {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px; /* alvo de toque: o código é copiável */
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 1.05rem;
     font-weight: 700;
-    background: #f5f5f5;
-    border: 1px dashed #bbb;
-    border-radius: 6px;
-    padding: 0.2rem 0.6rem;
+    letter-spacing: 0.04em;
+    background: var(--rz-surface-brand);
+    border: 1px dashed var(--rz-brand);
+    border-radius: 8px;
+    padding: 0.2rem 0.75rem;
+    color: var(--rz-ink);
   }
-  .condicoes { margin: 0.35rem 0 0; font-size: 0.9rem; color: #444; }
-  .selo { margin: 0.35rem 0 0; font-size: 0.82rem; color: #15803d; }
+  .condicoes { margin: 0.4rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
+  .selo {
+    margin: 0.4rem 0 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--rz-verified);
+  }
 </style>

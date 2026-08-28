@@ -36,11 +36,29 @@ export const Tenants: CollectionConfig = {
     {
       name: 'tema',
       type: 'group',
+      admin: {
+        description:
+          'Papéis do design system (design-tokens.md v1.0.0, auditado WCAG AA). Cor é DADO do tenant: o CSS do site nunca fixa hex, senão o multi-tenant quebra.',
+      },
       fields: [
-        { name: 'cor_primaria', type: 'text', required: true, defaultValue: '#0ea5e9' },
+        // marca
+        { name: 'cor_primaria', type: 'text', required: true, defaultValue: '#6F57D3', admin: { description: 'marca: header, links, títulos de seção' } },
         { name: 'cor_fundo', type: 'text', required: true, defaultValue: '#ffffff' },
+        // ação que monetiza — o par action/on_action é o que passa 6,82 no WCAG
+        { name: 'cor_acao', type: 'text', defaultValue: '#07C03B', admin: { description: 'SÓ o botão que leva à loja (/r/{id}) — nenhum outro elemento' } },
+        { name: 'cor_sobre_acao', type: 'text', defaultValue: '#04240b', admin: { description: 'texto dentro do botão de ação (escuro: branco no verde reprova, 2,44)' } },
+        // sinalização
+        { name: 'cor_desconto', type: 'text', defaultValue: '#AC0167', admin: { description: 'o número do desconto e badges' } },
+        { name: 'cor_verificado', type: 'text', defaultValue: '#0a7a2c', admin: { description: 'selo de verificação e checks' } },
+        // texto e superfícies
+        { name: 'cor_texto', type: 'text', defaultValue: '#242424' },
+        { name: 'cor_apoio', type: 'text', defaultValue: '#6b6b6b', admin: { description: 'legendas — passa em todos os fundos suaves' } },
+        { name: 'cor_sutil', type: 'text', defaultValue: '#746a90', admin: { description: 'breadcrumb, placeholder' } },
+        { name: 'cor_superficie', type: 'text', defaultValue: '#ffffff' },
+        { name: 'cor_superficie_marca', type: 'text', defaultValue: '#faf9ff' },
         { name: 'logo', type: 'upload', relationTo: 'midia' },
-        { name: 'fonte', type: 'text', admin: { description: 'família self-hosted (Fonts API)' } },
+        { name: 'fonte_titulos', type: 'text', defaultValue: 'Lexend Deca', admin: { description: 'família self-hosted (PRD 02)' } },
+        { name: 'fonte_corpo', type: 'text', defaultValue: 'Open Sans', admin: { description: 'família self-hosted (PRD 02)' } },
       ],
     },
     {

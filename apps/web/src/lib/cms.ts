@@ -25,7 +25,22 @@ export interface TenantDTO {
   slug: string
   nome: string
   canonical_host: string
-  tema?: { cor_primaria?: string; cor_fundo?: string; fonte?: string }
+  /** papéis do design system (design-tokens.md v1.0.0) — ver contrato colecoes.md */
+  tema?: {
+    cor_primaria?: string
+    cor_fundo?: string
+    cor_acao?: string
+    cor_sobre_acao?: string
+    cor_desconto?: string
+    cor_verificado?: string
+    cor_texto?: string
+    cor_apoio?: string
+    cor_sutil?: string
+    cor_superficie?: string
+    cor_superficie_marca?: string
+    fonte_titulos?: string
+    fonte_corpo?: string
+  }
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean
   seo?: { title_pattern_loja?: string; gsc_property?: string; sitemap_enabled?: boolean }
