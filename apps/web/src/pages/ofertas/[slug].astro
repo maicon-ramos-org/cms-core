@@ -9,7 +9,7 @@
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
 import Base from '../../layouts/Base.astro'
-import { getOfertaBySlug, getOfertasDaLoja, type CupomDTO, type LojaDTO } from '../../lib/cms'
+import { getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { lexicalParaHtml, lexicalParaTexto } from '../../lib/lexical'
 
 const tenant = Astro.locals.tenant
@@ -54,6 +54,8 @@ if (cupom?.url_afiliado_fonte) destinos.set(cupom.url_afiliado_fonte, `/r/c${cup
 
 const corpoHtml = lexicalParaHtml(oferta.corpo, {
   reescreveAfiliado: (url) => destinos.get(url) ?? destinos.get(url.replace(/\/$/, '')) ?? null,
+  resolveMidia: urlMidia,
+  hostDoTenant: tenant.canonical_host,
 })
 const resumo = lexicalParaTexto(oferta.corpo, 155)
 const descricao = resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`

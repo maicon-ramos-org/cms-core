@@ -32,6 +32,13 @@ export const Posts: CollectionConfig = {
     { name: 'capa', type: 'upload', relationTo: 'midia' },
     { name: 'schema_extra', type: 'json', admin: { description: 'JSON-LD extra migrado do vault (opcional)' } },
     { name: 'ancoras_alvo', type: 'text', hasMany: true, admin: { description: 'auto-linker (PRD 04)' } },
+    {
+      name: 'publicado_em',
+      type: 'date',
+      index: true,
+      admin: { description: 'data real de publicação (do WP na migração) — createdAt é a data do import' },
+    },
+    { name: 'atualizado_em', type: 'date', admin: { description: 'última atualização real do conteúdo' } },
     { name: 'wordpress_id', type: 'text', unique: true, index: true },
     { name: 'slug_wp', type: 'text', index: true },
   ],

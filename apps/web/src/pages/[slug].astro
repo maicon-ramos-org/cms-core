@@ -1,0 +1,177 @@
+---
+/**
+ * PRD 02/03 — post editorial em /{slug} (paridade de URL com o WordPress: os 735 posts
+ * migrados mantêm exatamente o mesmo endereço, então nenhum link externo quebra).
+ *
+ * Decisão de render: SSR + cache por tag, não `prerender`. O corpo carrega dado que
+ * muda sem o post ser editado (link de afiliado do catálogo, âncoras do auto-linker) e
+ * o acervo tem 735 páginas — rebuild a cada edição não fecha. Invalidação vem do
+ * webhook do Payload por tag (ADR-0001).
+ *
+ * Esta rota é o curinga de 1 segmento: rotas com prefixo estático (`/cupom-{loja}`)
+ * têm prioridade no Astro, então não há conflito.
+ */
+import Base from '../layouts/Base.astro'
+import {
+  getMapaAfiliados,
+  getPostBySlug,
+  getPostsRelacionados,
+  urlMidia,
+  type PostDTO,
+} from '../lib/cms'
+import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+const post = await getPostBySlug(tenant.id, slug)
+if (!post) {
+  return new Response('Página não encontrada.', { status: 404 })
+}
+
+const categoria = post.categoria && typeof post.categoria === 'object' ? post.categoria : null
+const autor = post.autor && typeof post.autor === 'object' ? post.autor : null
+const capa = post.capa && typeof post.capa === 'object' ? post.capa : null
+const tags = Array.isArray(post.tags) ? post.tags.filter((t): t is { id: string | number; nome: string; slug: string } => typeof t === 'object' && t !== null) : []
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({
+    maxAge: 3600,
+    swr: 300,
+    tags: [`tenant:${tenant.slug}`, `posts:${post.id}`, ...(categoria ? [`categorias:${categoria.id}`] : [])],
+  })
+}
+
+const [relacionados, mapaAfiliados] = await Promise.all([
+  categoria ? getPostsRelacionados(categoria.id, post.id) : Promise.resolve([] as PostDTO[]),
+  getMapaAfiliados(tenant.id),
+])
+
+const corpoHtml = lexicalParaHtml(post.corpo, {
+  reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
+  resolveMidia: urlMidia,
+  hostDoTenant: tenant.canonical_host,
+})
+
+// title/description do Rank Math quando vieram na migração — são os que já ranqueiam
+const titulo = post.meta?.title || post.titulo
+const descricao = post.meta?.description || lexicalParaTexto(post.corpo, 155)
+const canonical = `https://${tenant.canonical_host}/${post.slug}`
+
+// datas do WP (createdAt/updatedAt do Payload são do import — publicá-las diria que o
+// acervo inteiro nasceu no dia da migração)
+const publicado = post.publicado_em ? new Date(post.publicado_em) : null
+const atualizado = post.atualizado_em ? new Date(post.atualizado_em) : null
+const dataLegivel = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(d)
+
+/** Grafo com @id: BlogPosting + BreadcrumbList (E-E-A-T pede autor identificável). */
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'BlogPosting',
+      '@id': `${canonical}#post`,
+      headline: post.titulo,
+      url: canonical,
+      mainEntityOfPage: canonical,
+      ...(descricao ? { description: descricao } : {}),
+      ...(publicado ? { datePublished: publicado.toISOString() } : {}),
+      ...(atualizado ? { dateModified: atualizado.toISOString() } : {}),
+      ...(capa?.url ? { image: urlMidia(capa.url) } : {}),
+      ...(autor
+        ? {
+            author: {
+              '@type': 'Person',
+              name: autor.nome,
+              ...(autor.sameAs?.length ? { sameAs: autor.sameAs } : {}),
+            },
+          }
+        : {}),
+      publisher: { '@type': 'Organization', name: tenant.nome, '@id': `https://${tenant.canonical_host}/#org` },
+      ...(categoria ? { articleSection: categoria.nome } : {}),
+      ...(tags.length ? { keywords: tags.map((t) => t.nome).join(', ') } : {}),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: post.titulo, item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${post.slug}.md`}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a>
+    {categoria && <span> › {categoria.nome}</span>}
+  </nav>
+
+  <article>
+    <h1>{post.titulo}</h1>
+
+    <p class="creditos">
+      {autor && <span>Por {autor.nome}</span>}
+      {publicado && (
+        <>
+          {autor && ' · '}
+          <time datetime={publicado.toISOString()}>{dataLegivel(publicado)}</time>
+        </>
+      )}
+      {atualizado && publicado && atualizado.getTime() - publicado.getTime() > 86_400_000 && (
+        <span class="atualizado"> · atualizado em {dataLegivel(atualizado)}</span>
+      )}
+    </p>
+
+    {capa?.url && (
+      <img
+        class="capa"
+        src={urlMidia(capa.url)}
+        alt={capa.alt ?? post.titulo}
+        width={capa.width}
+        height={capa.height}
+        fetchpriority="high"
+      />
+    )}
+
+    {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+    {tags.length > 0 && (
+      <p class="tags">{tags.map((t) => <span class="tag">{t.nome}</span>)}</p>
+    )}
+  </article>
+
+  {
+    relacionados.length > 0 && (
+      <section class="relacionados">
+        <h2>Continue lendo</h2>
+        <ul>
+          {relacionados.map((p) => (
+            <li><a href={`/${p.slug}`}>{p.titulo}</a></li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .creditos { font-size: 0.9rem; color: #555; margin-top: -0.5rem; }
+  .atualizado { color: #777; }
+  .capa { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
+  .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }
+  .corpo :global(th), .corpo :global(td) { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; }
+  .corpo :global(th) { background: #fafafa; }
+  .corpo :global(blockquote) { border-left: 3px solid var(--cor-primaria); margin: 1rem 0; padding-left: 1rem; color: #444; }
+  .tags { margin-top: 1.5rem; }
+  .tag { display: inline-block; background: #f1f1f1; border-radius: 999px; padding: 0.15rem 0.6rem; margin-right: 0.35rem; font-size: 0.8rem; }
+  .relacionados ul { padding-left: 1.2rem; }
+</style>

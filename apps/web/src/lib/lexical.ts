@@ -54,6 +54,41 @@ const hrefSeguro = (url: string | undefined): string | null =>
  * link cru no meio do texto, e link de afiliado cru no HTML é proibido pelo projeto.
  */
 let reescreveAfiliado: ((url: string) => string | null) | null = null
+let resolveMidia: ((url: string) => string | undefined) | null = null
+
+/**
+ * Hosts que só existem para rastrear clique de afiliado, e padrões de parâmetro de
+ * tracking. Link assim SEM destino mapeado não pode sair no HTML (regra dura) — vira
+ * texto puro. Hoje isso acontece em 1 link de todo o acervo migrado.
+ */
+const REDES_DE_AFILIADO = /^(www\.)?(anrdoezrs\.net|tkqlhce\.com|kqzyfj\.com|hostg\.xyz|m\.do\.co|links\.automacaosemlimites\.com\.br)$/i
+const PARAMS_DE_TRACKING = /[?&](via|aff|aff_id|referral|partner)=|\/aff\.php|\/click-\d/i
+
+/**
+ * O WP escreveu link interno em ABSOLUTO (`https://runzos.com/outro-post`). Em staging
+ * isso mandaria o leitor de volta pro site velho e estragaria o diff de paridade —
+ * então link pro próprio host vira caminho relativo.
+ */
+let hostDoTenant: string | null = null
+
+function relativizaInterno(url: string): string {
+  if (!hostDoTenant || !/^https?:\/\//i.test(url)) return url
+  try {
+    const u = new URL(url)
+    return u.host === hostDoTenant ? `${u.pathname}${u.search}${u.hash}` : url
+  } catch {
+    return url
+  }
+}
+
+function ehLinkDeAfiliado(url: string): boolean {
+  if (PARAMS_DE_TRACKING.test(url)) return true
+  try {
+    return REDES_DE_AFILIADO.test(new URL(url).host)
+  } catch {
+    return false
+  }
+}
 
 function renderaNo(no: No): string {
   if (!no || typeof no !== 'object') return ''
@@ -93,7 +128,9 @@ function renderaNo(no: No): string {
     case 'autolink': {
       const cru = no.fields?.url
       const trocado = cru && reescreveAfiliado ? reescreveAfiliado(cru) : null
-      const href = hrefSeguro(trocado ?? cru)
+      // sem destino mapeado, link de afiliado sai do HTML (nunca cru) e sobra o texto
+      if (!trocado && cru && ehLinkDeAfiliado(cru)) return filhos(no)
+      const href = hrefSeguro(trocado ?? (cru ? relativizaInterno(cru) : cru))
       if (!href) return filhos(no)
       if (trocado) return `<a href="${href}" rel="sponsored nofollow">${filhos(no)}</a>`
       // link de conteúdo migrado aponta pra fora: nofollow por padrão
@@ -102,9 +139,11 @@ function renderaNo(no: No): string {
     }
     case 'upload': {
       const midia = typeof no.value === 'object' && no.value ? no.value : null
-      if (!midia?.url) return ''
-      const dim = midia.width && midia.height ? ` width="${midia.width}" height="${midia.height}"` : ''
-      return `<img src="${escapa(midia.url)}" alt="${escapa(midia.alt ?? '')}"${dim} loading="lazy" decoding="async" />`
+      // o Payload devolve caminho relativo ao CMS; sem resolver, a imagem 404 no site
+      const src = midia?.url ? (resolveMidia ? resolveMidia(midia.url) : midia.url) : null
+      if (!src) return ''
+      const dim = midia?.width && midia?.height ? ` width="${midia.width}" height="${midia.height}"` : ''
+      return `<img src="${escapa(src)}" alt="${escapa(midia?.alt ?? '')}"${dim} loading="lazy" decoding="async" />`
     }
     default:
       return filhos(no)
@@ -113,15 +152,23 @@ function renderaNo(no: No): string {
 
 export function lexicalParaHtml(
   corpo: unknown,
-  opcoes: { reescreveAfiliado?: (url: string) => string | null } = {},
+  opcoes: {
+    reescreveAfiliado?: (url: string) => string | null
+    resolveMidia?: (url: string) => string | undefined
+    hostDoTenant?: string
+  } = {},
 ): string {
   const raiz = (corpo as { root?: No } | null)?.root
   if (!raiz) return ''
   reescreveAfiliado = opcoes.reescreveAfiliado ?? null
+  resolveMidia = opcoes.resolveMidia ?? null
+  hostDoTenant = opcoes.hostDoTenant ?? null
   try {
     return filhos(raiz)
   } finally {
     reescreveAfiliado = null
+    resolveMidia = null
+    hostDoTenant = null
   }
 }
 

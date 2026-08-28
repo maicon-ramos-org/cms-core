@@ -6,6 +6,20 @@
 const CMS_URL = () => process.env.CMS_URL ?? 'http://localhost:3000'
 const CMS_API_KEY = () => process.env.CMS_API_KEY ?? ''
 
+/**
+ * Base PÚBLICA do CMS (a que o navegador alcança). O Payload devolve a mídia como
+ * caminho relativo (`/api/midia/file/x.avif`), que resolveria contra o host do SITE e
+ * daria 404 — a imagem mora no CMS. Em produção o host interno costuma ser diferente do
+ * público, daí a env separada.
+ */
+const CMS_PUBLIC_URL = () => process.env.CMS_PUBLIC_URL ?? CMS_URL()
+
+/** Caminho de mídia do Payload → URL absoluta que o navegador consegue buscar. */
+export const urlMidia = (url?: string | null): string | undefined => {
+  if (!url) return undefined
+  return /^https?:\/\//i.test(url) ? url : `${CMS_PUBLIC_URL().replace(/\/$/, '')}${url}`
+}
+
 export interface TenantDTO {
   id: string | number
   slug: string
@@ -153,6 +167,77 @@ export async function getCuponsDaLoja(lojaId: string | number): Promise<CupomDTO
     depth: '0',
   })
   return (await cmsFetch<FindResult<CupomDTO>>(`/api/cupons?${q}`)).docs
+}
+
+export interface PostDTO {
+  id: string | number
+  titulo: string
+  slug: string
+  corpo?: unknown
+  categoria?: { id: string | number; nome: string; slug: string } | string | number | null
+  tags?: Array<{ id: string | number; nome: string; slug: string }> | string[] | null
+  autor?: { id: string | number; nome: string; slug: string; bio?: string; sameAs?: string[] } | string | number | null
+  capa?: { url?: string; alt?: string; width?: number; height?: number } | string | number | null
+  meta?: { title?: string | null; description?: string | null } | null
+  publicado_em?: string | null
+  atualizado_em?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** Página /{slug}: depth 2 traz categoria, autor, capa, tags e os uploads do corpo. */
+export async function getPostBySlug(tenantId: string | number, slug: string): Promise<PostDTO | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    'where[and][2][_status][equals]': 'published',
+    limit: '1',
+    depth: '2',
+  })
+  return (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs[0] ?? null
+}
+
+/** Leitura seguinte: mesma categoria, exceto o atual — nenhuma página fica órfã. */
+export async function getPostsRelacionados(
+  categoriaId: string | number,
+  excetoId: string | number,
+  limit = 5,
+): Promise<PostDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][categoria][equals]': String(categoriaId),
+    'where[and][1][id][not_equals]': String(excetoId),
+    'where[and][2][_status][equals]': 'published',
+    sort: '-publicado_em',
+    limit: String(limit),
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs
+}
+
+/**
+ * Mapa `url de afiliado → /r/{id}` de TODO o tenant. O corpo migrado do WP tem link de
+ * afiliado cru no meio do texto, e link cru no HTML é proibido — este mapa é o que
+ * permite trocá-lo pelo redirect na hora de renderizar.
+ */
+export async function getMapaAfiliados(tenantId: string | number): Promise<Map<string, string>> {
+  const params = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][url_afiliado_fonte][exists]': 'true',
+    'select[url_afiliado_fonte]': 'true',
+    limit: '500',
+    depth: '0',
+  }).toString()
+
+  const [ofertas, cupons] = await Promise.all([
+    cmsFetch<FindResult<{ id: string | number; url_afiliado_fonte?: string | null }>>(`/api/ofertas?${params}`),
+    cmsFetch<FindResult<{ id: string | number; url_afiliado_fonte?: string | null }>>(`/api/cupons?${params}`),
+  ])
+
+  const mapa = new Map<string, string>()
+  for (const o of ofertas.docs) if (o.url_afiliado_fonte) mapa.set(o.url_afiliado_fonte, `/r/o${o.id}?ref=corpo`)
+  // cupom por último: quando os dois têm a mesma URL, o cupom é o destino mais específico
+  for (const c of cupons.docs) if (c.url_afiliado_fonte) mapa.set(c.url_afiliado_fonte, `/r/c${c.id}?ref=corpo`)
+  return mapa
 }
 
 /**
