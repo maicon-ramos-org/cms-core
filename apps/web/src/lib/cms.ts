@@ -169,6 +169,87 @@ export async function getCuponsDaLoja(lojaId: string | number): Promise<CupomDTO
   return (await cmsFetch<FindResult<CupomDTO>>(`/api/cupons?${q}`)).docs
 }
 
+/** Dados do template `apps` — o JSON versionado no vault (fonte da verdade, RF5). */
+export interface AppDados {
+  slug?: string
+  nome?: string
+  h1?: string
+  tagline?: string
+  categoria?: string
+  modo?: string
+  hero_url?: string
+  hero_alt?: string
+  requisitos?: Record<string, { v?: number; r?: number; d?: number; cenario?: string }>
+  nota_requisitos?: string
+  fontes?: Array<{ label?: string; url?: string; conferido?: string }>
+  features?: Array<{ t?: string; d?: string }>
+  editorial?: string[]
+  instalacao?: string[]
+  guia_url?: string | { url?: string; titulo?: string; t?: string; u?: string }
+  faq?: Array<{ q?: string; a?: string }>
+  oferta_por_provedor?: Record<string, string>
+  relacionados?: Array<{ t?: string; u?: string }>
+  termos_match?: string[]
+}
+
+export interface PageDTO {
+  id: string | number
+  titulo: string
+  slug: string
+  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional'
+  corpo?: unknown
+  dados?: AppDados | null
+  meta?: { title?: string | null; description?: string | null } | null
+  updatedAt?: string
+}
+
+export async function getPageBySlug(
+  tenantId: string | number,
+  slug: string,
+  template?: PageDTO['template'],
+): Promise<PageDTO | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    'where[and][2][_status][equals]': 'published',
+    limit: '1',
+    depth: '1',
+  })
+  if (template) q.set('where[and][3][template][equals]', template)
+  return (await cmsFetch<FindResult<PageDTO>>(`/api/pages?${q}`)).docs[0] ?? null
+}
+
+/** Hub /apps/: lista todas as fichas — nenhuma página fica órfã. */
+export async function getPagesPorTemplate(
+  tenantId: string | number,
+  template: PageDTO['template'],
+  limit = 200,
+): Promise<PageDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][template][equals]': template,
+    'where[and][2][_status][equals]': 'published',
+    sort: 'titulo',
+    limit: String(limit),
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<PageDTO>>(`/api/pages?${q}`)).docs
+}
+
+/**
+ * Mídia pela URL ANTIGA do WordPress. O JSON dos apps referencia o hero pelo endereço
+ * do WP (`/wp-content/uploads/...`), que é justamente o que `wp_url_antiga` guarda.
+ */
+export async function getMidiaPorUrlAntiga(
+  url: string,
+): Promise<{ url?: string; alt?: string; width?: number; height?: number } | null> {
+  const q = new URLSearchParams({ 'where[wp_url_antiga][equals]': url, limit: '1', depth: '0' })
+  const r = await cmsFetch<FindResult<{ url?: string; alt?: string; width?: number; height?: number }>>(
+    `/api/midia?${q}`,
+  )
+  return r.docs[0] ?? null
+}
+
 export interface PostDTO {
   id: string | number
   titulo: string
