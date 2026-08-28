@@ -278,6 +278,36 @@ export async function getPostBySlug(tenantId: string | number, slug: string): Pr
   return (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs[0] ?? null
 }
 
+/** Hub /blog: acervo por data REAL de publicação, paginado (são 735 posts). */
+export async function getPostsPaginados(
+  tenantId: string | number,
+  pagina: number,
+  porPagina: number,
+): Promise<{ docs: PostDTO[]; totalDocs: number; totalPages: number }> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    sort: '-publicado_em',
+    limit: String(porPagina),
+    page: String(pagina),
+    depth: '0',
+  })
+  const r = await cmsFetch<FindResult<PostDTO> & { totalPages?: number }>(`/api/posts?${q}`)
+  return { docs: r.docs, totalDocs: r.totalDocs, totalPages: r.totalPages ?? 1 }
+}
+
+/** Hub /ofertas: catálogo inteiro do tenant (51 hoje), com loja resolvida. */
+export async function getOfertasDoTenant(tenantId: string | number, limit = 200): Promise<OfertaDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    sort: 'titulo',
+    limit: String(limit),
+    depth: '1',
+  })
+  return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
+}
+
 /** Leitura seguinte: mesma categoria, exceto o atual — nenhuma página fica órfã. */
 export async function getPostsRelacionados(
   categoriaId: string | number,

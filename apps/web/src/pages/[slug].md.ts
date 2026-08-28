@@ -4,14 +4,31 @@
  */
 import type { APIRoute } from 'astro'
 
-import { getPostBySlug } from '../lib/cms'
+import { getPageBySlug, getPostBySlug } from '../lib/cms'
 import { lexicalParaTexto } from '../lib/lexical'
+
+/** Mesma regra da página HTML: arquivo do builder tem rota própria, não sai daqui. */
+const ARQUIVOS_DO_BUILDER = new Set(['home', 'apps', 'ofertas', 'blog'])
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
   const slug = context.params.slug ?? ''
   const post = await getPostBySlug(tenant.id, slug)
-  if (!post) return new Response('Página não encontrada.', { status: 404 })
+
+  if (!post) {
+    // páginas institucionais/de conteúdo dividem a URL com os posts
+    const page = ARQUIVOS_DO_BUILDER.has(slug) ? null : await getPageBySlug(tenant.id, slug)
+    if (!page || page.template === 'apps') return new Response('Página não encontrada.', { status: 404 })
+    const texto = lexicalParaTexto(page.corpo)
+    const corpoMd = [
+      `# ${page.titulo}`,
+      '',
+      `**Canonical:** https://${tenant.canonical_host}/${page.slug}`,
+      '',
+      texto,
+    ].join('\n')
+    return new Response(corpoMd, { headers: { 'content-type': 'text/markdown; charset=utf-8' } })
+  }
 
   const categoria = post.categoria && typeof post.categoria === 'object' ? post.categoria : null
   const autor = post.autor && typeof post.autor === 'object' ? post.autor : null

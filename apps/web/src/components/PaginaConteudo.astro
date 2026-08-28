@@ -1,0 +1,78 @@
+---
+/**
+ * Página institucional / de conteúdo migrada do WP (/quem-somos, /glossario,
+ * /politica-de-privacidade, /contato, /ebook-hermes-agent).
+ *
+ * Fica em componente porque divide a URL `/{slug}` com os posts: a rota tenta post
+ * primeiro e cai aqui quando o slug é de página.
+ */
+import Base from '../layouts/Base.astro'
+import { urlMidia, type PageDTO } from '../lib/cms'
+import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+
+interface Props {
+  page: PageDTO
+  mapaAfiliados: Map<string, string>
+}
+
+const { page, mapaAfiliados } = Astro.props
+const tenant = Astro.locals.tenant
+
+const corpoHtml = lexicalParaHtml(page.corpo, {
+  reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
+  resolveMidia: urlMidia,
+  hostDoTenant: tenant.canonical_host,
+})
+
+const titulo = page.meta?.title || page.titulo
+const descricao = page.meta?.description || lexicalParaTexto(page.corpo, 155)
+const canonical = `https://${tenant.canonical_host}/${page.slug}`
+const atualizado = page.updatedAt ? new Date(page.updatedAt) : null
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${canonical}#pagina`,
+      name: page.titulo,
+      url: canonical,
+      ...(descricao ? { description: descricao } : {}),
+      ...(atualizado ? { dateModified: atualizado.toISOString() } : {}),
+      isPartOf: { '@type': 'WebSite', '@id': `https://${tenant.canonical_host}/#site`, name: tenant.nome },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: page.titulo, item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${page.slug}.md`}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a><span> › {page.titulo}</span>
+  </nav>
+
+  <article>
+    <h1>{page.titulo}</h1>
+    {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+  </article>
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
+  .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }
+  .corpo :global(th), .corpo :global(td) { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; }
+  .corpo :global(th) { background: #fafafa; }
+  .corpo :global(blockquote) { border-left: 3px solid var(--cor-primaria); margin: 1rem 0; padding-left: 1rem; }
+</style>

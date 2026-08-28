@@ -1,0 +1,108 @@
+---
+/**
+ * Hub /ofertas — URL real do site antigo (está no sitemap). No WordPress era o arquivo
+ * do WooCommerce; aqui é montado do catálogo, agrupado por loja, para que nenhuma das
+ * 51 ofertas fique órfã.
+ */
+import Base from '../../layouts/Base.astro'
+import { getLojas, getOfertasDoTenant, type LojaDTO, type OfertaDTO } from '../../lib/cms'
+
+const tenant = Astro.locals.tenant
+
+const [ofertas, lojas] = await Promise.all([getOfertasDoTenant(tenant.id), getLojas(tenant.id)])
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 300, swr: 60, tags: [`tenant:${tenant.slug}`, 'ofertas:hub'] })
+}
+
+const nomeDaLoja = new Map<string, string>(lojas.map((l: LojaDTO) => [String(l.id), l.nome]))
+const idDaLoja = (o: OfertaDTO): string =>
+  String(o.loja && typeof o.loja === 'object' ? o.loja.id : (o.loja ?? ''))
+
+const porLoja = new Map<string, OfertaDTO[]>()
+for (const o of ofertas) {
+  const chave = nomeDaLoja.get(idDaLoja(o)) ?? 'Outras'
+  if (!porLoja.has(chave)) porLoja.set(chave, [])
+  porLoja.get(chave)!.push(o)
+}
+const grupos = [...porLoja.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+
+const rotuloTipo: Record<string, string> = {
+  cupom: 'cupom',
+  credito: 'crédito',
+  lifetime: 'lifetime',
+  desconto_api: 'desconto em API',
+}
+
+const canonical = `https://${tenant.canonical_host}/ofertas`
+const titulo = `Ofertas verificadas: ${ofertas.length} em ${grupos.length} lojas`
+const descricao = `Catálogo de ${ofertas.length} ofertas com preço e data de conferência — cupom, crédito e lifetime.`
+
+const preco = (o: OfertaDTO): string | null => {
+  if (typeof o.preco?.valor !== 'number' || o.preco.valor <= 0) return null
+  const v = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: o.preco.moeda ?? 'BRL' }).format(o.preco.valor)
+  return o.preco.ciclo === 'mensal' ? `${v}/mês` : v
+}
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
+    {
+      '@type': 'ItemList',
+      '@id': `${canonical}#lista`,
+      numberOfItems: ofertas.length,
+      itemListElement: ofertas.map((o, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: o.titulo,
+        url: `https://${tenant.canonical_host}/ofertas/${o.slug}`,
+      })),
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+  <nav class="trilha" aria-label="Você está em"><a href="/">Início</a><span> › Ofertas</span></nav>
+
+  <h1>Ofertas verificadas</h1>
+  <p class="intro">
+    Cada oferta mostra o preço com a data em que foi conferido. Cupom só aparece com selo
+    de verificação — o resto leva direto pra loja.
+  </p>
+
+  {
+    grupos.map(([loja, itens]) => (
+      <section>
+        <h2>{loja}</h2>
+        <ul class="lista">
+          {itens.map((o) => (
+            <li>
+              <a href={`/ofertas/${o.slug}`}>{o.titulo}</a>
+              <span class="meta">
+                {o.tipo && <span class="etiqueta">{rotuloTipo[o.tipo] ?? o.tipo}</span>}
+                {preco(o) && <span class="preco">{preco(o)}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+
+  {ofertas.length === 0 && <p>Nenhuma oferta publicada ainda.</p>}
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .intro { color: #444; }
+  .lista { padding-left: 1.2rem; }
+  .lista li { margin-bottom: 0.4rem; }
+  .meta { margin-left: 0.5rem; font-size: 0.8rem; color: #555; }
+  .etiqueta { background: #f1f1f1; border-radius: 999px; padding: 0.1rem 0.55rem; margin-right: 0.35rem; }
+  .preco { font-weight: 600; color: #1a1a1a; }
+</style>
