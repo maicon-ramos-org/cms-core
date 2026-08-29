@@ -38,8 +38,15 @@ if (Astro.cache.enabled) {
 
 const base = `https://${tenant.canonical_host}/categoria/${categoria.slug}/`
 const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
-const titulo = pagina > 1 ? `${categoria.nome} — página ${pagina}` : `${categoria.nome}: ${totalDocs} artigos`
-const descricao = categoria.descricao_seo || `Artigos sobre ${categoria.nome} — teste prático e preço conferido.`
+// title/description do WP na virada (ver comentário em /ofertas/[slug])
+const titulo =
+  pagina > 1
+    ? `${categoria.meta?.title || categoria.nome} — página ${pagina}`
+    : categoria.meta?.title || `${categoria.nome}: ${totalDocs} artigos`
+const descricao =
+  categoria.meta?.description ||
+  categoria.descricao_seo ||
+  `Artigos sobre ${categoria.nome} — teste prático e preço conferido.`
 
 const dataLegivel = (iso?: string | null) =>
   iso ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(iso)) : null

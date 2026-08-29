@@ -65,6 +65,7 @@ export interface LojaDTO {
   url_site: string
   programa: string
   faq?: Array<{ pergunta: string; resposta: string }>
+  logo?: { url?: string; alt?: string } | string | number | null
   tenant?: string | number | TenantDTO
 }
 
@@ -103,6 +104,8 @@ export interface OfertaDTO {
   cupom?: CupomDTO | string | number | null
   url_afiliado_fonte?: string | null
   ancoras_alvo?: string[] | null
+  /** title/description do Rank Math migrados — na virada valem os do WP, não os nossos */
+  meta?: { title?: string | null; description?: string | null } | null
   /** desconto que a LOJA já dá — a outra metade do formato empilhado (spec §1) */
   desconto_loja?: {
     valor?: number | null
@@ -411,7 +414,13 @@ export async function getCategorias(tenantId: string | number): Promise<Array<{ 
 export async function getCategoriaBySlug(
   tenantId: string | number,
   slug: string,
-): Promise<{ id: string | number; nome: string; slug: string; descricao_seo?: string | null } | null> {
+): Promise<{
+  id: string | number
+  nome: string
+  slug: string
+  descricao_seo?: string | null
+  meta?: { title?: string | null; description?: string | null } | null
+} | null> {
   const q = new URLSearchParams({
     'where[and][0][tenant][equals]': String(tenantId),
     'where[and][1][slug][equals]': slug,
@@ -419,8 +428,99 @@ export async function getCategoriaBySlug(
     depth: '0',
   })
   return (
-    (await cmsFetch<FindResult<{ id: string | number; nome: string; slug: string; descricao_seo?: string | null }>>(
-      `/api/categorias?${q}`,
+    (
+      await cmsFetch<
+        FindResult<{
+          id: string | number
+          nome: string
+          slug: string
+          descricao_seo?: string | null
+          meta?: { title?: string | null; description?: string | null } | null
+        }>
+      >(`/api/categorias?${q}`)
+    ).docs[0] ?? null
+  )
+}
+
+export interface CategoriaOfertaDTO {
+  id: string | number
+  nome: string
+  slug: string
+  pai?: { id: string | number; nome: string; slug: string } | string | number | null
+  descricao?: unknown
+  navegacao?: string
+  meta?: { title?: string | null; description?: string | null } | null
+}
+
+/** Todas as categorias do catálogo — alimenta o sitemap (a URL reflete a hierarquia). */
+export async function cmsCategoriasOferta(tenantId: string | number): Promise<CategoriaOfertaDTO[]> {
+  const q = new URLSearchParams({
+    'where[tenant][equals]': String(tenantId),
+    sort: 'nome',
+    limit: '200',
+    depth: '1',
+  })
+  return (await cmsFetch<FindResult<CategoriaOfertaDTO>>(`/api/categorias_oferta?${q}`)).docs
+}
+
+/** Categoria do CATÁLOGO pelo slug — a URL pode ser aninhada (/pai/filha/). */
+export async function getCategoriaOfertaBySlug(
+  tenantId: string | number,
+  slug: string,
+): Promise<CategoriaOfertaDTO | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    limit: '1',
+    depth: '1',
+  })
+  return (await cmsFetch<FindResult<CategoriaOfertaDTO>>(`/api/categorias_oferta?${q}`)).docs[0] ?? null
+}
+
+/** Ofertas de uma categoria do catálogo. */
+export async function getOfertasDaCategoria(
+  categoriaId: string | number,
+  limit = 100,
+): Promise<OfertaDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][categorias][equals]': String(categoriaId),
+    'where[and][1][_status][equals]': 'published',
+    sort: 'titulo',
+    limit: String(limit),
+    depth: '1',
+  })
+  return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
+}
+
+/** Filhas de uma categoria (a hierarquia veio do WP). */
+export async function getFilhasDaCategoria(
+  tenantId: string | number,
+  paiId: string | number,
+): Promise<CategoriaOfertaDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][pai][equals]': String(paiId),
+    sort: 'nome',
+    limit: '50',
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<CategoriaOfertaDTO>>(`/api/categorias_oferta?${q}`)).docs
+}
+
+/** Loja pelo slug com o meta do WP — a página /empresa/{slug}. */
+export async function getLojaComMeta(
+  tenantId: string | number,
+  slug: string,
+): Promise<(LojaDTO & { meta?: { title?: string | null; description?: string | null } | null }) | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    limit: '1',
+    depth: '1',
+  })
+  return (
+    (await cmsFetch<FindResult<LojaDTO & { meta?: { title?: string | null; description?: string | null } | null }>>(
+      `/api/lojas?${q}`,
     )).docs[0] ?? null
   )
 }

@@ -73,8 +73,15 @@ const corpoHtml = lexicalParaHtml(oferta.corpo, {
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })
+/**
+ * Na virada, title e description de página de acervo são os que o WP publica hoje —
+ * decisão de atribuição: o Google já vai recrawlear tudo por causa da troca de origem,
+ * e somar mudança de título à mesma janela impede saber qual das duas mexeu no tráfego.
+ * Melhorar título é deploy separado, depois do gate.
+ */
 const resumo = lexicalParaTexto(oferta.corpo, 155)
-const descricao = resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`
+const tituloPagina = oferta.meta?.title || oferta.titulo
+const descricao = oferta.meta?.description || resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`
 
 // canonical absoluto no host do tenant (nunca o host da requisição: staging não canoniza pra si)
 const canonical = `https://${tenant.canonical_host}/ofertas/${caminhoCanonico(oferta.slug)}/`
@@ -137,7 +144,7 @@ const jsonLd = JSON.stringify({
 ---
 
 <Base
-  titulo={oferta.titulo}
+  titulo={tituloPagina}
   descricao={descricao}
   canonical={canonical}
   markdown={`/ofertas/${oferta.slug}.md`}

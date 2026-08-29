@@ -1,0 +1,125 @@
+---
+/**
+ * /categoria-oferta/{slug}/ — 33 URLs indexadas que davam 404 aqui (diff da Fase D).
+ *
+ * A URL pode ser aninhada (`/pai/filha/`): o WP publica os dois níveis, e o gate da
+ * virada é "URLs idênticas". Resolvemos pelo ÚLTIMO segmento e conferimos o pai, para
+ * que um caminho inventado (`/qualquer/filha/`) não sirva conteúdo.
+ *
+ * title/description saem do meta do WP: na virada, página de acervo mantém o que já
+ * está indexado (decisão de atribuição — melhoria de título é deploy separado).
+ */
+import Base from '../../layouts/Base.astro'
+import {
+  caminhoCanonico,
+  getCategoriaOfertaBySlug,
+  getFilhasDaCategoria,
+  getOfertasDaCategoria,
+  type LojaDTO,
+  type OfertaDTO,
+} from '../../lib/cms'
+
+const tenant = Astro.locals.tenant
+const segmentos = (Astro.params.caminho ?? '').split('/').filter(Boolean)
+const slug = segmentos[segmentos.length - 1] ?? ''
+
+const categoria = slug ? await getCategoriaOfertaBySlug(tenant.id, slug) : null
+if (!categoria) {
+  return new Response('Categoria não encontrada.', { status: 404 })
+}
+
+// caminho aninhado: o pai declarado na URL tem que ser o pai de verdade
+const pai = categoria.pai && typeof categoria.pai === 'object' ? categoria.pai : null
+if (segmentos.length === 2 && pai?.slug !== segmentos[0]) {
+  return new Response('Categoria não encontrada.', { status: 404 })
+}
+if (segmentos.length > 2) {
+  return new Response('Categoria não encontrada.', { status: 404 })
+}
+
+const [ofertas, filhas] = await Promise.all([
+  getOfertasDaCategoria(categoria.id),
+  getFilhasDaCategoria(tenant.id, categoria.id),
+])
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, `categorias_oferta:${categoria.id}`] })
+}
+
+const caminhoUrl = segmentos.map(caminhoCanonico).join('/')
+const canonical = `https://${tenant.canonical_host}/categoria-oferta/${caminhoUrl}/`
+const titulo = categoria.meta?.title || `${categoria.nome}: ${ofertas.length} ofertas`
+const descricao =
+  categoria.meta?.description || `Ofertas de ${categoria.nome} com preço e data de conferência.`
+
+const nomeDaLoja = (o: OfertaDTO): string | null =>
+  o.loja && typeof o.loja === 'object' ? (o.loja as LojaDTO).nome : null
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
+    {
+      '@type': 'ItemList',
+      '@id': `${canonical}#lista`,
+      numberOfItems: ofertas.length,
+      itemListElement: ofertas.map((o, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: o.titulo,
+        url: `https://${tenant.canonical_host}/ofertas/${caminhoCanonico(o.slug)}/`,
+      })),
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a> › <a href="/ofertas/">Ofertas</a>
+    {pai && <> › <a href={`/categoria-oferta/${caminhoCanonico(pai.slug)}/`}>{pai.nome}</a></>}
+    <span> › {categoria.nome}</span>
+  </nav>
+
+  <h1>{categoria.nome}</h1>
+
+  {
+    filhas.length > 0 && (
+      <ul class="filhas">
+        {filhas.map((f) => (
+          <li>
+            <a href={`/categoria-oferta/${caminhoCanonico(categoria.slug)}/${caminhoCanonico(f.slug)}/`}>{f.nome}</a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  {ofertas.length === 0 && <p>Nenhuma oferta publicada nesta categoria agora.</p>}
+
+  <ul class="lista">
+    {
+      ofertas.map((o) => (
+        <li>
+          <a href={`/ofertas/${caminhoCanonico(o.slug)}/`}>{o.titulo}</a>
+          {nomeDaLoja(o) && <span class="loja"> · {nomeDaLoja(o)}</span>}
+        </li>
+      ))
+    }
+  </ul>
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-subtle); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .filhas { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; margin: 0 0 1rem; }
+  .filhas a {
+    display: inline-flex; align-items: center; min-height: 36px; padding: 0.3rem 0.85rem;
+    border: 1px solid var(--rz-borda); border-radius: 999px; text-decoration: none; font-size: 0.88rem; font-weight: 600;
+  }
+  .lista { padding-left: 1.2rem; }
+  .lista li { margin-bottom: 0.4rem; }
+  .loja { color: var(--rz-muted); font-size: 0.85rem; }
+</style>

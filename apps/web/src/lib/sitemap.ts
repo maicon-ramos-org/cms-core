@@ -9,9 +9,9 @@
  */
 import type { TenantDTO } from './cms'
 
-export type TipoDeSitemap = 'posts' | 'ofertas' | 'apps' | 'lojas' | 'paginas'
+export type TipoDeSitemap = 'posts' | 'ofertas' | 'apps' | 'lojas' | 'paginas' | 'catalogo'
 
-export const TIPOS: TipoDeSitemap[] = ['posts', 'ofertas', 'apps', 'lojas', 'paginas']
+export const TIPOS: TipoDeSitemap[] = ['posts', 'ofertas', 'apps', 'lojas', 'paginas', 'catalogo']
 
 export interface UrlDoSitemap {
   loc: string

@@ -1,0 +1,109 @@
+---
+/**
+ * /empresa/{marca}/ — 26 URLs indexadas que davam 404 aqui (diff da Fase D).
+ * É a página da LOJA: quem ela é e o que temos dela. Complementa /cupom-{loja},
+ * que é o catálogo de cupons; aqui o foco é a empresa.
+ */
+import Base from '../../layouts/Base.astro'
+import { caminhoCanonico, getLojaComMeta, getOfertasDaLoja, urlMidia } from '../../lib/cms'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+const loja = await getLojaComMeta(tenant.id, slug)
+if (!loja) {
+  return new Response('Empresa não encontrada.', { status: 404 })
+}
+
+// passa 0 como "exceto": queremos TODAS as ofertas da loja
+const ofertas = await getOfertasDaLoja(loja.id, 0, 100)
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, `loja:${loja.slug}`] })
+}
+
+const canonical = `https://${tenant.canonical_host}/empresa/${caminhoCanonico(loja.slug)}/`
+const titulo = loja.meta?.title || `${loja.nome}: cupons e ofertas`
+const descricao =
+  loja.meta?.description || `Ofertas e cupons ${loja.nome} com preço e data de conferência.`
+
+const logo = loja.logo && typeof loja.logo === 'object' ? (loja.logo as { url?: string; alt?: string }) : null
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${canonical}#empresa`,
+      name: loja.nome,
+      // sem `url`: lojas.url_site foi derivado do link de afiliado na migração e costuma
+      // ser o domínio da REDE — publicá-lo seria link de afiliado cru (regra do projeto)
+      ...(logo?.url ? { logo: urlMidia(logo.url) } : {}),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: loja.nome, item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a><span> › {loja.nome}</span>
+  </nav>
+
+  <h1>{loja.nome}</h1>
+
+  {logo?.url && <img class="logo" src={urlMidia(logo.url)} alt={logo.alt ?? loja.nome} loading="eager" />}
+
+  <p class="atalhos">
+    <a href={`/cupom-${caminhoCanonico(loja.slug)}/`}>Ver cupons {loja.nome}</a>
+  </p>
+
+  {ofertas.length === 0 && <p>Nenhuma oferta publicada desta empresa agora.</p>}
+
+  {
+    ofertas.length > 0 && (
+      <section>
+        <h2>Ofertas {loja.nome}</h2>
+        <ul class="lista">
+          {ofertas.map((o) => (
+            <li><a href={`/ofertas/${caminhoCanonico(o.slug)}/`}>{o.titulo}</a></li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    (loja.faq ?? []).length > 0 && (
+      <section>
+        <h2>Perguntas frequentes</h2>
+        {(loja.faq ?? []).map((f) => (
+          <details>
+            <summary>{f.pergunta}</summary>
+            <p>{f.resposta}</p>
+          </details>
+        ))}
+      </section>
+    )
+  }
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-subtle); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .logo { max-width: 220px; height: auto; margin: 0.5rem 0 1rem; }
+  .atalhos { margin: 0 0 1rem; }
+  .lista { padding-left: 1.2rem; }
+  .lista li { margin-bottom: 0.4rem; }
+  details { margin-bottom: 0.5rem; }
+  summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+</style>

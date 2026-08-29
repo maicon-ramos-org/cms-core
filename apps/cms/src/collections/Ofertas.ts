@@ -79,6 +79,14 @@ export const Ofertas: CollectionConfig = {
         { name: 'fonte', type: 'select', options: ['site-loja', 'programa', 'manual'] },
       ],
     },
+    {
+      name: 'categorias',
+      type: 'relationship',
+      relationTo: 'categorias_oferta',
+      hasMany: true,
+      index: true,
+      admin: { description: 'categorias do Woo — a página /categoria-oferta/{slug} lista por aqui' },
+    },
     { name: 'cupom', type: 'relationship', relationTo: 'cupons' },
     {
       name: 'url_afiliado_fonte',
