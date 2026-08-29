@@ -271,6 +271,52 @@ describe('1b — âncora derivada do título', () => {
   })
 })
 
+describe('subtítulo disfarçado de parágrafo', () => {
+  it('não linka quando a âncora ocupa o nó curto inteiro', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('Integração com Google Search para dados reais'))), {
+      ...base,
+      regras: [regra(['Integração com Google Search para dados reais'])],
+    })
+    expect(linksDe(r.arvore)).toEqual([])
+  })
+
+  it('mas linka a MESMA âncora quando ela aparece em prosa depois', () => {
+    const r = aplicaLinks(
+      raiz(
+        paragrafo(texto('Integração com Google Search para dados reais')),
+        paragrafo(texto('A integração com Google Search para dados reais mudou o fluxo do time.')),
+      ),
+      { ...base, regras: [regra(['Integração com Google Search para dados reais'])] },
+    )
+    expect(linksDe(r.arvore)).toHaveLength(1)
+  })
+
+  it('nó longo cujo texto é a âncora inteira continua linkável (não é subtítulo)', () => {
+    const longa = 'guia completo de hospedagem, revenda, VPS e domínios para agências no Brasil em 2026'
+    const r = aplicaLinks(raiz(paragrafo(texto(longa))), { ...base, regras: [regra([longa])] })
+    expect(linksDe(r.arvore)).toHaveLength(1)
+  })
+})
+
+describe('boilerplate (RF3 — CTA)', () => {
+  it('não linka em nó que o chamador marcou como bloco repetido', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('Vai rodar n8n numa VPS?'))), {
+      ...base,
+      regras: [regra(['n8n'])],
+      ehBoilerplate: (t) => t.trim() === 'Vai rodar n8n numa VPS?',
+    })
+    expect(linksDe(r.arvore)).toEqual([])
+  })
+
+  it('e linka no parágrafo seguinte, que é prosa', () => {
+    const r = aplicaLinks(
+      raiz(paragrafo(texto('Vai rodar n8n numa VPS?')), paragrafo(texto('O n8n resolve automação sem código.'))),
+      { ...base, regras: [regra(['n8n'])], ehBoilerplate: (t) => t.trim() === 'Vai rodar n8n numa VPS?' },
+    )
+    expect(linksDe(r.arvore)).toEqual([{ url: '/ofertas/hostinger-vps-n8n/', ancora: 'n8n' }])
+  })
+})
+
 describe('derivaAncora — as guardas', () => {
   it('corta o sufixo de SEO no separador e mantém o assunto', () => {
     expect(derivaAncora('Coolify no Hostinger: guia completo 2026')).toBe('Coolify no Hostinger')

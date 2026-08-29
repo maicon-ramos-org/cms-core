@@ -45,6 +45,13 @@ export interface Opcoes {
   maxLinks?: number
   stoplist?: string[]
   whitelistCrossTenant?: Array<number | string>
+  /**
+   * "Este nó de texto é bloco montado (CTA, rodapé, caixa repetida)?" O RF3 proíbe link
+   * em CTA, mas CTA não tem marca estrutural no Lexical — é parágrafo igual aos outros. O
+   * que denuncia é a REPETIÇÃO entre documentos, e isso só o chamador sabe: a função aqui
+   * vê um documento por vez. Por isso é predicado injetado, não regra embutida.
+   */
+  ehBoilerplate?: (textoDoNo: string) => boolean
 }
 
 export interface LinkAplicado {
@@ -89,6 +96,17 @@ export interface No {
 
 /** Onde link automático nunca entra (RF3). */
 const CONTEXTO_PROIBIDO = new Set(['heading', 'quote', 'table', 'tablerow', 'tablecell', 'link', 'autolink', 'code'])
+
+/**
+ * Nó curto cujo texto INTEIRO é a âncora é subtítulo disfarçado de parágrafo: linkar ali
+ * transforma a linha toda em link e lê como plugin, não como texto. Apareceu no dry run
+ * da 1b — era a única das nove âncoras que lia mal.
+ */
+const LIMITE_NO_CURTO = 80
+const ehSubtituloDisfarcado = (texto: string, inicio: number, fim: number): boolean => {
+  const t = texto.trim()
+  return t.length <= LIMITE_NO_CURTO && texto.slice(inicio, fim).trim() === t
+}
 
 /** bit de `code` no format do Lexical — texto de código não vira link */
 const FORMATO_CODIGO = 1 << 4
@@ -182,11 +200,14 @@ export function aplicaLinks<T>(arvore: T, opcoes: Opcoes): Resultado<T> {
   const matches: Match[] = []
   for (const cand of candidatas) {
     for (let i = 0; i < nos.length; i += 1) {
-      const oc = achaOcorrencia(nos[i]!.text!, cand.ancora)
-      if (oc) {
-        matches.push({ cand, no: nos[i]!, ordem: i, inicio: oc.inicio, fim: oc.fim })
-        break // RF3: só a primeira ocorrência
-      }
+      const texto = nos[i]!.text!
+      const oc = achaOcorrencia(texto, cand.ancora)
+      if (!oc) continue
+      // segue procurando nos nós seguintes: a mesma âncora pode aparecer em prosa depois
+      if (ehSubtituloDisfarcado(texto, oc.inicio, oc.fim)) continue
+      if (opcoes.ehBoilerplate?.(texto)) continue
+      matches.push({ cand, no: nos[i]!, ordem: i, inicio: oc.inicio, fim: oc.fim })
+      break // RF3: só a primeira ocorrência
     }
   }
 
