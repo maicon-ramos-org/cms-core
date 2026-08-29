@@ -90,8 +90,9 @@ function achaOcorrencia(texto: string, ancora: string): { inicio: number; fim: n
   const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${escapaRegex(ancora)})(?![\\p{L}\\p{N}])`, 'iu')
   const m = re.exec(texto)
   if (!m) return null
-  const inicio = m.index + m[1].length
-  return { inicio, fim: inicio + m[2].length }
+  // grupos 1 e 2 sempre existem quando há match — o `?? ''` é só pro strict do TS
+  const inicio = m.index + (m[1] ?? '').length
+  return { inicio, fim: inicio + (m[2] ?? '').length }
 }
 
 export function aplicaLinks<T>(arvore: T, opcoes: Opcoes): Resultado<T> {

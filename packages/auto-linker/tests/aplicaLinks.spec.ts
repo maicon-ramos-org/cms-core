@@ -154,7 +154,7 @@ describe('RF4 e RF6 — rotação determinística e boost de órfãs', () => {
           origem: { ...origem, url },
           regras: [regra(['n8n', 'workflow n8n'])],
         }).arvore,
-      )[0].ancora
+      )[0]!.ancora
     const escolhas = new Set(['/a/', '/b/', '/c/', '/d/'].map(escolhe))
     expect(escolhas.size).toBeGreaterThan(1)
   })
