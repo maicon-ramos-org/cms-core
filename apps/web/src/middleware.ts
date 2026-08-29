@@ -59,6 +59,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next()
   }
 
+  // /feed/ é a URL do WP; internamente a rota é feed.xml
+  if (context.url.pathname === '/feed' || context.url.pathname === '/feed/') {
+    return context.rewrite('/feed.xml')
+  }
+
   if (precisaDeBarra(context.url.pathname)) {
     const destino = new URL(context.url)
     destino.pathname = `${context.url.pathname}/`
