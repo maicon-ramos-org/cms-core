@@ -27,7 +27,12 @@ const titulo = loja.meta?.title || `${loja.nome}: cupons e ofertas`
 const descricao =
   loja.meta?.description || `Ofertas e cupons ${loja.nome} com preço e data de conferência.`
 
-const logo = loja.logo && typeof loja.logo === 'object' ? (loja.logo as { url?: string; alt?: string }) : null
+// width/height entram no <img> por causa do budget de layout shift: imagem sem dimensão
+// obriga o navegador a redesenhar quando ela chega, e isso é CLS que ninguém vê no HTML.
+const logo =
+  loja.logo && typeof loja.logo === 'object'
+    ? (loja.logo as { url?: string; alt?: string; width?: number; height?: number })
+    : null
 
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
@@ -59,7 +64,18 @@ const jsonLd = JSON.stringify({
 
   <h1>{loja.nome}</h1>
 
-  {logo?.url && <img class="logo" src={urlMidia(logo.url)} alt={logo.alt ?? loja.nome} loading="eager" />}
+  {
+    logo?.url && (
+      <img
+        class="logo"
+        src={urlMidia(logo.url)}
+        alt={logo.alt ?? loja.nome}
+        loading="eager"
+        width={logo.width}
+        height={logo.height}
+      />
+    )
+  }
 
   <p class="atalhos">
     <a href={`/cupom-${caminhoCanonico(loja.slug)}/`}>Ver cupons {loja.nome}</a>
