@@ -103,7 +103,7 @@ const CONTEXTO_PROIBIDO = new Set(['heading', 'quote', 'table', 'tablerow', 'tab
  * da 1b — era a única das nove âncoras que lia mal.
  */
 const LIMITE_NO_CURTO = 80
-const ehSubtituloDisfarcado = (texto: string, inicio: number, fim: number): boolean => {
+export const ehSubtituloDisfarcado = (texto: string, inicio: number, fim: number): boolean => {
   const t = texto.trim()
   return t.length <= LIMITE_NO_CURTO && texto.slice(inicio, fim).trim() === t
 }
@@ -158,7 +158,7 @@ const escapaRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$
  * Casa a âncora como PALAVRA inteira, sem diferenciar caixa. `\b` não serve: âncora
  * pode terminar em dígito ("n8n") e a borda do JS trataria "n8nzao" como limite válido.
  */
-function achaOcorrencia(texto: string, ancora: string): { inicio: number; fim: number } | null {
+export function achaOcorrencia(texto: string, ancora: string): { inicio: number; fim: number } | null {
   const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${escapaRegex(ancora)})(?![\\p{L}\\p{N}])`, 'iu')
   const m = re.exec(texto)
   if (!m) return null
