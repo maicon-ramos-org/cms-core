@@ -1,4 +1,18 @@
 ---
+/*
+ * Fontes no <head>, e a explicação mora AQUI e não em comentário HTML: comentário no
+ * markup viaja pro leitor em toda página.
+ *
+ * - `?raw` embute o @font-face em vez de servir folha externa. A folha era uma ida e volta
+ *   BLOQUEANTE antes de o navegador saber sequer qual arquivo de fonte buscar; são 4KB,
+ *   custam menos que a requisição que economizam — ainda mais pra leitor de celular vindo
+ *   de busca, que vê uma página só e não reaproveita cache.
+ * - Preload só das duas faces ACIMA DA DOBRA: corpo (Open Sans 400) e h1 (Lexend 700), e
+ *   só as `latin` — acento do português (ã, ç, é) mora em U+0000-00FF, então `latin-ext`
+ *   quase nunca é buscado em texto pt-BR.
+ */
+import fontesCss from '../../public/fontes/fontes.css?raw'
+
 /**
  * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
  * RF1). Os papéis são os de design-tokens.md v1.0.0, aprovado 27/08 com auditoria WCAG
@@ -53,7 +67,9 @@ const tokens = {
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     {canonical && <link rel="canonical" href={canonical} />}
     {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
-    <link rel="stylesheet" href="/fontes/fontes.css" />
+    <link rel="preload" href="/fontes/open-sans-400-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fontes/lexend-deca-700-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <style is:inline set:html={fontesCss}></style>
     <style
       define:vars={{
         brand: tokens.brand,
