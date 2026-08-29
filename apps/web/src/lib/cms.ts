@@ -570,9 +570,9 @@ export async function getPostsRelacionados(
       'where[and][0][tenant][equals]': String(tenantId),
       'where[and][1][id][not_equals]': String(post.id),
       'where[and][2][_status][equals]': 'published',
-      ...filtro,
       sort: 'id',
       limit: '200',
+      ...filtro,
       depth: '0',
       'select[titulo]': 'true',
       'select[slug]': 'true',
@@ -585,15 +585,26 @@ export async function getPostsRelacionados(
   const vistos = new Set<string>()
   const semente = hashEstavel(String(post.id))
 
-  for (const faixa of [porTag, categoriaId ? await busca({ 'where[and][3][categoria][equals]': categoriaId }) : []]) {
-    const restantes = faixa.filter((p) => !vistos.has(String(p.id)))
+  // as faixas são thunks: a busca por categoria só sai se a faixa de tag não encheu o
+  // bloco. Como array literal, a segunda query rodava em TODA renderização de post.
+  const faixas: Array<() => Promise<PostDTO[]>> = [
+    async () => porTag,
+    async () => (categoriaId ? busca({ 'where[and][3][categoria][equals]': categoriaId }) : []),
+    // Terceira faixa: o mais recente do site. Existe por causa do leitor, não da métrica —
+    // um post pode estar "coberto" (recebe entrada de outros) e ainda assim mostrar um
+    // bloco de 2 itens. `Finanças PJ` tem 3 posts no acervo inteiro; sem esta faixa, o
+    // post de conta PJ renderiza capenga pra sempre.
+    async () => busca({ sort: '-publicado_em', limit: '20' }),
+  ]
+  for (const faixa of faixas) {
+    if (escolhidos.length >= limit) break
+    const restantes = (await faixa()).filter((p) => !vistos.has(String(p.id)))
     for (let i = 0; i < restantes.length && escolhidos.length < limit; i += 1) {
       const escolhido = restantes[(semente + i) % restantes.length]!
       if (vistos.has(String(escolhido.id))) continue
       vistos.add(String(escolhido.id))
       escolhidos.push(escolhido)
     }
-    if (escolhidos.length >= limit) break
   }
   return escolhidos
 }
