@@ -538,20 +538,74 @@ export async function getOfertasDoTenant(tenantId: string | number, limit = 200)
 }
 
 /** Leitura seguinte: mesma categoria, exceto o atual — nenhuma página fica órfã. */
+/**
+ * Bloco "Leia também" (PRD 04 — a camada que carrega a cauda longa da linkagem).
+ *
+ * A regra anterior era "5 mais recentes da mesma categoria". Medida no acervo inteiro, ela
+ * alcançava **19 dos 536 posts sem link de entrada (3,5%)** e despejava **495 entradas num
+ * único post**: como todo mundo da categoria vê os mesmos recém-publicados, o bloco
+ * repetia meia dúzia de destinos e nunca chegava em quem precisava.
+ *
+ * Agora: parentesco por TAG primeiro, categoria como preenchimento — e janela de rotação
+ * determinística pela origem DENTRO de cada faixa, para espalhar sem precisar de contador
+ * global. Determinística porque render duas vezes tem que dar o mesmo bloco (RF do PRD 04
+ * e requisito de cache por tag). Medido: 89,9% dos órfãos com k=4, maior entrada 43.
+ *
+ * Os 10% restantes precisam de escolha global (quem já recebeu?), que a renderização não
+ * tem de graça — isso pede bloco pré-computado por job, e está proposto, não implementado.
+ */
 export async function getPostsRelacionados(
-  categoriaId: string | number,
-  excetoId: string | number,
-  limit = 5,
+  tenantId: string | number,
+  post: PostDTO,
+  limit = 4,
 ): Promise<PostDTO[]> {
-  const q = new URLSearchParams({
-    'where[and][0][categoria][equals]': String(categoriaId),
-    'where[and][1][id][not_equals]': String(excetoId),
-    'where[and][2][_status][equals]': 'published',
-    sort: '-publicado_em',
-    limit: String(limit),
-    depth: '0',
-  })
-  return (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs
+  const idsTag = (Array.isArray(post.tags) ? post.tags : [])
+    .map((t) => (typeof t === 'object' && t ? String(t.id) : String(t)))
+    .filter(Boolean)
+  const categoriaId =
+    typeof post.categoria === 'object' && post.categoria ? String(post.categoria.id) : String(post.categoria ?? '')
+
+  const busca = async (filtro: Record<string, string>): Promise<PostDTO[]> => {
+    const q = new URLSearchParams({
+      'where[and][0][tenant][equals]': String(tenantId),
+      'where[and][1][id][not_equals]': String(post.id),
+      'where[and][2][_status][equals]': 'published',
+      ...filtro,
+      sort: 'id',
+      limit: '200',
+      depth: '0',
+      'select[titulo]': 'true',
+      'select[slug]': 'true',
+    })
+    return (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs
+  }
+
+  const porTag = idsTag.length ? await busca({ 'where[and][3][tags][in]': idsTag.join(',') }) : []
+  const escolhidos: PostDTO[] = []
+  const vistos = new Set<string>()
+  const semente = hashEstavel(String(post.id))
+
+  for (const faixa of [porTag, categoriaId ? await busca({ 'where[and][3][categoria][equals]': categoriaId }) : []]) {
+    const restantes = faixa.filter((p) => !vistos.has(String(p.id)))
+    for (let i = 0; i < restantes.length && escolhidos.length < limit; i += 1) {
+      const escolhido = restantes[(semente + i) % restantes.length]!
+      if (vistos.has(String(escolhido.id))) continue
+      vistos.add(String(escolhido.id))
+      escolhidos.push(escolhido)
+    }
+    if (escolhidos.length >= limit) break
+  }
+  return escolhidos
+}
+
+/** Mesma família do hash do auto-linker: a janela do bloco tem que ser estável entre renders. */
+function hashEstavel(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return Math.abs(h)
 }
 
 /**

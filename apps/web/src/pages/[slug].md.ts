@@ -4,7 +4,7 @@
  */
 import type { APIRoute } from 'astro'
 
-import { getPageBySlug, getPostBySlug } from '../lib/cms'
+import { getPageBySlug, getPostBySlug, getPostsRelacionados } from '../lib/cms'
 import { lexicalParaTexto } from '../lib/lexical'
 
 /** Mesma regra da página HTML: arquivo do builder tem rota própria, não sai daqui. */
@@ -45,6 +45,16 @@ export const GET: APIRoute = async (context) => {
   linhas.push(`**Canonical:** https://${tenant.canonical_host}/${post.slug}`, '')
   const corpo = lexicalParaTexto(post.corpo)
   if (corpo) linhas.push(corpo)
+
+  // O bloco entra no .md porque senão o leitor-agente não enxerga o que o leitor humano vê
+  // — e o bloco é justamente a camada que carrega a linkagem da cauda longa.
+  const relacionados = await getPostsRelacionados(tenant.id, post, 4)
+  if (relacionados.length) {
+    linhas.push('', '## Leia também', '')
+    for (const r of relacionados) {
+      linhas.push(`- [${r.titulo}](https://${tenant.canonical_host}/${r.slug}/)`)
+    }
+  }
 
   return new Response(linhas.join('\n'), {
     headers: { 'content-type': 'text/markdown; charset=utf-8' },

@@ -65,8 +65,7 @@ if (Astro.cache.enabled) {
   })
 }
 
-const relacionados =
-  post && categoria ? await getPostsRelacionados(categoria.id, post.id) : ([] as PostDTO[])
+const relacionados = post ? await getPostsRelacionados(tenant.id, post, 4) : ([] as PostDTO[])
 
 const corpoHtml = lexicalParaHtml(post?.corpo, {
   reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
@@ -172,7 +171,7 @@ const jsonLd = JSON.stringify({
   {
     relacionados.length > 0 && (
       <section class="relacionados">
-        <h2>Continue lendo</h2>
+        <h2>Leia também</h2>
         <ul>
           {relacionados.map((p) => (
             <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
