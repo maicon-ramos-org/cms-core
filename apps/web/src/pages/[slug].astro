@@ -15,6 +15,7 @@ import ChipsCategorias from '../components/ChipsCategorias.astro'
 import PaginaConteudo from '../components/PaginaConteudo.astro'
 import Base from '../layouts/Base.astro'
 import {
+  caminhoCanonico,
   getCategorias,
   getMapaAfiliados,
   getPageBySlug,
@@ -76,7 +77,7 @@ const corpoHtml = lexicalParaHtml(post?.corpo, {
 // title/description do Rank Math quando vieram na migração — são os que já ranqueiam
 const titulo = post?.meta?.title || post?.titulo || ''
 const descricao = post?.meta?.description || lexicalParaTexto(post?.corpo, 155)
-const canonical = `https://${tenant.canonical_host}/${post?.slug ?? slug}/`
+const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(post?.slug ?? slug)}/`
 
 // datas do WP (createdAt/updatedAt do Payload são do import — publicá-las diria que o
 // acervo inteiro nasceu no dia da migração)

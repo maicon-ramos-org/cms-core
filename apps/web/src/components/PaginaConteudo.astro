@@ -7,7 +7,7 @@
  * primeiro e cai aqui quando o slug é de página.
  */
 import Base from '../layouts/Base.astro'
-import { urlMidia, type PageDTO } from '../lib/cms'
+import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'
 import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
 
 interface Props {
@@ -26,7 +26,7 @@ const corpoHtml = lexicalParaHtml(page.corpo, {
 
 const titulo = page.meta?.title || page.titulo
 const descricao = page.meta?.description || lexicalParaTexto(page.corpo, 155)
-const canonical = `https://${tenant.canonical_host}/${page.slug}/`
+const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(page.slug)}/`
 const atualizado = page.updatedAt ? new Date(page.updatedAt) : null
 
 const jsonLd = JSON.stringify({

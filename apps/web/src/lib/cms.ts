@@ -14,6 +14,14 @@ const CMS_API_KEY = () => process.env.CMS_API_KEY ?? ''
  */
 const CMS_PUBLIC_URL = () => process.env.CMS_PUBLIC_URL ?? CMS_URL()
 
+/**
+ * Canonical byte a byte igual ao do WordPress: ele publica o caminho percent-encoded com
+ * hex MINÚSCULO (`%e2%80%91`). Emitir o caractere cru é equivalente pro navegador, mas o
+ * diff de paridade compara string — e o que já está indexado é a forma encodada.
+ */
+export const caminhoCanonico = (segmento: string): string =>
+  encodeURIComponent(segmento).replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase())
+
 /** Caminho de mídia do Payload → URL absoluta que o navegador consegue buscar. */
 export const urlMidia = (url?: string | null): string | undefined => {
   if (!url) return undefined
