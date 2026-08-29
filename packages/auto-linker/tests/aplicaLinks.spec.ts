@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { aplicaLinks } from '../src/index'
+import { aplicaLinks, derivaAncora } from '../src/index'
 import { citacao, destino, heading, link, linksDe, paragrafo, raiz, regra, tabela, texto } from './fixtures'
 
 const origem = { colecao: 'posts' as const, id: 1, url: '/um-post/', tenant: 1 }
@@ -169,5 +169,125 @@ describe('RF4 e RF6 — rotação determinística e boost de órfãs', () => {
       ],
     })
     expect(linksDe(r.arvore)).toEqual([{ url: '/orfa/', ancora: 'n8n' }])
+  })
+})
+
+/**
+ * Regra 1b (design-auto-linker v0.2.0): destino sem `ancoras_alvo` ganha candidata
+ * derivada do título. Existe porque 72,2% do acervo é órfão — sem ela o auto-linker
+ * resolveria post→oferta e deixaria post→post parado pra sempre.
+ */
+describe('1b — âncora derivada do título', () => {
+  const semAncora = (titulo: string, over = {}) => regra([], { titulo, ...over })
+
+  it('destino sem âncora curada linka pelo título', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('Falamos sobre como instalar o n8n numa VPS antes.'))), {
+      ...base,
+      regras: [semAncora('Como instalar o n8n numa VPS')],
+    })
+    expect(linksDe(r.arvore)).toEqual([
+      { url: '/ofertas/hostinger-vps-n8n/', ancora: 'como instalar o n8n numa VPS' },
+    ])
+    expect(r.aplicados[0]!.fonte_ancora).toBe('derivada')
+  })
+
+  it('âncora curada continua marcada como curada', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('Rodar n8n é barato.'))), { ...base, regras: [regra(['n8n'])] })
+    expect(r.aplicados[0]!.fonte_ancora).toBe('curada')
+  })
+
+  it('título curto demais NÃO vira âncora — o destino segue órfão de propósito', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('Tudo sobre IA e VPS hoje.'))), {
+      ...base,
+      regras: [semAncora('IA e VPS')], // 2 palavras, 8 caracteres
+    })
+    expect(linksDe(r.arvore)).toEqual([])
+  })
+
+  it('título com 3 palavras mas menos de 18 caracteres também não passa', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('vale ver o guia de VPS aqui'))), {
+      ...base,
+      regras: [semAncora('guia de VPS')], // 3 palavras, 11 caracteres
+    })
+    expect(linksDe(r.arvore)).toEqual([])
+  })
+
+  it('curada vence derivada no MESMO trecho', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('leia o guia de VPS para n8n agora'))), {
+      ...base,
+      regras: [
+        semAncora('guia de VPS para n8n', { destino: destino({ id: 2, url: '/derivada/' }) }),
+        regra(['guia de VPS para n8n'], { destino: destino({ id: 3, url: '/curada/' }) }),
+      ],
+    })
+    expect(linksDe(r.arvore)).toEqual([{ url: '/curada/', ancora: 'guia de VPS para n8n' }])
+  })
+
+  it('empate entre duas derivadas no mesmo trecho NÃO escolhe: cancela as duas', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('vimos o guia de VPS para n8n na semana passada'))), {
+      ...base,
+      regras: [
+        semAncora('guia de VPS para n8n', { destino: destino({ id: 2, url: '/um/' }) }),
+        semAncora('guia de VPS para n8n', { destino: destino({ id: 3, url: '/outro/' }) }),
+      ],
+    })
+    expect(linksDe(r.arvore)).toEqual([])
+    expect(r.descartadosPorEmpate).toHaveLength(1)
+    expect(r.descartadosPorEmpate[0]!.trecho).toBe('guia de VPS para n8n')
+  })
+
+  it('derivada NÃO ganha vaga extra: respeita o teto', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('o guia de VPS para n8n e o manual do coolify em casa'))), {
+      ...base,
+      maxLinks: 1,
+      regras: [
+        semAncora('guia de VPS para n8n', { destino: destino({ id: 2, url: '/a/' }) }),
+        semAncora('manual do coolify em casa', { destino: destino({ id: 3, url: '/b/' }) }),
+      ],
+    })
+    expect(linksDe(r.arvore)).toHaveLength(1)
+  })
+
+  it('derivada respeita 1 link por destino por página', () => {
+    const r = aplicaLinks(
+      raiz(
+        paragrafo(texto('o guia de VPS para n8n resolve')),
+        paragrafo(texto('de novo o guia de VPS para n8n aqui')),
+      ),
+      { ...base, regras: [semAncora('guia de VPS para n8n')] },
+    )
+    expect(linksDe(r.arvore)).toHaveLength(1)
+  })
+
+  it('derivada nunca faz self-link nem linka pra despublicado', () => {
+    const r = aplicaLinks(raiz(paragrafo(texto('o guia de VPS para n8n de novo'))), {
+      ...base,
+      regras: [
+        semAncora('guia de VPS para n8n', { destino: destino({ colecao: 'posts', id: 1 }) }),
+        semAncora('guia de VPS para n8n', { destino: destino({ id: 9, publicado: false }) }),
+      ],
+    })
+    expect(linksDe(r.arvore)).toEqual([])
+  })
+})
+
+describe('derivaAncora — as guardas', () => {
+  it('corta o sufixo de SEO no separador e mantém o assunto', () => {
+    expect(derivaAncora('Coolify no Hostinger: guia completo 2026')).toBe('Coolify no Hostinger')
+    expect(derivaAncora('Como migrar do Heroku — passo a passo')).toBe('Como migrar do Heroku')
+  })
+
+  it('volta pro título inteiro quando o primeiro segmento não qualifica', () => {
+    expect(derivaAncora('n8n: como automatizar tudo')).toBe('n8n: como automatizar tudo')
+  })
+
+  it('devolve null quando nada qualifica', () => {
+    expect(derivaAncora('IA e VPS')).toBeNull()
+    expect(derivaAncora('')).toBeNull()
+    expect(derivaAncora(undefined)).toBeNull()
+  })
+
+  it('tira o ano do fim, que ninguém escreve no meio de uma frase', () => {
+    expect(derivaAncora('As melhores VPS baratas 2026')).toBe('As melhores VPS baratas')
   })
 })
