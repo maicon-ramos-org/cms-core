@@ -92,6 +92,16 @@ export const Tenants: CollectionConfig = {
         { name: 'cor_superficie_expirado', type: 'text', defaultValue: '#f4f6f9', admin: { description: 'acordeão de cupons expirados — nunca via opacity, que derruba o contraste' } },
         { name: 'cor_aviso', type: 'text', defaultValue: '#9a5b08', admin: { description: 'aviso dentro do bloco de expirados' } },
         { name: 'logo', type: 'upload', relationTo: 'midia' },
+        {
+          name: 'favicon',
+          type: 'upload',
+          relationTo: 'midia',
+          admin: {
+            description:
+              'ícone QUADRADO da aba. Separado do logo porque o logo é letreiro (1324x215 no runzos) e ' +
+              'letreiro em 16px é borrão — não é a mesma imagem em tamanho menor.',
+          },
+        },
         { name: 'fonte_titulos', type: 'text', defaultValue: 'Lexend Deca', admin: { description: 'família self-hosted (PRD 02)' } },
         { name: 'fonte_corpo', type: 'text', defaultValue: 'Open Sans', admin: { description: 'família self-hosted (PRD 02)' } },
       ],

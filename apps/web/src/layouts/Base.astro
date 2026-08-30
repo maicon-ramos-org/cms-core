@@ -13,6 +13,7 @@
  *   buscado em texto pt-BR.
  */
 import fontesCss from '../../public/fontes/fontes.css?raw'
+import { urlMidia } from '../lib/cms'
 
 /**
  * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
@@ -37,6 +38,16 @@ const tenant = Astro.locals.tenant
 const t = tenant.tema ?? {}
 
 /** Fallbacks só existem pra não quebrar tenant novo sem tema preenchido. */
+/**
+ * Ícone da aba: DADO do tenant, não arquivo em `public/`. Sem ele o navegador pede
+ * `/favicon.ico` e leva 404 em toda página — era o único erro de console do site.
+ */
+const midiaFavicon = tenant.tema?.favicon
+const favicon =
+  midiaFavicon && typeof midiaFavicon === 'object' && midiaFavicon.url
+    ? { url: urlMidia(midiaFavicon.url), tipo: midiaFavicon.url.endsWith('.svg') ? 'image/svg+xml' : 'image/png' }
+    : null
+
 const tokens = {
   brand: t.cor_primaria ?? '#6F57D3',
   bg: t.cor_fundo ?? '#ffffff',
@@ -68,6 +79,7 @@ const tokens = {
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     {canonical && <link rel="canonical" href={canonical} />}
     {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
+    {favicon && <link rel="icon" type={favicon.tipo} href={favicon.url} />}
     <link rel="preload" href="/fontes/open-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fontes/lexend-deca-latin.woff2" as="font" type="font/woff2" crossorigin />
     <style is:inline set:html={fontesCss}></style>

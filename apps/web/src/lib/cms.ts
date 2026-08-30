@@ -52,6 +52,8 @@ export interface TenantDTO {
     cor_aviso?: string
     fonte_titulos?: string
     fonte_corpo?: string
+    /** ícone QUADRADO da aba — não é o logo em tamanho menor; ver colecoes.md */
+    favicon?: { url?: string; alt?: string } | string | number | null
   }
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean
@@ -165,13 +167,15 @@ export async function cmsFindOneNoTenant<T>(
 }
 
 export async function getTenantByHost(host: string): Promise<TenantDTO | null> {
-  const q = new URLSearchParams({ 'where[canonical_host][equals]': host, limit: '1', depth: '0' })
+  // depth 1: o favicon é upload e precisa vir com `url`. Custa uma junção por resolução de
+  // tenant, e o middleware cacheia o tenant por 60s — não é por requisição de página.
+  const q = new URLSearchParams({ 'where[canonical_host][equals]': host, limit: '1', depth: '1' })
   const r = await cmsFetch<FindResult<TenantDTO>>(`/api/tenants?${q}`)
   return r.docs[0] ?? null
 }
 
 export async function getTenantBySlug(slug: string): Promise<TenantDTO | null> {
-  const q = new URLSearchParams({ 'where[slug][equals]': slug, limit: '1', depth: '0' })
+  const q = new URLSearchParams({ 'where[slug][equals]': slug, limit: '1', depth: '1' })
   const r = await cmsFetch<FindResult<TenantDTO>>(`/api/tenants?${q}`)
   return r.docs[0] ?? null
 }
