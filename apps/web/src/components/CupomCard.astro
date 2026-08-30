@@ -16,9 +16,18 @@ interface Props {
   cupom: CupomDTO
   /** decomposição do desconto ("70% da loja + 10% nosso cupom") quando houver dado */
   decomposicao?: string | null
+  /**
+   * Página do cupom. Quando existe, o card mostra "Ver cupom" em vez do CÓDIGO — é a
+   * listagem (home, hub) levando pra página em vez de entregar o código ali.
+   *
+   * Não é estilo: quem LÊ o código na listagem vai pra loja por fora e some da medição.
+   * O clique é o que mede resgate, e é o que passa pelo redirect que monetiza. Na página
+   * do cupom o código aparece inteiro — o desenho aprovado guarda ele pra lá.
+   */
+  destino?: string | null
 }
 
-const { cupom, decomposicao = null } = Astro.props
+const { cupom, decomposicao = null, destino = null } = Astro.props
 
 const descontoLabel = (() => {
   switch (cupom.desconto_tipo) {
@@ -59,17 +68,25 @@ const selo = (() => {
   </p>
 
   <div class="corpo">
-    {/* o código é link de verdade: sem JS ainda leva à loja (e o texto fica copiável) */}
-    <a
-      class="codigo"
-      href={`/r/c${cupom.id}?ref=codigo`}
-      rel="sponsored nofollow"
-      data-copiar={cupom.codigo}
-      aria-label={`Copiar o cupom ${cupom.codigo} e ir para a loja`}
-    >
-      <span class="codigo-texto">{cupom.codigo}</span>
-      <span class="codigo-acao" aria-hidden="true">copiar</span>
-    </a>
+    {
+      destino ? (
+        <a class="ver" href={destino}>
+          Ver cupom
+        </a>
+      ) : (
+        /* o código é link de verdade: sem JS ainda leva à loja (e o texto fica copiável) */
+        <a
+          class="codigo"
+          href={`/r/c${cupom.id}?ref=codigo`}
+          rel="sponsored nofollow"
+          data-copiar={cupom.codigo}
+          aria-label={`Copiar o cupom ${cupom.codigo} e ir para a loja`}
+        >
+          <span class="codigo-texto">{cupom.codigo}</span>
+          <span class="codigo-acao" aria-hidden="true">copiar</span>
+        </a>
+      )
+    }
 
     {cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
 
@@ -88,7 +105,7 @@ const selo = (() => {
     }
   </div>
 
-  <CtaAfiliado tipo="cupom" docId={cupom.id} />
+  {!destino && <CtaAfiliado tipo="cupom" docId={cupom.id} />}
 </article>
 
 <script>
@@ -159,6 +176,19 @@ const selo = (() => {
     color: var(--rz-muted);
   }
   .corpo { flex: 1; min-width: 220px; }
+  .ver {
+    display: block;
+    text-align: center;
+    padding: 0.7rem 1rem;
+    border-radius: 10px;
+    border: 1.5px solid var(--rz-brand);
+    color: var(--rz-brand);
+    background: var(--rz-surface);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    text-decoration: none;
+    min-height: 44px;
+  }
   .codigo {
     display: inline-flex;
     align-items: center;
