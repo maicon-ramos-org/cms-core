@@ -52,6 +52,8 @@ export interface TenantDTO {
     cor_aviso?: string
     fonte_titulos?: string
     fonte_corpo?: string
+    /** letreiro da marca, usado no cabeçalho */
+    logo?: { url?: string; alt?: string } | string | number | null
     /** ícone QUADRADO da aba — não é o logo em tamanho menor; ver colecoes.md */
     favicon?: { url?: string; alt?: string } | string | number | null
   }
@@ -476,6 +478,66 @@ export interface CategoriaOfertaDTO {
 }
 
 /** Todas as categorias do catálogo — alimenta o sitemap (a URL reflete a hierarquia). */
+/**
+ * As categorias do CATÁLOGO que entram na navegação — só as marcadas `canonica`, na ordem
+ * de `ordem_chip`. O campo existe desde o contrato justamente pra isso: as 33 categorias
+ * do WP têm duplicata (`VPS`, `Servidor VPS`, `Hospedagem VPS`), então o menu não sai da
+ * lista bruta. A curadoria das 10 veio do menu que o runzos.com já serve hoje.
+ */
+/**
+ * Busca por TÍTULO em posts, ofertas e lojas. Simples de propósito: `like` no título, sem
+ * corpo e sem relevância. O campo do cabeçalho precisa levar a algum lugar, e é melhor uma
+ * busca honesta e limitada — com a limitação dita na página — do que uma que finge ranquear.
+ */
+export async function buscaSimples(
+  tenantId: string | number,
+  termo: string,
+  limite = 12,
+): Promise<{ posts: PostDTO[]; ofertas: OfertaDTO[]; lojas: LojaDTO[] }> {
+  /** `temDraft`: só as coleções com versões aceitam filtro por `_status`. `lojas` não tem,
+   *  e filtrar por ele lá devolve QueryError — que o catch abaixo transformava em lista
+   *  vazia, ou seja, a busca não achava loja nenhuma e não dizia por quê. */
+  const busca = async <T>(colecao: string, campo: string, temDraft = true): Promise<T[]> => {
+    const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenantId) })
+    let i = 1
+    if (temDraft) q.set(`where[and][${i++}][_status][equals]`, 'published')
+    q.set(`where[and][${i}][${campo}][like]`, termo)
+    q.set('limit', String(limite))
+    q.set('depth', '0')
+    try {
+      return (await cmsFetch<FindResult<T>>(`/api/${colecao}?${q}`)).docs
+    } catch (e) {
+      // uma coleção fora do ar não derruba a página — mas o erro aparece, não some
+      console.error(`[busca] ${colecao} falhou:`, (e as Error).message)
+      return []
+    }
+  }
+  const [posts, ofertas, lojas] = await Promise.all([
+    busca<PostDTO>('posts', 'titulo'),
+    busca<OfertaDTO>('ofertas', 'titulo'),
+    busca<LojaDTO>('lojas', 'nome', false),
+  ])
+  return { posts, ofertas, lojas }
+}
+
+export async function categoriasDeNavegacao(
+  tenantId: string | number,
+): Promise<Array<{ nome: string; href: string }>> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][navegacao][equals]': 'canonica',
+    sort: 'ordem_chip',
+    limit: '30',
+    // depth 1 resolve o `pai`: a URL do catálogo reflete a hierarquia (`pai/filho`)
+    depth: '1',
+  })
+  const docs = (await cmsFetch<FindResult<CategoriaOfertaDTO>>(`/api/categorias_oferta?${q}`)).docs
+  return docs.map((c) => {
+    const pai = c.pai && typeof c.pai === 'object' ? c.pai.slug : null
+    return { nome: c.nome, href: `/categoria-oferta/${pai ? `${pai}/` : ''}${c.slug}/` }
+  })
+}
+
 export async function cmsCategoriasOferta(tenantId: string | number): Promise<CategoriaOfertaDTO[]> {
   const q = new URLSearchParams({
     'where[tenant][equals]': String(tenantId),

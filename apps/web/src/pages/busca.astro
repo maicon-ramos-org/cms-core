@@ -1,0 +1,86 @@
+---
+/**
+ * Busca do site. Existe porque o campo no cabeçalho precisa levar a algum lugar — campo
+ * que não busca é enfeite, e enfeite que parece funcionalidade é pior que ausência.
+ *
+ * É BUSCA POR TÍTULO, deliberadamente simples: `like` no título de posts, ofertas e lojas.
+ * Não indexa corpo nem ordena por relevância. Quando o volume pedir, o lugar disso é um
+ * índice de verdade — não um `like` mais esperto.
+ *
+ * `noindex`: página de resultado não entra no índice do Google (conteúdo duplicado do
+ * catálogo, e URL infinita por query).
+ */
+import Base from '../layouts/Base.astro'
+import { buscaSimples, caminhoDaOferta } from '../lib/cms'
+
+const tenant = Astro.locals.tenant
+const termo = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 80)
+const r = termo ? await buscaSimples(tenant.id, termo) : { posts: [], ofertas: [], lojas: [] }
+const total = r.posts.length + r.ofertas.length + r.lojas.length
+
+const titulo = termo ? `Busca: ${termo}` : 'Busca'
+---
+
+<Base titulo={titulo} descricao={`Resultados de busca em ${tenant.nome}.`} noindex>
+  <h1>{termo ? <>Resultados para “{termo}”</> : 'Busca'}</h1>
+
+  {termo && <p class="contagem">{total} {total === 1 ? 'resultado' : 'resultados'}</p>}
+
+  {!termo && <p class="vazio">Digite algo no campo de busca do topo.</p>}
+  {termo && total === 0 && (
+    <p class="vazio">
+      Nada encontrado para “{termo}”. A busca olha o título de posts, ofertas e lojas — tente uma
+      palavra mais curta.
+    </p>
+  )}
+
+  {r.lojas.length > 0 && (
+    <section>
+      <h2>Lojas</h2>
+      <ul class="lista">
+        {r.lojas.map((l) => (
+          <li><a href={`/cupom-${l.slug}/`}>{l.nome}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {r.ofertas.length > 0 && (
+    <section>
+      <h2>Ofertas</h2>
+      <ul class="lista">
+        {r.ofertas.map((o) => (
+          <li><a href={caminhoDaOferta(o)}>{o.titulo}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {r.posts.length > 0 && (
+    <section>
+      <h2>Artigos</h2>
+      <ul class="lista">
+        {r.posts.map((p) => (
+          <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+</Base>
+
+<style>
+  .contagem {
+    color: var(--rz-muted);
+    font-size: 0.9rem;
+    margin-top: -0.5rem;
+  }
+  .vazio {
+    color: var(--rz-muted);
+  }
+  .lista {
+    padding-left: 1.2rem;
+  }
+  .lista li {
+    margin-bottom: 0.4rem;
+  }
+</style>

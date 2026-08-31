@@ -13,6 +13,7 @@
  *   buscado em texto pt-BR.
  */
 import fontesCss from '../../public/fontes/fontes.css?raw'
+import Cabecalho from '../components/Cabecalho.astro'
 import { urlMidia } from '../lib/cms'
 
 /**
@@ -194,9 +195,7 @@ const tokens = {
     </style>
   </head>
   <body>
-    <header class="site">
-      <a class="marca" href="/">{tenant.nome}</a>
-    </header>
+    <Cabecalho />
     <main>
       <slot />
     </main>

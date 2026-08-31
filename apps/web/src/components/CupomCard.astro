@@ -177,9 +177,12 @@ const selo = (() => {
   }
   .corpo { flex: 1; min-width: 220px; }
   .ver {
-    display: block;
-    text-align: center;
-    padding: 0.7rem 1rem;
+    /* inline-flex, não `block`: na listagem ele é o botão do card, e ocupando a linha
+       inteira ele virava faixa e afogava o desconto, que é o que o leitor lê primeiro */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.4rem;
     border-radius: 10px;
     border: 1.5px solid var(--rz-brand);
     color: var(--rz-brand);
