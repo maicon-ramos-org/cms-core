@@ -11,7 +11,7 @@ import CupomCard from '../../components/CupomCard.astro'
 import Base from '../../layouts/Base.astro'
 import { compor } from '@runzos/desconto'
 
-import { caminhoCanonico, getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
+import { caminhoDaOferta, caminhoCanonico, getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { lexicalParaHtml, lexicalParaTexto } from '../../lib/lexical'
 
 const tenant = Astro.locals.tenant
@@ -84,7 +84,7 @@ const tituloPagina = oferta.meta?.title || oferta.titulo
 const descricao = oferta.meta?.description || resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`
 
 // canonical absoluto no host do tenant (nunca o host da requisição: staging não canoniza pra si)
-const canonical = `https://${tenant.canonical_host}/ofertas/${caminhoCanonico(oferta.slug)}/`
+const canonical = `https://${tenant.canonical_host}${caminhoDaOferta(oferta)}`
 
 const precoValido = typeof oferta.preco?.valor === 'number' && oferta.preco.valor > 0
 const moeda = oferta.preco?.moeda ?? 'BRL'

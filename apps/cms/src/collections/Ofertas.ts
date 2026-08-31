@@ -68,7 +68,16 @@ export const Ofertas: CollectionConfig = {
       type: 'group',
       admin: { description: 'o desconto que a LOJA já dá — alimenta o formato empilhado (spec-desconto-e-historico)' },
       fields: [
-        { name: 'valor', type: 'number', min: 0, max: 95 },
+        {
+          name: 'valor',
+          type: 'number',
+          min: 0,
+          // 99 e não 95: o teto de 95 era palpite de plausibilidade, e 4 dos 57 deals do
+          // AppSumo publicados têm 96% e 97%. O teto segue existindo pra barrar erro de
+          // parsing — 100%+ é bug, não oferta. O 0,95 do `compor()` é outro limite, de
+          // composição, e não muda.
+          max: 99,
+        },
         { name: 'tipo', type: 'select', options: ['percentual', 'valor'], defaultValue: 'percentual' },
         { name: 'moeda', type: 'text', defaultValue: 'BRL', admin: { condition: (_d, sibling) => sibling?.tipo === 'valor' } },
         {

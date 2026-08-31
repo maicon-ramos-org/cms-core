@@ -71,6 +71,18 @@ export interface LojaDTO {
   tenant?: string | number | TenantDTO
 }
 
+/**
+ * Caminho público da oferta. NÃO é sempre `/ofertas/{slug}`: os 57 deals do AppSumo foram
+ * publicados no WordPress em `/apps/{slug}` e a URL indexada é a verdade — trocá-los de
+ * pasta durante a troca de stack misturaria duas mudanças e cobraria 301 de graça.
+ *
+ * Derivado de `wordpress_id` (`app:` vs `product:`) em vez de campo novo: um campo que
+ * sempre é igual a uma derivação é duplicata que um dia diverge. Quem decide a rota é a
+ * origem do registro, e ela já está gravada.
+ */
+export const caminhoDaOferta = (o: { slug: string; wordpress_id?: string | null }): string =>
+  `${String(o.wordpress_id ?? '').startsWith('app:') ? '/apps' : '/ofertas'}/${caminhoCanonico(o.slug)}/`
+
 export interface CupomDTO {
   id: string | number
   codigo: string
@@ -337,8 +349,8 @@ export async function listarParaSitemap(
   tenantId: string | number,
   campoData: string,
   filtros: Array<{ campo: string; operador: 'equals' | 'not_equals'; valor: string }> = [],
-): Promise<Array<{ id: string | number; slug: string; lastmod?: string | null }>> {
-  const saida: Array<{ id: string | number; slug: string; lastmod?: string | null }> = []
+): Promise<Array<{ id: string | number; slug: string; lastmod?: string | null; wordpress_id?: string | null }>> {
+  const saida: Array<{ id: string | number; slug: string; lastmod?: string | null; wordpress_id?: string | null }> = []
   let pagina = 1
   let totalPages = 1
   do {
@@ -346,6 +358,8 @@ export async function listarParaSitemap(
       'where[and][0][tenant][equals]': String(tenantId),
       'where[and][1][_status][equals]': 'published',
       'select[slug]': 'true',
+      // o caminho público da oferta depende da origem (ver caminhoDaOferta)
+      'select[wordpress_id]': 'true',
       [`select[${campoData}]`]: 'true',
       limit: '500',
       page: String(pagina),
@@ -358,7 +372,12 @@ export async function listarParaSitemap(
     totalPages = r.totalPages ?? 1
     for (const doc of r.docs) {
       if (typeof doc.slug === 'string') {
-        saida.push({ id: doc.id as string | number, slug: doc.slug, lastmod: (doc[campoData] as string) ?? null })
+        saida.push({
+          id: doc.id as string | number,
+          slug: doc.slug,
+          lastmod: (doc[campoData] as string) ?? null,
+          wordpress_id: (doc.wordpress_id as string) ?? null,
+        })
       }
     }
     pagina += 1
