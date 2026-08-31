@@ -85,6 +85,19 @@ export interface LojaDTO {
 export const caminhoDaOferta = (o: { slug: string; wordpress_id?: string | null }): string =>
   `${String(o.wordpress_id ?? '').startsWith('app:') ? '/apps' : '/ofertas'}/${caminhoCanonico(o.slug)}/`
 
+/**
+ * Imagem do Payload. `sizes.cartao` é o derivado de 640px gerado por `regenera:tamanhos`;
+ * pode não existir (upload antigo ainda não reprocessado), e por isso quem consome sempre
+ * cai no original.
+ */
+export interface MidiaDTO {
+  url?: string
+  alt?: string
+  width?: number
+  height?: number
+  sizes?: { cartao?: { url?: string | null; width?: number | null; height?: number | null } | null } | null
+}
+
 export interface CupomDTO {
   id: string | number
   codigo: string
@@ -134,7 +147,7 @@ export interface OfertaDTO {
   /** categorias do catálogo (Woo) — é por elas que a vitrine da home agrupa */
   categorias?: Array<CategoriaOfertaDTO | string | number> | null
   /** imagem do cartão — migrada do WP, ver `enriquece-ofertas.ts` */
-  imagem?: { url?: string; alt?: string; width?: number; height?: number } | string | number | null
+  imagem?: MidiaDTO | string | number | null
   /** a linha de descrição do cartão (short_description/excerpt do WP) */
   resumo?: string | null
 }

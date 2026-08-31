@@ -17,7 +17,7 @@
  * O verde de AÇÃO (`--rz-action`) fica de fora de propósito — ele é do botão que monetiza,
  * e um botão de ação em 36 cartões da home apaga o único que importa na página da oferta.
  */
-import { caminhoDaOferta, urlMidia, type LojaDTO, type OfertaDTO } from '../lib/cms'
+import { caminhoDaOferta, urlMidia, type LojaDTO, type MidiaDTO, type OfertaDTO } from '../lib/cms'
 
 interface Props {
   oferta: OfertaDTO
@@ -32,8 +32,17 @@ const { oferta, loja, prioritario = false } = Astro.props
 const nomeLoja =
   loja ?? (oferta.loja && typeof oferta.loja === 'object' ? (oferta.loja as LojaDTO).nome : null)
 
-const img = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
-const src = urlMidia(img?.url)
+const img: MidiaDTO | null = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+/*
+ * O derivado de 640px, não o original de 1280 — o cartão renderiza em ~300px e o arquivo
+ * grande custa 3x mais byte pela mesma pixelagem na tela. Cai no original quando a mídia
+ * ainda não foi reprocessada (`regenera:tamanhos`), porque imagem grande é melhor que
+ * cartão vazio.
+ */
+const cartao = img?.sizes?.cartao
+const src = urlMidia(cartao?.url ?? img?.url)
+const largura = cartao?.width ?? img?.width ?? 1280
+const altura = cartao?.height ?? img?.height ?? 720
 
 const moeda = (valor: number, cod?: string | null): string =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cod || 'BRL' }).format(valor)
@@ -77,8 +86,8 @@ const selo = ((): { texto: string; tom: 'desconto' | 'preco' | 'tipo' } | null =
         class="capa"
         src={src}
         alt={img?.alt ?? ''}
-        width={img?.width ?? 1280}
-        height={img?.height ?? 720}
+        width={largura}
+        height={altura}
         loading={prioritario ? 'eager' : 'lazy'}
         decoding="async"
       />
