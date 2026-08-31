@@ -1,0 +1,118 @@
+---
+/**
+ * Cartão de oferta — a peça das vitrines da home e dos hubs.
+ *
+ * O selo do canto NÃO é texto escrito por ninguém: é o campo do banco formatado. Desconto
+ * só vira "70% OFF" se tiver `verificado_em` (a mesma régua do resto do site — número sem
+ * carimbo não é dado); sem desconto verificado, cai pro preço com "a partir de"; sem preço,
+ * o cartão fica sem selo em vez de inventar um.
+ *
+ * A loja vem em cima e o título embaixo porque o título migrado do WP é uma manchete longa
+ * ("Hostinger VPS n8n +70% de Desconto (Workflows ilimitados)") — quem varre a grade lê a
+ * marca primeiro e só então decide ler a linha inteira.
+ */
+import { caminhoDaOferta, type LojaDTO, type OfertaDTO } from '../lib/cms'
+
+interface Props {
+  oferta: OfertaDTO
+  /** nome da loja resolvido pelo chamador quando o `depth` não trouxe o objeto */
+  loja?: string | null
+}
+
+const { oferta, loja } = Astro.props
+
+const nomeLoja =
+  loja ?? (oferta.loja && typeof oferta.loja === 'object' ? (oferta.loja as LojaDTO).nome : null)
+
+const moeda = (valor: number, cod?: string | null): string =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cod || 'BRL' }).format(valor)
+
+/** Mesmos rótulos do hub /ofertas — o enum do banco escrito por extenso, nada além disso. */
+const rotuloTipo: Record<string, string> = {
+  cupom: 'cupom',
+  credito: 'crédito',
+  lifetime: 'lifetime',
+  desconto_api: 'desconto em API',
+}
+
+/** Selo: desconto verificado > preço > tipo. Nunca um rótulo inventado. */
+const selo = ((): { texto: string; tom: 'desconto' | 'preco' | 'tipo' } | null => {
+  const d = oferta.desconto_loja
+  if (d?.verificado_em && typeof d.valor === 'number' && d.valor > 0) {
+    return {
+      texto: d.tipo === 'valor' ? `${moeda(d.valor, d.moeda)} OFF` : `${d.valor}% OFF`,
+      tom: 'desconto',
+    }
+  }
+  /*
+   * Crédito fica SEM selo de preço de propósito. Em oferta de crédito o `preco` é o valor
+   * do plano da loja, não o que se paga pra ganhar o crédito — "Railway: US$20 de crédito
+   * grátis" com um "a partir de US$ 5,00" ao lado diz uma coisa e mostra outra.
+   */
+  const p = oferta.tipo === 'credito' ? null : oferta.preco
+  if (typeof p?.valor === 'number' && p.valor > 0) {
+    const v = moeda(p.valor, p.moeda)
+    return { texto: p.ciclo === 'mensal' ? `a partir de ${v}/mês` : `a partir de ${v}`, tom: 'preco' }
+  }
+  const t = oferta.tipo ? rotuloTipo[oferta.tipo] : null
+  return t ? { texto: t, tom: 'tipo' } : null
+})()
+---
+
+<a class="cartao" href={caminhoDaOferta(oferta)}>
+  {nomeLoja && <span class="loja">{nomeLoja}</span>}
+  <span class="titulo">{oferta.titulo}</span>
+  {selo && <span class:list={['selo', selo.tom]}>{selo.texto}</span>}
+</a>
+
+<style>
+  .cartao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    height: 100%;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    text-decoration: none;
+  }
+  .cartao:hover {
+    border-color: var(--rz-brand);
+    background: var(--rz-surface-brand);
+  }
+
+  .loja {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rz-muted);
+  }
+  .titulo {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  /* o selo desce pro rodapé do cartão para a grade alinhar mesmo com títulos de alturas
+     diferentes — sem isso cada cartão termina numa altura e a fileira fica serrilhada */
+  .selo {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .selo.desconto { color: var(--rz-deal); }
+  .selo.preco { font-size: 0.85rem; font-weight: 600; color: var(--rz-muted); }
+  /* o rótulo de tipo é o degrau mais fraco: informa o formato da oferta sem fingir número */
+  .selo.tipo {
+    font-family: var(--rz-fonte-corpo);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--rz-muted);
+  }
+</style>

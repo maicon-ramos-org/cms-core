@@ -131,6 +131,8 @@ export interface OfertaDTO {
     fonte?: string | null
   } | null
   loja?: LojaDTO | string | number
+  /** categorias do catálogo (Woo) — é por elas que a vitrine da home agrupa */
+  categorias?: Array<CategoriaOfertaDTO | string | number> | null
 }
 
 interface FindResult<T> {
@@ -708,6 +710,27 @@ export async function getOfertasDoTenant(tenantId: string | number, limit = 200)
     limit: String(limit),
     depth: '1',
   })
+  return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
+}
+
+/**
+ * O catálogo INTEIRO sem o `corpo` — é o que a home precisa para montar as vitrines.
+ *
+ * `getOfertasDoTenant` traz o rich text de cada oferta: 109 artigos completos para render
+ * um punhado de cartões. Aqui o `select` deixa passar só o que o cartão mostra, e a home
+ * agrupa em memória em vez de fazer uma chamada por categoria.
+ */
+export async function getOfertasParaVitrine(tenantId: string | number, limit = 300): Promise<OfertaDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    sort: 'titulo',
+    limit: String(limit),
+    depth: '1',
+  })
+  for (const campo of ['titulo', 'slug', 'tipo', 'preco', 'desconto_loja', 'categorias', 'loja', 'wordpress_id']) {
+    q.set(`select[${campo}]`, 'true')
+  }
   return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
 }
 
