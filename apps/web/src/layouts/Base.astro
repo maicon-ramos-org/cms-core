@@ -14,6 +14,7 @@
  */
 import fontesCss from '../../public/fontes/fontes.css?raw'
 import Cabecalho from '../components/Cabecalho.astro'
+import Rodape from '../components/Rodape.astro'
 import { urlMidia } from '../lib/cms'
 
 /**
@@ -199,11 +200,6 @@ const tokens = {
     <main>
       <slot />
     </main>
-    <footer class="site">
-      <p>
-        {tenant.nome} é um site independente de cupons e ofertas. Podemos receber comissão
-        por compras feitas através dos nossos links, sem custo extra pra você.
-      </p>
-    </footer>
+    <Rodape />
   </body>
 </html>
