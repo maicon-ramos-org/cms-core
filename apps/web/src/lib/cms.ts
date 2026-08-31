@@ -133,6 +133,10 @@ export interface OfertaDTO {
   loja?: LojaDTO | string | number
   /** categorias do catálogo (Woo) — é por elas que a vitrine da home agrupa */
   categorias?: Array<CategoriaOfertaDTO | string | number> | null
+  /** imagem do cartão — migrada do WP, ver `enriquece-ofertas.ts` */
+  imagem?: { url?: string; alt?: string; width?: number; height?: number } | string | number | null
+  /** a linha de descrição do cartão (short_description/excerpt do WP) */
+  resumo?: string | null
 }
 
 interface FindResult<T> {
@@ -728,7 +732,8 @@ export async function getOfertasParaVitrine(tenantId: string | number, limit = 3
     limit: String(limit),
     depth: '1',
   })
-  for (const campo of ['titulo', 'slug', 'tipo', 'preco', 'desconto_loja', 'categorias', 'loja', 'wordpress_id']) {
+  const campos = ['titulo', 'slug', 'tipo', 'preco', 'desconto_loja', 'categorias', 'loja', 'wordpress_id', 'imagem', 'resumo']
+  for (const campo of campos) {
     q.set(`select[${campo}]`, 'true')
   }
   return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs

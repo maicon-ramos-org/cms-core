@@ -105,6 +105,21 @@ export const Ofertas: CollectionConfig = {
       },
     },
     { name: 'corpo', type: 'richText', required: true },
+    {
+      name: 'imagem',
+      type: 'upload',
+      relationTo: 'midia',
+      admin: { description: 'imagem do cartão nas vitrines — sem ela o cartão vira só texto' },
+    },
+    {
+      name: 'resumo',
+      type: 'textarea',
+      maxLength: 200,
+      admin: {
+        description:
+          'a linha de descrição do cartão (migrada do short_description/excerpt do WP). Escreva você — nunca saída de LLM: aqui se fala de preço e benefício',
+      },
+    },
     { name: 'destaque', type: 'checkbox', defaultValue: false, admin: { description: 'home/hubs' } },
     { name: 'wordpress_id', type: 'text', unique: true, index: true, admin: { description: '{post_type}:{ID} — import idempotente' } },
     { name: 'slug_wp', type: 'text', index: true },
