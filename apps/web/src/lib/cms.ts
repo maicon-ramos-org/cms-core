@@ -520,6 +520,95 @@ export async function buscaSimples(
   return { posts, ofertas, lojas }
 }
 
+/**
+ * Maior desconto entre as ofertas de pagamento único — o número do CTA do cabeçalho.
+ *
+ * Só conta desconto COM `verificado_em`: desconto sem carimbo não é dado confiável, e um
+ * CTA que anuncia número sem lastro é a mesma promessa vazia que o projeto existe pra não
+ * fazer. Sem nenhum verificado, devolve null e o CTA sai sem número.
+ */
+/**
+ * Tudo que a busca instantânea precisa, numa leitura por coleção: slug, título e o
+ * `wordpress_id` (que decide a rota da oferta). `select` explícito — sem ele a resposta
+ * traria o corpo Lexical de 741 posts, que é o oposto de índice enxuto.
+ */
+export async function itensParaBusca(
+  tenantId: string | number,
+): Promise<
+  Array<{ colecao: string; id: string | number; slug: string; nome: string; wordpress_id?: string | null; template?: string | null }>
+> {
+  const colecoes: Array<{ nome: string; campo: string; comStatus: boolean }> = [
+    { nome: 'posts', campo: 'titulo', comStatus: true },
+    { nome: 'ofertas', campo: 'titulo', comStatus: true },
+    { nome: 'pages', campo: 'titulo', comStatus: true },
+    { nome: 'lojas', campo: 'nome', comStatus: false },
+  ]
+  const saida: Array<{
+    colecao: string
+    id: string | number
+    slug: string
+    nome: string
+    wordpress_id?: string | null
+    /** ficha de app é `pages` mas mora em /apps/{slug} — sem isto a busca leva a 404 */
+    template?: string | null
+  }> = []
+  await Promise.all(
+    colecoes.map(async ({ nome: colecao, campo, comStatus }) => {
+      let pagina = 1
+      let totalPages = 1
+      do {
+        const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenantId) })
+        if (comStatus) q.set('where[and][1][_status][equals]', 'published')
+        q.set('select[slug]', 'true')
+        q.set(`select[${campo}]`, 'true')
+        q.set('select[wordpress_id]', 'true')
+        if (colecao === 'pages') q.set('select[template]', 'true')
+        q.set('limit', '500')
+        q.set('page', String(pagina))
+        q.set('depth', '0')
+        const r = await cmsFetch<FindResult<Record<string, unknown>> & { totalPages?: number }>(
+          `/api/${colecao}?${q}`,
+        )
+        totalPages = r.totalPages ?? 1
+        for (const d of r.docs) {
+          if (typeof d.slug === 'string' && typeof d[campo] === 'string') {
+            saida.push({
+              colecao,
+              id: d.id as string | number,
+              slug: d.slug,
+              nome: d[campo] as string,
+              wordpress_id: (d.wordpress_id as string) ?? null,
+              template: (d.template as string) ?? null,
+            })
+          }
+        }
+        pagina += 1
+      } while (pagina <= totalPages)
+    }),
+  )
+  return saida
+}
+
+export async function maiorDescontoLifetime(tenantId: string | number): Promise<number | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    'where[and][2][tipo][equals]': 'lifetime',
+    'where[and][3][desconto_loja.verificado_em][exists]': 'true',
+    sort: '-desconto_loja.valor',
+    limit: '1',
+    depth: '0',
+  })
+  try {
+    const doc = (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs[0]
+    const v = doc?.desconto_loja?.valor
+    return typeof v === 'number' ? v : null
+  } catch (e) {
+    console.error('[cta] maiorDescontoLifetime falhou:', (e as Error).message)
+    return null
+  }
+}
+
 export async function categoriasDeNavegacao(
   tenantId: string | number,
 ): Promise<Array<{ nome: string; href: string }>> {
