@@ -51,6 +51,17 @@ const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.i
 const categoria = post?.categoria && typeof post.categoria === 'object' ? post.categoria : null
 const autor = post?.autor && typeof post.autor === 'object' ? post.autor : null
 const capa = post?.capa && typeof post.capa === 'object' ? post.capa : null
+/*
+ * O original tem ~1200px e a coluna do artigo tem 944 no desktop: ali ele é o tamanho
+ * certo. Quem ganha com o `srcset` é o celular, que renderiza em ~360 e baixava a mesma
+ * imagem do desktop — o derivado de 640 (ver `regenera:tamanhos`) corta isso pela metade.
+ */
+const capaSrcset = [
+  capa?.sizes?.cartao?.url ? `${urlMidia(capa.sizes.cartao.url)} 640w` : null,
+  capa?.url ? `${urlMidia(capa.url)} ${capa.width ?? 1200}w` : null,
+]
+  .filter(Boolean)
+  .join(', ')
 const tags = Array.isArray(post?.tags)
   ? post.tags.filter((t): t is { id: string | number; nome: string; slug: string } => typeof t === 'object' && t !== null)
   : []
@@ -154,6 +165,8 @@ const jsonLd = JSON.stringify({
       <img
         class="capa"
         src={urlMidia(capa.url)}
+        srcset={capaSrcset}
+        sizes="(min-width: 62rem) 59rem, 100vw"
         alt={capa.alt ?? post?.titulo ?? ''}
         width={capa.width}
         height={capa.height}

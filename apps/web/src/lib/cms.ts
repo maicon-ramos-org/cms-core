@@ -345,7 +345,7 @@ export interface PostDTO {
   categoria?: { id: string | number; nome: string; slug: string } | string | number | null
   tags?: Array<{ id: string | number; nome: string; slug: string }> | string[] | null
   autor?: { id: string | number; nome: string; slug: string; bio?: string; sameAs?: string[] } | string | number | null
-  capa?: { url?: string; alt?: string; width?: number; height?: number } | string | number | null
+  capa?: MidiaDTO | string | number | null
   meta?: { title?: string | null; description?: string | null } | null
   publicado_em?: string | null
   atualizado_em?: string | null
@@ -441,8 +441,12 @@ export async function getPostsPaginados(
     sort: '-publicado_em',
     limit: String(porPagina),
     page: String(pagina),
-    depth: '0',
+    // depth 1 + select: as listas mostram a CAPA e a categoria, sem trazer o corpo do post
+    depth: '1',
   })
+  for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria']) {
+    q.set(`select[${campo}]`, 'true')
+  }
   if (categoriaId !== undefined) q.set('where[and][2][categoria][equals]', String(categoriaId))
   const r = await cmsFetch<FindResult<PostDTO> & { totalPages?: number }>(`/api/posts?${q}`)
   return { docs: r.docs, totalDocs: r.totalDocs, totalPages: r.totalPages ?? 1 }

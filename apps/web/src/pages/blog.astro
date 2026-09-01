@@ -4,6 +4,7 @@
  * paginação: são 735 posts, então página única não serve nem pro leitor nem pro crawler.
  */
 import ChipsCategorias from '../components/ChipsCategorias.astro'
+import CardPost from '../components/CardPost.astro'
 import Base from '../layouts/Base.astro'
 import { getCategorias, getPostsPaginados } from '../lib/cms'
 
@@ -32,9 +33,6 @@ const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
 const titulo = pagina > 1 ? `Blog — página ${pagina}` : `Blog: ${totalDocs} artigos sobre VPS, automação e IA`
 const descricao = `Artigos com teste prático e preço conferido — VPS, n8n, automação e IA. ${totalDocs} publicações.`
 
-const dataLegivel = (iso?: string | null) =>
-  iso ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(iso)) : null
-
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
   '@graph': [
@@ -61,16 +59,9 @@ const jsonLd = JSON.stringify({
   <ChipsCategorias categorias={categorias} />
   <p class="intro">{totalDocs} artigos — página {pagina} de {totalPages}.</p>
 
-  <ul class="lista">
-    {
-      posts.map((p) => (
-        <li>
-          <a href={`/${p.slug}/`}>{p.titulo}</a>
-          {dataLegivel(p.publicado_em) && <span class="data"> · {dataLegivel(p.publicado_em)}</span>}
-        </li>
-      ))
-    }
-  </ul>
+  <div class="grade">
+    {posts.map((p, i) => <CardPost post={p} prioritario={i < 3} />)}
+  </div>
 
   <nav class="paginacao" aria-label="Paginação">
     {pagina > 1 && <a rel="prev" href={pagina - 1 === 1 ? '/blog/' : `/blog/?pagina=${pagina - 1}`}>← Anteriores</a>}
@@ -81,11 +72,13 @@ const jsonLd = JSON.stringify({
 </Base>
 
 <style>
-  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
-  .intro { color: #444; }
-  .lista { padding-left: 1.2rem; }
-  .lista li { margin-bottom: 0.45rem; }
-  .data { color: #666; font-size: 0.85rem; }
+  .intro { color: var(--rz-muted); }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.1rem;
+  }
   .paginacao { display: flex; gap: 1.5rem; margin-top: 1.5rem; }
 </style>

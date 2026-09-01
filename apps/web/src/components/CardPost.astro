@@ -1,0 +1,109 @@
+---
+/**
+ * Cartão de post — a peça das listas de blog e categoria.
+ *
+ * Existia um descompasso: os 741 posts TÊM capa e só a página do post mostrava. Quem
+ * chegava no /blog/ via uma lista de links de texto, enquanto o WordPress ilustra cada
+ * item. Capa é o que diferencia dois títulos parecidos numa lista de 20.
+ *
+ * Usa o derivado de 640px (ver `regenera:tamanhos`): o cartão renderiza em ~300px e o
+ * original de 1200 custaria 3x mais byte pela mesma pixelagem. Sem derivado, cai no
+ * original — imagem grande é melhor que buraco no lugar dela.
+ */
+import { urlMidia, type MidiaDTO, type PostDTO } from '../lib/cms'
+
+interface Props {
+  post: PostDTO
+  /** primeiro da lista: carrega a imagem de imediato em vez de adiar */
+  prioritario?: boolean
+}
+
+const { post, prioritario = false } = Astro.props
+
+const capa: MidiaDTO | null = post.capa && typeof post.capa === 'object' ? (post.capa as MidiaDTO) : null
+const cartao = capa?.sizes?.cartao
+const src = urlMidia(cartao?.url ?? capa?.url)
+
+const categoria = post.categoria && typeof post.categoria === 'object' ? post.categoria : null
+
+const data = post.publicado_em ? new Date(post.publicado_em) : null
+const dataLegivel = data ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(data) : null
+---
+
+<article class="cartao-post">
+  <a href={`/${post.slug}/`}>
+    {
+      src && (
+        <img
+          class="capa"
+          src={src}
+          alt={capa?.alt ?? ''}
+          width={cartao?.width ?? capa?.width ?? 1280}
+          height={cartao?.height ?? capa?.height ?? 720}
+          loading={prioritario ? 'eager' : 'lazy'}
+          decoding="async"
+        />
+      )
+    }
+    <span class="corpo">
+      <span class="meta">
+        {categoria && <span class="categoria">{categoria.nome}</span>}
+        {dataLegivel && <time datetime={data!.toISOString()}>{dataLegivel}</time>}
+      </span>
+      <span class="titulo">{post.titulo}</span>
+    </span>
+  </a>
+</article>
+
+<style>
+  .cartao-post {
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--rz-surface);
+  }
+  .cartao-post:hover { border-color: var(--rz-brand); }
+  .cartao-post a {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: var(--rz-ink);
+    text-decoration: none;
+  }
+
+  .capa {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: var(--rz-surface-brand);
+  }
+
+  .corpo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.85rem 1rem 1rem;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--rz-muted);
+  }
+  .categoria {
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--rz-brand);
+  }
+  .titulo {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+</style>

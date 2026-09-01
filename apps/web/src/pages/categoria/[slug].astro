@@ -4,6 +4,7 @@
  * do WordPress e davam 404 aqui: é paridade que faltava, e é o destino dos chips.
  */
 import ChipsCategorias from '../../components/ChipsCategorias.astro'
+import CardPost from '../../components/CardPost.astro'
 import Base from '../../layouts/Base.astro'
 import { getCategoriaBySlug, getCategorias, getPostsPaginados } from '../../lib/cms'
 
@@ -48,9 +49,6 @@ const descricao =
   categoria.descricao_seo ||
   `Artigos sobre ${categoria.nome} — teste prático e preço conferido.`
 
-const dataLegivel = (iso?: string | null) =>
-  iso ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(iso)) : null
-
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
   '@graph': [
@@ -77,16 +75,9 @@ const jsonLd = JSON.stringify({
   <ChipsCategorias categorias={categorias} ativa={categoria.slug} />
   <p class="intro">{totalDocs} artigos — página {pagina} de {totalPages}.</p>
 
-  <ul class="lista">
-    {
-      posts.map((p) => (
-        <li>
-          <a href={`/${p.slug}/`}>{p.titulo}</a>
-          {dataLegivel(p.publicado_em) && <span class="data"> · {dataLegivel(p.publicado_em)}</span>}
-        </li>
-      ))
-    }
-  </ul>
+  <div class="grade">
+    {posts.map((p, i) => <CardPost post={p} prioritario={i < 3} />)}
+  </div>
 
   <nav class="paginacao" aria-label="Paginação">
     {pagina > 1 && (
