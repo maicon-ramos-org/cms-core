@@ -7,6 +7,7 @@
  * inteiro no HTML inicial, porque crawler de IA não executa JS.
  */
 import CardOferta from '../../components/CardOferta.astro'
+import Compartilhar from '../../components/Compartilhar.astro'
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
 import Base from '../../layouts/Base.astro'
@@ -204,7 +205,7 @@ const jsonLd = JSON.stringify({
       conteúdo são dois blocos separados na grade em vez de um só.
     */}
     <aside class="lateral" aria-label="Resumo da oferta">
-      <div class="cartao-oferta">
+      <div class:list={['cartao-oferta', { 'com-cupom': Boolean(cupomVisivel) }]}>
         {
           logoLoja?.url && (
             <img
@@ -218,6 +219,10 @@ const jsonLd = JSON.stringify({
             />
           )
         }
+
+        {/* a headline se repete de propósito: aqui ela é a promessa ao lado da ação, e
+            quem rolou até o card não tem mais o topo da página na tela */}
+        {oferta.headline && <p class="lateral-headline">{oferta.headline}</p>}
 
         <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
 
@@ -255,6 +260,8 @@ const jsonLd = JSON.stringify({
           <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
         )}
       </div>
+
+      <Compartilhar url={canonical} titulo={oferta.titulo} />
     </aside>
 
     <div class="conteudo">
@@ -356,16 +363,29 @@ const jsonLd = JSON.stringify({
     color: var(--rz-muted);
   }
 
+  /*
+   * Centralizado, como no site antigo: o card é uma coluna estreita com logo, promessa,
+   * número e ação — em coluna estreita, texto alinhado à esquerda deixa cada linha
+   * começando num lugar e o olho volta ao início toda vez.
+   */
   .cartao-oferta {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
     gap: 0.7rem;
     border: 1px solid var(--rz-borda);
     border-radius: 12px;
-    padding: 1.1rem;
-    margin: 0 0 1.5rem;
+    padding: 1.25rem 1.1rem;
+    margin: 0 0 0.5rem;
     background: var(--rz-surface);
+  }
+  /* tracejado SÓ quando há cupom: é a borda "de cupom", e usá-la numa oferta sem código
+     prometeria um código que não existe */
+  .cartao-oferta.com-cupom {
+    border-style: dashed;
+    border-width: 2px;
+    border-color: var(--rz-borda-codigo);
   }
   /* o logo vem do WP em proporções variadas (svg de letreiro, png quadrado): teto de
      altura e `object-fit` impedem que um deles domine o card */
@@ -376,7 +396,21 @@ const jsonLd = JSON.stringify({
     height: auto;
     object-fit: contain;
   }
-  .tipo { margin: 0; font-weight: 600; color: var(--rz-brand); }
+  /*
+   * No desktop a headline do card fica ao LADO da que está sob o H1 e as duas se
+   * sustentam. No celular elas empilham a dois dedos de distância e viram eco — some.
+   */
+  @media (max-width: 61.99rem) {
+    .lateral-headline { display: none; }
+  }
+  .lateral-headline {
+    margin: 0;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  .tipo { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--rz-brand); }
   .empilhado { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
   .empilhado-total {
     font-family: var(--rz-fonte-titulos);
@@ -390,6 +424,18 @@ const jsonLd = JSON.stringify({
   .preco-em { display: block; font-size: 0.75rem; font-weight: 400; color: var(--rz-muted); }
   /* o card é estreito: o cupom dentro dele ocupa a largura toda em vez de encolher */
   .cartao-oferta > :global(*) { max-width: 100%; }
+  .cartao-oferta :global(.cupom.compacto) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  .cartao-oferta :global(.cupom.compacto .corpo) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
 
   .beneficios h2 { margin-top: 0; font-size: 1.15rem; }
   .beneficios ul { margin: 0 0 1.5rem; padding: 0; list-style: none; }

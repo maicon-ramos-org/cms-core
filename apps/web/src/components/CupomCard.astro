@@ -55,11 +55,12 @@ const descontoLabel = (() => {
 const sufixoDesconto = cupom.desconto_tipo === 'percentual' || cupom.desconto_tipo === 'valor' ? 'OFF' : null
 
 /**
- * O que o HTML mostra antes do clique. Os últimos 4 caracteres bastam pra parecer um
- * código de verdade e não bastam pra usar. Código curto (≤4) some inteiro: mostrar
- * "20OFF" de um cupom "20OFF" seria revelar tudo com passo extra.
+ * O que o HTML mostra antes do clique: os últimos 4 caracteres, que é o tanto que sobra
+ * à direita do botão verde. Bastam pra parecer código de verdade e não bastam pra usar.
+ * Código curto (≤4) vira `••••` inteiro — mostrar "20OFF" de um cupom "20OFF" seria
+ * revelar tudo com um passo a mais no meio.
  */
-const mascara = cupom.codigo.length > 4 ? `••••${cupom.codigo.slice(-4)}` : '••••'
+const mascara = cupom.codigo.length > 4 ? cupom.codigo.slice(-4) : '••••'
 
 /** "testado hoje às 09h14, no checkout · 94%" — o formato do artboard. */
 const selo = (() => {
@@ -96,16 +97,23 @@ const selo = (() => {
           Ver cupom
         </a>
       ) : (
-        /* link de verdade: sem JS ainda leva à loja pelo redirect que monetiza */
+        /*
+         * "Raspadinha": a pílula com o código ocupa a largura toda e o botão verde cobre
+         * a esquerda dela, deixando os últimos caracteres à mostra. É a forma do site
+         * antigo, e ela faz um trabalho que texto não faz — mostra que existe um código
+         * ali e que ele está coberto, em vez de pedir que a pessoa acredite.
+         *
+         * Continua sendo UM link: sem JS o clique leva à loja pelo redirect que monetiza.
+         */
         <a
-          class="codigo"
+          class="raspadinha"
           href={`/r/c${cupom.id}?ref=codigo`}
           rel="sponsored nofollow"
           data-cupom={String(cupom.id)}
           aria-label="Ver o cupom e ir para a loja"
         >
-          <span class="codigo-texto">{mascara}</span>
-          <span class="codigo-acao" aria-hidden="true">ver cupom</span>
+          <span class="raspadinha-codigo">{mascara}</span>
+          <span class="raspadinha-botao" aria-hidden="true">Ver cupom</span>
         </a>
       )
     }
@@ -163,10 +171,10 @@ const selo = (() => {
    */
   const SEGUNDOS = 3
 
-  document.querySelectorAll<HTMLAnchorElement>('a.codigo[data-cupom]').forEach((el) => {
+  document.querySelectorAll<HTMLAnchorElement>('a.raspadinha[data-cupom]').forEach((el) => {
     const caixa = el.closest('.cupom')
-    const texto = el.querySelector('.codigo-texto')
-    const acao = el.querySelector('.codigo-acao')
+    const texto = el.querySelector('.raspadinha-codigo')
+    const acao = el.querySelector('.raspadinha-botao')
     const revelacao = caixa?.querySelector<HTMLElement>('.revelacao')
     const msg = revelacao?.querySelector<HTMLElement>('.revelacao-msg')
     const cta = revelacao?.querySelector<HTMLAnchorElement>('.revelacao-cta')
@@ -190,11 +198,10 @@ const selo = (() => {
             return
           }
           texto.textContent = dados.codigo
+          // a classe some com o botão verde e centraliza o código na pílula
           el.classList.add('revelado')
-          if (acao) acao.textContent = 'copiado!'
-          navigator.clipboard?.writeText(dados.codigo).catch(() => {
-            if (acao) acao.textContent = 'copie o código'
-          })
+          navigator.clipboard?.writeText(dados.codigo).catch(() => {})
+          if (acao) acao.remove()
 
           revelacao.hidden = false
           let resta = SEGUNDOS
@@ -275,31 +282,55 @@ const selo = (() => {
     text-decoration: none;
     min-height: 44px;
   }
-  .codigo {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 44px; /* regra 1: o código é alvo de toque */
-    background: var(--rz-surface-brand);
-    border: 1px dashed var(--rz-borda-codigo);
-    border-radius: 8px;
-    padding: 0.25rem 0.85rem;
+  /*
+   * Raspadinha. A pílula do código ocupa 100% e alinha o texto À DIREITA; o botão verde
+   * é absoluto e cobre a esquerda, sobrando ~4.5rem de código à mostra. Revelado, o botão
+   * sai do DOM e o código centraliza.
+   *
+   * Fundo da pílula é `--rz-borda` porque é o cinza-lavanda que o tema já tem. Cinza novo
+   * aqui seria hex fixo em componente, que é o que a regra do design system barra.
+   */
+  .raspadinha {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 17rem;
+    min-height: 44px;
+    border-radius: 999px;
     text-decoration: none;
-    color: var(--rz-ink);
   }
-  .codigo-texto {
+  .raspadinha-codigo {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 44px;
+    padding: 0 1.15rem;
+    border-radius: 999px;
+    background: var(--rz-borda);
+    color: var(--rz-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: 0.06em;
   }
-  .codigo-acao {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--rz-brand);
+  .raspadinha-botao {
+    position: absolute;
+    inset: 0 4.5rem 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--rz-action);
+    color: var(--rz-on-action);
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.95rem;
+    font-weight: 700;
+    /* a sombra separa as duas pílulas: sem ela o verde parece pintado sobre o cinza */
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   }
+  .raspadinha:hover .raspadinha-botao { filter: brightness(0.95); }
+  .raspadinha.revelado .raspadinha-codigo { justify-content: center; }
+
   .condicoes { margin: 0.45rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
   .selo {
     display: inline-flex;
@@ -330,17 +361,26 @@ const selo = (() => {
     width: 100%;
   }
 
-  .revelacao {
+  /*
+   * `:not([hidden])` NÃO é estilo, é correção: `display: flex` cru vence o atributo
+   * `hidden` (que é só `display: none` da folha do navegador), e a caixa aparecia antes
+   * do clique com o botão de reserva à mostra.
+   */
+  .revelacao:not([hidden]) {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+  }
+  .revelacao {
     margin: 0.6rem 0 0;
     font-size: 0.85rem;
     color: var(--rz-muted);
     line-height: 1.45;
   }
-  .revelacao-cta {
+  .revelacao-cta:not([hidden]) {
     display: inline-flex;
+  }
+  .revelacao-cta {
     align-items: center;
     justify-content: center;
     min-height: 44px;
@@ -353,7 +393,4 @@ const selo = (() => {
     font-weight: 600;
     text-decoration: none;
   }
-  /* revelado: a borda tracejada vira sólida, o mesmo sinal que a cópia já usava */
-  .codigo.revelado { border-style: solid; }
-  .codigo.revelado .codigo-acao { color: var(--rz-verified); }
 </style>
