@@ -226,6 +226,13 @@ const jsonLd = JSON.stringify({
 
         <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
 
+        {/*
+          O diferencial da oferta, na cor de desconto. É RÓTULO editorial (o texto que o
+          site escreve), e por isso não leva selo nem data — o número com carimbo é o
+          `desconto_loja` logo abaixo, e os dois coexistem dizendo coisas diferentes.
+        */}
+        {oferta.rotulo_oferta && <p class="rotulo-oferta">{oferta.rotulo_oferta}</p>}
+
         {composto && (
           <p class="empilhado">
             <span class="empilhado-total">até {composto.total_pct}%</span>
@@ -411,6 +418,14 @@ const jsonLd = JSON.stringify({
     line-height: 1.35;
   }
   .tipo { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--rz-brand); }
+  .rotulo-oferta {
+    margin: 0;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--rz-deal);
+  }
   .empilhado { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
   .empilhado-total {
     font-family: var(--rz-fonte-titulos);

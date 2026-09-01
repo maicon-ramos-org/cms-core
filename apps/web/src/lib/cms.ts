@@ -152,6 +152,8 @@ export interface OfertaDTO {
   resumo?: string | null
   /** a linha abaixo do H1 e no card lateral (brand_headline do WP) */
   headline?: string | null
+  /** o diferencial em destaque no card (affiliate_offer do WP) — rótulo, não medição */
+  rotulo_oferta?: string | null
   /** a lista "Funcionalidades" da página do WP (benefit_bullets) */
   beneficios?: Array<{ texto?: string | null }> | null
 }

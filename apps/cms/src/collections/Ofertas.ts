@@ -121,6 +121,15 @@ export const Ofertas: CollectionConfig = {
       },
     },
     {
+      name: 'rotulo_oferta',
+      type: 'text',
+      maxLength: 60,
+      admin: {
+        description:
+          'o diferencial em uma linha, no destaque do card ("Até 70% de desconto"). É RÓTULO editorial, não medição: não vale como desconto verificado e não entra na composição — para número com data, use desconto_loja',
+      },
+    },
+    {
       name: 'beneficios',
       type: 'array',
       /*

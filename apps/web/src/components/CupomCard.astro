@@ -113,7 +113,7 @@ const selo = (() => {
           aria-label="Ver o cupom e ir para a loja"
         >
           <span class="raspadinha-codigo">{mascara}</span>
-          <span class="raspadinha-botao" aria-hidden="true">Ver cupom</span>
+          <span class="raspadinha-botao" aria-hidden="true"><span class="raspadinha-rotulo">Ver cupom</span></span>
         </a>
       )
     }
@@ -283,20 +283,23 @@ const selo = (() => {
     min-height: 44px;
   }
   /*
-   * Raspadinha. A pílula do código ocupa 100% e alinha o texto À DIREITA; o botão verde
-   * é absoluto e cobre a esquerda, sobrando ~4.5rem de código à mostra. Revelado, o botão
-   * sai do DOM e o código centraliza.
+   * Raspadinha, na mesma construção do site antigo: a pílula com o código ocupa 100% e
+   * alinha o texto À DIREITA; por cima dela vem o botão, que não tem fundo próprio — o
+   * verde é o `::before` (100% - 30px de largura, arredondado só na esquerda) e a ABA é o
+   * `::after`, um retângulo escuro girado -25° preso ao canto direito. É a rotação que
+   * produz o corte diagonal; borda arredondada sozinha daria uma bolha, não uma aba.
    *
-   * Fundo da pílula é `--rz-borda` porque é o cinza-lavanda que o tema já tem. Cinza novo
-   * aqui seria hex fixo em componente, que é o que a regra do design system barra.
+   * No hover a aba ALARGA (1.8rem → 2.2rem), como se estivesse sendo descolada. O efeito
+   * é o do site antigo, e é o que sugere que ali embaixo tem código.
+   *
+   * As três cores saem de `--rz-action` via `color-mix`: verde do tema escurecido em dois
+   * degraus. Hex fixo aqui seria marca hardcoded em componente — o que a regra barra.
    */
   .raspadinha {
     position: relative;
     display: block;
     width: 100%;
     max-width: 17rem;
-    min-height: 44px;
-    border-radius: 999px;
     text-decoration: none;
   }
   .raspadinha-codigo {
@@ -304,32 +307,80 @@ const selo = (() => {
     align-items: center;
     justify-content: flex-end;
     min-height: 44px;
-    padding: 0 1.15rem;
+    padding: 0 1.75rem 0 2.25rem;
     border-radius: 999px;
     background: var(--rz-borda);
     color: var(--rz-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.06em;
   }
   .raspadinha-botao {
     position: absolute;
-    inset: 0 4.5rem 0 0;
+    top: 0;
+    left: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;
-    background: var(--rz-action);
+    width: 80%;
+    min-height: 44px;
+    padding: 0 3.5rem 0 1.25rem;
     color: var(--rz-on-action);
     font-family: var(--rz-fonte-titulos);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 700;
-    /* a sombra separa as duas pílulas: sem ela o verde parece pintado sobre o cinza */
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+    letter-spacing: 0.03em;
   }
-  .raspadinha:hover .raspadinha-botao { filter: brightness(0.95); }
-  .raspadinha.revelado .raspadinha-codigo { justify-content: center; }
+  /* o texto fica acima das duas camadas de fundo */
+  .raspadinha-botao > :global(*),
+  .raspadinha-botao { line-height: 1.1; }
+  .raspadinha-rotulo { position: relative; z-index: 3; }
+
+  .raspadinha-botao::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    width: calc(100% - 30px);
+    height: 100%;
+    border-radius: 999px 0 0 999px;
+    background: var(--rz-action);
+    transition: background 0.25s;
+  }
+  .raspadinha-botao::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 29px;
+    z-index: 2;
+    width: 1.8rem;
+    height: 113%;
+    border-radius: 999px 0 0 999px;
+    background: color-mix(in srgb, var(--rz-action) 62%, #000);
+    transform: rotate(-25deg);
+    transform-origin: right top;
+    transition: width 0.2s;
+  }
+  .raspadinha:hover .raspadinha-botao::before {
+    background: color-mix(in srgb, var(--rz-action) 85%, #000);
+  }
+  .raspadinha:hover .raspadinha-botao::after { width: 2.2rem; }
+
+  /* revelado: a pílula inteira vira verde com o código branco, centralizado */
+  .raspadinha.revelado .raspadinha-codigo {
+    justify-content: center;
+    padding: 0 1.25rem;
+    background: var(--rz-action);
+    color: var(--rz-on-action);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .raspadinha-botao::before,
+    .raspadinha-botao::after { transition: none; }
+  }
 
   .condicoes { margin: 0.45rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
   .selo {
