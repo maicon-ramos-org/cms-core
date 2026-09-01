@@ -33,7 +33,23 @@ export const GET: APIRoute = async (context) => {
     linhas.push(`**Preço:** ${oferta.preco.valor} ${oferta.preco.moeda ?? 'BRL'}${ciclo}${visto}`)
   }
   if (cupom) {
-    linhas.push(`**Cupom:** ${cupom.codigo}`)
+    /*
+     * O CÓDIGO NÃO ENTRA AQUI (ADR-0007). Este arquivo existe pra ser lido por agente de
+     * IA — é o lugar onde entregar o literal do cupom custa mais caro, porque a resposta
+     * sai pronta e a pessoa vai à loja sem passar pelo link que paga o site. O que o
+     * agente precisa saber continua: existe cupom, qual o desconto, quando foi conferido,
+     * e por onde resgatar.
+     */
+    const desconto =
+      cupom.desconto_tipo === 'percentual' && cupom.desconto_valor
+        ? `${cupom.desconto_valor}%`
+        : cupom.desconto_tipo === 'valor' && cupom.desconto_valor
+          ? `R$ ${cupom.desconto_valor}`
+          : cupom.desconto_tipo === 'frete'
+            ? 'frete grátis'
+            : 'desconto'
+    linhas.push(`**Cupom:** ${desconto} — o código aparece ao abrir a oferta`)
+    if (cupom.condicoes) linhas.push(`**Condições:** ${cupom.condicoes}`)
     if (cupom.verificado_em) linhas.push(`**Verificado em:** ${String(cupom.verificado_em).slice(0, 10)}`)
   }
   linhas.push('', `**Link:** https://${tenant.canonical_host}/r/o${oferta.id}?ref=md`, '')

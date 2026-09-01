@@ -3,9 +3,14 @@
  * Card de cupom — dado 100% do banco, renderizado no SERVIDOR (crawler não roda JS).
  *
  * Anatomia do design-tokens.md v1.1:
- * - o CÓDIGO É o botão de copiar (área tocável inteira ≥44px): toque → copia →
- *   feedback → só então abre a loja. O JS é só melhoria: sem ele o código continua
- *   visível e o link leva à loja do mesmo jeito.
+ * - o CÓDIGO É REVELADO NO CLIQUE, não no carregamento (ADR-0007). O HTML traz só os
+ *   últimos caracteres; o resto chega de `/api/cupom/{id}` depois do toque, junto com a
+ *   cópia, a contagem e a ida pra loja pelo redirect de afiliado. Sem JS o mesmo elemento
+ *   é um link comum que leva à loja — o que não acontece é a pessoa (ou a IA) levar o
+ *   código sem passar pelo link que paga o site.
+ * - o que continua no HTML sem JS: desconto, condições, selo, validade. A página responde
+ *   "tem cupom? tem, X%, conferido em tal dia" pro rastreador; o que ela não entrega é o
+ *   literal do código.
  * - selo com escudo SVG (nunca emoji) no formato "testado hoje às 09h14, no checkout".
  * - o selo SUBSTITUI a escassez artificial do site atual — é o argumento que só nós temos.
  */
@@ -49,6 +54,13 @@ const descontoLabel = (() => {
 })()
 const sufixoDesconto = cupom.desconto_tipo === 'percentual' || cupom.desconto_tipo === 'valor' ? 'OFF' : null
 
+/**
+ * O que o HTML mostra antes do clique. Os últimos 4 caracteres bastam pra parecer um
+ * código de verdade e não bastam pra usar. Código curto (≤4) some inteiro: mostrar
+ * "20OFF" de um cupom "20OFF" seria revelar tudo com passo extra.
+ */
+const mascara = cupom.codigo.length > 4 ? `••••${cupom.codigo.slice(-4)}` : '••••'
+
 /** "testado hoje às 09h14, no checkout · 94%" — o formato do artboard. */
 const selo = (() => {
   if (!cupom.verificado_em) return null
@@ -84,19 +96,36 @@ const selo = (() => {
           Ver cupom
         </a>
       ) : (
-        /* o código é link de verdade: sem JS ainda leva à loja (e o texto fica copiável) */
+        /* link de verdade: sem JS ainda leva à loja pelo redirect que monetiza */
         <a
           class="codigo"
           href={`/r/c${cupom.id}?ref=codigo`}
           rel="sponsored nofollow"
-          data-copiar={cupom.codigo}
-          aria-label={`Copiar o cupom ${cupom.codigo} e ir para a loja`}
+          data-cupom={String(cupom.id)}
+          aria-label="Ver o cupom e ir para a loja"
         >
-          <span class="codigo-texto">{cupom.codigo}</span>
-          <span class="codigo-acao" aria-hidden="true">copiar</span>
+          <span class="codigo-texto">{mascara}</span>
+          <span class="codigo-acao" aria-hidden="true">ver cupom</span>
         </a>
       )
     }
+
+    {/*
+      Pré-renderizada e `hidden`: nó criado por script não carrega o atributo do CSS
+      escopado do Astro e sairia sem estilo. O script só troca texto e tira o `hidden`.
+    */}
+    <p class="revelacao" hidden aria-live="polite">
+      <span class="revelacao-msg"></span>
+      <a
+        class="revelacao-cta"
+        href={`/r/c${cupom.id}?ref=revelado`}
+        target="_blank"
+        rel="sponsored nofollow noopener"
+        hidden
+      >
+        Acessar oferta
+      </a>
+    </p>
 
     {cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
 
@@ -119,29 +148,73 @@ const selo = (() => {
 </article>
 
 <script>
-  // Melhoria progressiva: copia e SÓ ENTÃO abre a loja. Sem JS, o clique já navega.
-  document.querySelectorAll<HTMLAnchorElement>('a.codigo[data-copiar]').forEach((el) => {
+  /*
+   * Revelação do cupom (ADR-0007). A ordem importa e é a do site antigo: revela e copia
+   * PRIMEIRO, conta 3 segundos, e só então abre a loja em nova aba — a pessoa fica com o
+   * código na tela desta aba enquanto a loja carrega na outra.
+   *
+   * A nova aba é aberta DENTRO do clique original? Não: vem depois do timer, e por isso
+   * pode ser bloqueada. É o motivo do botão de reserva embaixo, que é um link normal e o
+   * navegador nunca bloqueia.
+   *
+   * Se qualquer coisa falhar (rede fora, endpoint 404), o `href` original é seguido: a
+   * pessoa vai pra loja mesmo sem ver o código. Falhar levando pra loja é melhor que
+   * falhar travando.
+   */
+  const SEGUNDOS = 3
+
+  document.querySelectorAll<HTMLAnchorElement>('a.codigo[data-cupom]').forEach((el) => {
+    const caixa = el.closest('.cupom')
+    const texto = el.querySelector('.codigo-texto')
+    const acao = el.querySelector('.codigo-acao')
+    const revelacao = caixa?.querySelector<HTMLElement>('.revelacao')
+    const msg = revelacao?.querySelector<HTMLElement>('.revelacao-msg')
+    const cta = revelacao?.querySelector<HTMLAnchorElement>('.revelacao-cta')
+    if (!texto || !revelacao || !msg || !cta) return
+
+    let emCurso = false
+
     el.addEventListener('click', (evento) => {
-      const codigo = el.dataset.copiar
-      if (!codigo || !navigator.clipboard) return // sem suporte: segue o link normalmente
+      if (emCurso) {
+        evento.preventDefault()
+        return
+      }
+      emCurso = true
       evento.preventDefault()
-      const acao = el.querySelector('.codigo-acao')
-      const rotuloOriginal = acao?.textContent ?? 'copiar'
-      void navigator.clipboard
-        .writeText(codigo)
-        .then(() => {
-          el.classList.add('copiado')
+
+      void fetch(`/api/cupom/${el.dataset.cupom}`, { headers: { accept: 'application/json' } })
+        .then((r) => (r.ok ? (r.json() as Promise<{ codigo?: string }>) : null))
+        .then((dados) => {
+          if (!dados?.codigo) {
+            window.location.href = el.href // sem código: segue pra loja do mesmo jeito
+            return
+          }
+          texto.textContent = dados.codigo
+          el.classList.add('revelado')
           if (acao) acao.textContent = 'copiado!'
+          navigator.clipboard?.writeText(dados.codigo).catch(() => {
+            if (acao) acao.textContent = 'copie o código'
+          })
+
+          revelacao.hidden = false
+          let resta = SEGUNDOS
+          msg.textContent = `Abrindo a oferta em ${resta}s…`
+          const timer = setInterval(() => {
+            resta -= 1
+            if (resta > 0) {
+              msg.textContent = `Abrindo a oferta em ${resta}s…`
+              return
+            }
+            clearInterval(timer)
+            const aba = window.open(cta.href, '_blank', 'noopener')
+            msg.textContent = aba
+              ? 'Abrimos a oferta em uma nova aba. Se preferir:'
+              : 'Seu navegador bloqueou a nova aba. Use o botão:'
+            cta.hidden = false
+          }, 1000)
         })
         .catch(() => {
-          /* copiar falhou: segue pra loja do mesmo jeito */
-        })
-        .finally(() => {
-          // feedback visível antes de sair da página
-          window.setTimeout(() => {
-            if (acao) acao.textContent = rotuloOriginal
-            window.location.href = el.href
-          }, 600)
+          window.location.href = el.href
         })
     })
   })
@@ -227,8 +300,6 @@ const selo = (() => {
     letter-spacing: 0.06em;
     color: var(--rz-brand);
   }
-  .codigo.copiado { border-style: solid; }
-  .codigo.copiado .codigo-acao { color: var(--rz-verified); }
   .condicoes { margin: 0.45rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
   .selo {
     display: inline-flex;
@@ -258,4 +329,31 @@ const selo = (() => {
     box-shadow: none;
     width: 100%;
   }
+
+  .revelacao {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0.6rem 0 0;
+    font-size: 0.85rem;
+    color: var(--rz-muted);
+    line-height: 1.45;
+  }
+  .revelacao-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    margin-top: 0.5rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    background: var(--rz-action);
+    color: var(--rz-on-action);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  /* revelado: a borda tracejada vira sólida, o mesmo sinal que a cópia já usava */
+  .codigo.revelado { border-style: solid; }
+  .codigo.revelado .codigo-acao { color: var(--rz-verified); }
 </style>

@@ -739,6 +739,36 @@ export async function getOfertasDoTenant(tenantId: string | number, limit = 200)
 }
 
 /**
+ * Uma PÁGINA do catálogo, ordenada e sem o `corpo` — o hub /ofertas.
+ *
+ * Paginado porque as 108 ofertas numa página só já davam 69,9KB de HTML, e com cartão
+ * (imagem + resumo) estourariam o teto do tipo catálogo. Ordena por desconto conferido e
+ * depois por preço, a mesma régua da vitrine da home: o que tem número auditável primeiro.
+ */
+export async function getOfertasPaginadas(
+  tenantId: string | number,
+  pagina: number,
+  porPagina: number,
+): Promise<{ docs: OfertaDTO[]; totalDocs: number; totalPages: number }> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    // `-desconto_loja.valor` não serve sozinho: oferta sem desconto viria antes em alguns
+    // bancos e o critério do site é desconto CONFERIDO. A ordenação fina fica no chamador,
+    // que tem os dois campos em mãos; aqui o sort só garante página estável.
+    sort: 'titulo',
+    limit: String(porPagina),
+    page: String(pagina),
+    depth: '1',
+  })
+  for (const campo of ['titulo', 'slug', 'tipo', 'preco', 'desconto_loja', 'loja', 'wordpress_id', 'imagem', 'resumo']) {
+    q.set(`select[${campo}]`, 'true')
+  }
+  const r = await cmsFetch<FindResult<OfertaDTO> & { totalPages?: number }>(`/api/ofertas?${q}`)
+  return { docs: r.docs, totalDocs: r.totalDocs, totalPages: r.totalPages ?? 1 }
+}
+
+/**
  * O catálogo INTEIRO sem o `corpo` — é o que a home precisa para montar as vitrines.
  *
  * `getOfertasDoTenant` traz o rich text de cada oferta: 109 artigos completos para render

@@ -136,8 +136,11 @@ const jsonLd = JSON.stringify({
       // costuma ser o domínio da REDE (m.do.co, anrdoezrs.net). Publicar isso seria link
       // de afiliado cru no HTML — proibido. Volta quando o campo passar pela curadoria.
       ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
-      // o código vem do banco, nunca de texto gerado
-      ...(cupomVisivel ? { discountCode: cupomVisivel.codigo } : {}),
+      /*
+       * `discountCode` SAIU (ADR-0007): publicar o código no schema é entregá-lo pronto
+       * ao Google e à resposta de IA, que é exatamente o vazamento que a revelação por
+       * clique fecha. O nó Offer segue com preço, moeda e vendedor.
+       */
     },
     {
       '@type': 'BreadcrumbList',

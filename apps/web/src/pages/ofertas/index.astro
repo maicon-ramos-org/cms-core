@@ -1,48 +1,54 @@
 ---
 /**
- * Hub /ofertas — URL real do site antigo (está no sitemap). No WordPress era o arquivo
- * do WooCommerce; aqui é montado do catálogo, agrupado por loja, para que nenhuma das
- * 51 ofertas fique órfã.
+ * Hub /ofertas — URL real do site antigo (está no sitemap). No WordPress era o arquivo do
+ * WooCommerce; aqui é montado do catálogo.
+ *
+ * PAGINADO desde 01/09: a versão anterior despejava as 108 ofertas numa página só, em
+ * lista de texto, e já pesava 69,9KB. Virar cartão (imagem + resumo, como a home) sem
+ * paginar estouraria o teto de 90KB do tipo catálogo — a paginação não é enfeite, é o que
+ * torna o cartão possível aqui.
+ *
+ * A versão anterior agrupava por LOJA para nenhuma oferta ficar órfã. Com paginação isso
+ * se perde (loja atravessa página), e a órfandade continua coberta por outro caminho: cada
+ * `/cupom-{loja}/` lista as ofertas daquela loja, e o rel=next leva o rastreador ao fim.
  */
+import CardOferta from '../../components/CardOferta.astro'
 import Base from '../../layouts/Base.astro'
-import { getLojas, getOfertasDoTenant, type LojaDTO, type OfertaDTO } from '../../lib/cms'
+import { caminhoDaOferta, getOfertasPaginadas, type OfertaDTO } from '../../lib/cms'
 
 const tenant = Astro.locals.tenant
 
-const [ofertas, lojas] = await Promise.all([getOfertasDoTenant(tenant.id), getLojas(tenant.id)])
+const POR_PAGINA = 24
+const paginaPedida = Number(Astro.url.searchParams.get('pagina') ?? '1')
+const pagina = Number.isFinite(paginaPedida) && paginaPedida > 0 ? Math.floor(paginaPedida) : 1
+
+const { docs, totalDocs, totalPages } = await getOfertasPaginadas(tenant.id, pagina, POR_PAGINA)
+
+if (pagina > 1 && docs.length === 0) {
+  return new Response('Página não encontrada.', { status: 404 })
+}
 
 if (Astro.cache.enabled) {
   Astro.cache.set({ maxAge: 300, swr: 60, tags: [`tenant:${tenant.slug}`, 'ofertas:hub'] })
 }
 
-const nomeDaLoja = new Map<string, string>(lojas.map((l: LojaDTO) => [String(l.id), l.nome]))
-const idDaLoja = (o: OfertaDTO): string =>
-  String(o.loja && typeof o.loja === 'object' ? o.loja.id : (o.loja ?? ''))
+/** Desconto que CONTA: só o que tem carimbo de quando foi visto (mesma régua da home). */
+const desconto = (o: OfertaDTO): number =>
+  o.desconto_loja?.verificado_em && typeof o.desconto_loja.valor === 'number' ? o.desconto_loja.valor : -1
 
-const porLoja = new Map<string, OfertaDTO[]>()
-for (const o of ofertas) {
-  const chave = nomeDaLoja.get(idDaLoja(o)) ?? 'Outras'
-  if (!porLoja.has(chave)) porLoja.set(chave, [])
-  porLoja.get(chave)!.push(o)
-}
-const grupos = [...porLoja.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+const ofertas = [...docs].sort(
+  (a, b) =>
+    desconto(b) - desconto(a) ||
+    (b.preco?.valor ? 1 : 0) - (a.preco?.valor ? 1 : 0) ||
+    a.titulo.localeCompare(b.titulo, 'pt-BR'),
+)
 
-const rotuloTipo: Record<string, string> = {
-  cupom: 'cupom',
-  credito: 'crédito',
-  lifetime: 'lifetime',
-  desconto_api: 'desconto em API',
-}
-
-const canonical = `https://${tenant.canonical_host}/ofertas/`
-const titulo = `Ofertas verificadas: ${ofertas.length} em ${grupos.length} lojas`
-const descricao = `Catálogo de ${ofertas.length} ofertas com preço e data de conferência — cupom, crédito e lifetime.`
-
-const preco = (o: OfertaDTO): string | null => {
-  if (typeof o.preco?.valor !== 'number' || o.preco.valor <= 0) return null
-  const v = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: o.preco.moeda ?? 'BRL' }).format(o.preco.valor)
-  return o.preco.ciclo === 'mensal' ? `${v}/mês` : v
-}
+const base = `https://${tenant.canonical_host}/ofertas/`
+// canonical da paginada é ela mesma (nunca a página 1: seriam páginas distintas)
+const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
+const titulo =
+  pagina > 1 ? `Ofertas verificadas — página ${pagina}` : `Ofertas verificadas: ${totalDocs} no catálogo`
+const descricao = `Catálogo de ${totalDocs} ofertas com preço e data de conferência — cupom, crédito e lifetime.`
 
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
@@ -54,13 +60,17 @@ const jsonLd = JSON.stringify({
       numberOfItems: ofertas.length,
       itemListElement: ofertas.map((o, i) => ({
         '@type': 'ListItem',
-        position: i + 1,
+        position: (pagina - 1) * POR_PAGINA + i + 1,
         name: o.titulo,
-        url: `https://${tenant.canonical_host}/ofertas/${o.slug}/`,
+        // `caminhoDaOferta` e não `/ofertas/{slug}`: os 57 deals do AppSumo moram em
+        // /apps/{slug}, e a lista antiga apontava as URLs erradas pro Google
+        url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}`,
       })),
     },
   ],
 })
+
+const href = (n: number): string => (n === 1 ? '/ofertas/' : `/ofertas/?pagina=${n}`)
 ---
 
 <Base titulo={titulo} descricao={descricao} canonical={canonical}>
@@ -68,41 +78,34 @@ const jsonLd = JSON.stringify({
 
   <h1>Ofertas verificadas</h1>
   <p class="intro">
-    Cada oferta mostra o preço com a data em que foi conferido. Cupom só aparece com selo
-    de verificação — o resto leva direto pra loja.
+    Cada oferta mostra o preço com a data em que foi conferido. Cupom só aparece com selo de
+    verificação — o resto leva direto pra loja.
   </p>
-
-  {
-    grupos.map(([loja, itens]) => (
-      <section>
-        <h2>{loja}</h2>
-        <ul class="lista">
-          {itens.map((o) => (
-            <li>
-              <a href={`/ofertas/${o.slug}/`}>{o.titulo}</a>
-              <span class="meta">
-                {o.tipo && <span class="etiqueta">{rotuloTipo[o.tipo] ?? o.tipo}</span>}
-                {preco(o) && <span class="preco">{preco(o)}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    ))
-  }
+  <p class="contagem">{totalDocs} ofertas — página {pagina} de {totalPages}.</p>
 
   {ofertas.length === 0 && <p>Nenhuma oferta publicada ainda.</p>}
+
+  <div class="grade">
+    {ofertas.map((o, i) => <CardOferta oferta={o} prioritario={pagina === 1 && i < 3} />)}
+  </div>
+
+  <nav class="paginacao" aria-label="Paginação">
+    {pagina > 1 && <a rel="prev" href={href(pagina - 1)}>← Anteriores</a>}
+    {pagina < totalPages && <a rel="next" href={href(pagina + 1)}>Próximas →</a>}
+  </nav>
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>
-  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
-  .intro { color: #444; }
-  .lista { padding-left: 1.2rem; }
-  .lista li { margin-bottom: 0.4rem; }
-  .meta { margin-left: 0.5rem; font-size: 0.8rem; color: #555; }
-  .etiqueta { background: #f1f1f1; border-radius: 999px; padding: 0.1rem 0.55rem; margin-right: 0.35rem; }
-  .preco { font-weight: 600; color: #1a1a1a; }
+  .intro { color: var(--rz-muted); max-width: 46rem; }
+  .contagem { color: var(--rz-muted); font-size: 0.9rem; }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.1rem;
+  }
+  .paginacao { display: flex; gap: 1.5rem; margin-top: 2rem; }
 </style>
