@@ -40,6 +40,15 @@ interface Props {
 
 const { cupom, decomposicao = null, destino = null, compacto = false } = Astro.props
 
+/*
+ * Só há número quando o import conseguiu extrair um. Três dos sete cupons publicados vieram
+ * com `desconto_tipo: outro` e sem valor — nesses, o slot do desconto exibia a palavra
+ * "Oferta", que é o lugar mais nobre do card ocupado pela informação mais fraca. Sem
+ * número, o card começa direto pelo código.
+ */
+const temDesconto =
+  typeof cupom.desconto_valor === 'number' || cupom.desconto_tipo === 'frete'
+
 const descontoLabel = (() => {
   switch (cupom.desconto_tipo) {
     case 'percentual':
@@ -81,7 +90,7 @@ const selo = (() => {
 
 <article class:list={['cupom', { compacto }]}>
   {
-    !compacto && (
+    !compacto && temDesconto && (
       <p class="desconto">
         <span class="desconto-numero">{descontoLabel}</span>
         {sufixoDesconto && <span class="desconto-sufixo">{sufixoDesconto}</span>}

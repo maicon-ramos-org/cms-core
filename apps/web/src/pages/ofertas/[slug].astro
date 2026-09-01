@@ -49,7 +49,9 @@ if (Astro.cache.enabled) {
   })
 }
 
-const relacionadas = loja ? await getOfertasDaLoja(loja.id, oferta.id) : []
+// 6 explícito: o padrão do helper subiu pra 12 por causa da página da loja, e aqui a
+// fileira de relacionadas tem tamanho próprio
+const relacionadas = loja ? await getOfertasDaLoja(loja.id, oferta.id, 6) : []
 
 /**
  * Desconto empilhado (spec §1). `compor()` devolve null quando falta dado ou quando o

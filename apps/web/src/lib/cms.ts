@@ -234,7 +234,9 @@ export async function getLojaBySlug(tenantId: string | number, slug: string): Pr
     'where[and][0][tenant][equals]': String(tenantId),
     'where[and][1][slug][equals]': slug,
     limit: '1',
-    depth: '0',
+    // depth 1: o `logo` é upload e a página da loja o exibe no cabeçalho — com depth 0
+    // vinha só o id e o cabeçalho ficava sem marca
+    depth: '1',
   })
   return (await cmsFetch<FindResult<LojaDTO>>(`/api/lojas?${q}`)).docs[0] ?? null
 }
@@ -918,12 +920,13 @@ export async function getOfertaBySlug(tenantId: string | number, slug: string): 
 /** Outras ofertas da mesma loja — evita página órfã (checklist da skill nova-rota). */
 export async function getOfertasDaLoja(
   lojaId: string | number,
-  excetoId: string | number,
-  limit = 6,
+  /** id a excluir — a oferta que está sendo lida. A página da LOJA não exclui ninguém. */
+  excetoId?: string | number,
+  limit = 12,
 ): Promise<OfertaDTO[]> {
   const q = new URLSearchParams({
     'where[and][0][loja][equals]': String(lojaId),
-    'where[and][1][id][not_equals]': String(excetoId),
+    'where[and][1][id][not_equals]': String(excetoId ?? 0),
     'where[and][2][_status][equals]': 'published',
     limit: String(limit),
     // depth 1 + select: as relacionadas viram cartão (imagem e resumo), sem trazer o corpo
