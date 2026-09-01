@@ -25,9 +25,15 @@ interface Props {
    * do cupom o código aparece inteiro — o desenho aprovado guarda ele pra lá.
    */
   destino?: string | null
+  /**
+   * Dentro de um card que já mostra desconto e preço (a lateral da página de oferta),
+   * o card do cupom perde a moldura e o número grande: dois quadros aninhados dizendo o
+   * mesmo desconto é ruído, não ênfase. O que fica é o que só ele tem — código, selo e CTA.
+   */
+  compacto?: boolean
 }
 
-const { cupom, decomposicao = null, destino = null } = Astro.props
+const { cupom, decomposicao = null, destino = null, compacto = false } = Astro.props
 
 const descontoLabel = (() => {
   switch (cupom.desconto_tipo) {
@@ -60,12 +66,16 @@ const selo = (() => {
 })()
 ---
 
-<article class="cupom">
-  <p class="desconto">
-    <span class="desconto-numero">{descontoLabel}</span>
-    {sufixoDesconto && <span class="desconto-sufixo">{sufixoDesconto}</span>}
-    {decomposicao && <span class="desconto-decomposicao">{decomposicao}</span>}
-  </p>
+<article class:list={['cupom', { compacto }]}>
+  {
+    !compacto && (
+      <p class="desconto">
+        <span class="desconto-numero">{descontoLabel}</span>
+        {sufixoDesconto && <span class="desconto-sufixo">{sufixoDesconto}</span>}
+        {decomposicao && <span class="desconto-decomposicao">{decomposicao}</span>}
+      </p>
+    )
+  }
 
   <div class="corpo">
     {
@@ -237,5 +247,15 @@ const selo = (() => {
     .cupom { align-items: stretch; }
     .desconto { flex-direction: row; align-items: baseline; gap: 0.4rem; }
     .desconto-decomposicao { margin-top: 0; }
+  }
+
+  /* variante embutida: sem moldura própria, ocupando a largura do card que a hospeda */
+  .cupom.compacto {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    width: 100%;
   }
 </style>

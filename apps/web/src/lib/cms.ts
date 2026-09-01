@@ -62,6 +62,19 @@ export interface TenantDTO {
   seo?: { title_pattern_loja?: string; gsc_property?: string; sitemap_enabled?: boolean }
 }
 
+/**
+ * Imagem do Payload. `sizes.cartao` é o derivado de 640px gerado por `regenera:tamanhos`;
+ * pode não existir (upload antigo ainda não reprocessado), e por isso quem consome sempre
+ * cai no original.
+ */
+export interface MidiaDTO {
+  url?: string
+  alt?: string
+  width?: number
+  height?: number
+  sizes?: { cartao?: { url?: string | null; width?: number | null; height?: number | null } | null } | null
+}
+
 export interface LojaDTO {
   id: string | number
   nome: string
@@ -69,7 +82,7 @@ export interface LojaDTO {
   url_site: string
   programa: string
   faq?: Array<{ pergunta: string; resposta: string }>
-  logo?: { url?: string; alt?: string } | string | number | null
+  logo?: MidiaDTO | string | number | null
   tenant?: string | number | TenantDTO
 }
 
@@ -84,19 +97,6 @@ export interface LojaDTO {
  */
 export const caminhoDaOferta = (o: { slug: string; wordpress_id?: string | null }): string =>
   `${String(o.wordpress_id ?? '').startsWith('app:') ? '/apps' : '/ofertas'}/${caminhoCanonico(o.slug)}/`
-
-/**
- * Imagem do Payload. `sizes.cartao` é o derivado de 640px gerado por `regenera:tamanhos`;
- * pode não existir (upload antigo ainda não reprocessado), e por isso quem consome sempre
- * cai no original.
- */
-export interface MidiaDTO {
-  url?: string
-  alt?: string
-  width?: number
-  height?: number
-  sizes?: { cartao?: { url?: string | null; width?: number | null; height?: number | null } | null } | null
-}
 
 export interface CupomDTO {
   id: string | number
@@ -150,6 +150,10 @@ export interface OfertaDTO {
   imagem?: MidiaDTO | string | number | null
   /** a linha de descrição do cartão (short_description/excerpt do WP) */
   resumo?: string | null
+  /** a linha abaixo do H1 e no card lateral (brand_headline do WP) */
+  headline?: string | null
+  /** a lista "Funcionalidades" da página do WP (benefit_bullets) */
+  beneficios?: Array<{ texto?: string | null }> | null
 }
 
 interface FindResult<T> {
@@ -886,8 +890,12 @@ export async function getOfertasDaLoja(
     'where[and][1][id][not_equals]': String(excetoId),
     'where[and][2][_status][equals]': 'published',
     limit: String(limit),
-    depth: '0',
+    // depth 1 + select: as relacionadas viram cartão (imagem e resumo), sem trazer o corpo
+    depth: '1',
   })
+  for (const campo of ['titulo', 'slug', 'tipo', 'preco', 'desconto_loja', 'loja', 'wordpress_id', 'imagem', 'resumo']) {
+    q.set(`select[${campo}]`, 'true')
+  }
   return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs
 }
 

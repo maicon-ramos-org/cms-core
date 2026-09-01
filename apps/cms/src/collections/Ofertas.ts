@@ -112,6 +112,26 @@ export const Ofertas: CollectionConfig = {
       admin: { description: 'imagem do cartão nas vitrines — sem ela o cartão vira só texto' },
     },
     {
+      name: 'headline',
+      type: 'text',
+      maxLength: 160,
+      admin: {
+        description:
+          'a linha abaixo do H1 e no card lateral (migrada do brand_headline do WP). Escreva você — nunca saída de LLM',
+      },
+    },
+    {
+      name: 'beneficios',
+      type: 'array',
+      /*
+       * A lista "Funcionalidades" da página do WP. Array de objeto e não `text hasMany`
+       * porque um dia isto ganha ícone ou destaque por item, e migrar de lista de string
+       * pra lista de objeto depois custa migration em cima de dado publicado.
+       */
+      admin: { description: 'itens da lista de funcionalidades (migrados do benefit_bullets do WP)' },
+      fields: [{ name: 'texto', type: 'text', required: true, maxLength: 200 }],
+    },
+    {
       name: 'resumo',
       type: 'textarea',
       maxLength: 200,

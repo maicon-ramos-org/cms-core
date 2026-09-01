@@ -6,6 +6,7 @@
  * estado), então NÃO é prerender — e o dado de cupom nunca vai pra Server Island: sai
  * inteiro no HTML inicial, porque crawler de IA não executa JS.
  */
+import CardOferta from '../../components/CardOferta.astro'
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
 import Base from '../../layouts/Base.astro'
@@ -93,6 +94,23 @@ const precoFormatado = precoValido
   : null
 const precoEm = oferta.preco?.preco_em ? new Date(oferta.preco.preco_em) : null
 
+/*
+ * Imagem em destaque. `srcset` com os dois tamanhos: o derivado de 640 atende a coluna
+ * no desktop e a tela do celular; o original de 1280 cobre densidade 2x. Sem isso a
+ * página baixaria 1280px pra exibir em 620.
+ */
+const img = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
+const heroSrcset = [
+  img?.sizes?.cartao?.url ? `${urlMidia(img.sizes.cartao.url)} 640w` : null,
+  img?.url ? `${urlMidia(img.url)} ${img.width ?? 1280}w` : null,
+]
+  .filter(Boolean)
+  .join(', ')
+
+const logoLoja = loja?.logo && typeof loja.logo === 'object' ? loja.logo : null
+const beneficios = (oferta.beneficios ?? []).map((b) => b.texto).filter((t): t is string => Boolean(t))
+
 const rotuloTipo: Record<string, string> = {
   cupom: 'Cupom de desconto',
   credito: 'Crédito grátis',
@@ -155,55 +173,114 @@ const jsonLd = JSON.stringify({
     <span> › {oferta.titulo}</span>
   </nav>
 
-  <h1>{oferta.titulo}</h1>
+  <div class="oferta">
+    <div class="topo">
+      {
+        heroSrc && (
+          <img
+            class="hero"
+            src={heroSrc}
+            srcset={heroSrcset}
+            sizes="(min-width: 62rem) 40rem, 100vw"
+            alt={img?.alt ?? oferta.titulo}
+            width={img?.width ?? 1280}
+            height={img?.height ?? 720}
+            fetchpriority="high"
+            decoding="async"
+          />
+        )
+      }
 
-  <div class="destaque">
-    <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
+      <h1>{oferta.titulo}</h1>
+      {oferta.headline && <p class="headline">{oferta.headline}</p>}
+    </div>
 
-    {composto && (
-      <p class="empilhado">
-        <span class="empilhado-total">até {composto.total_pct}%</span>
-        <span class="empilhado-partes">{decomposicao}</span>
-      </p>
-    )}
+    {/*
+      O card fica na coluna 2 no desktop e, no celular, cai logo depois do título — antes
+      do editorial — porque é ele que carrega cupom e preço. É por isso que o topo e o
+      conteúdo são dois blocos separados na grade em vez de um só.
+    */}
+    <aside class="lateral" aria-label="Resumo da oferta">
+      <div class="cartao-oferta">
+        {
+          logoLoja?.url && (
+            <img
+              class="logo"
+              src={urlMidia(logoLoja.url)}
+              alt={loja?.nome ?? ''}
+              width={logoLoja.width ?? 160}
+              height={logoLoja.height ?? 40}
+              loading="lazy"
+              decoding="async"
+            />
+          )
+        }
 
-    {/* sem composição possível, o que se sabe aparece separado — nunca somado no chute */}
-    {descontoLojaIsolado && (
-      <p class="empilhado">
-        <span class="empilhado-total">{descontoLojaIsolado.valor}%</span>
-        <span class="empilhado-partes">da loja{cupomVisivel ? ' · cupom soma no checkout' : ''}</span>
-      </p>
-    )}
-    {precoFormatado && (
-      <p class="preco">
-        {precoFormatado}
-        {oferta.preco?.ciclo === 'mensal' && <span class="ciclo">/mês</span>}
-        {precoEm && (
-          <span class="preco-em">
-            preço visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
-          </span>
+        <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
+
+        {composto && (
+          <p class="empilhado">
+            <span class="empilhado-total">até {composto.total_pct}%</span>
+            <span class="empilhado-partes">{decomposicao}</span>
+          </p>
         )}
-      </p>
-    )}
-    {!cupomVisivel && (
-      <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
-    )}
+
+        {/* sem composição possível, o que se sabe aparece separado — nunca somado no chute */}
+        {descontoLojaIsolado && (
+          <p class="empilhado">
+            <span class="empilhado-total">{descontoLojaIsolado.valor}%</span>
+            <span class="empilhado-partes">da loja{cupomVisivel ? ' · cupom soma no checkout' : ''}</span>
+          </p>
+        )}
+
+        {precoFormatado && (
+          <p class="preco">
+            {precoFormatado}
+            {oferta.preco?.ciclo === 'mensal' && <span class="ciclo">/mês</span>}
+            {precoEm && (
+              <span class="preco-em">
+                preço visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+              </span>
+            )}
+          </p>
+        )}
+
+        {/* cupom sai no HTML inicial, com selo — nunca atrás de JS */}
+        {cupomVisivel ? (
+          <CupomCard cupom={cupomVisivel} compacto />
+        ) : (
+          <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
+        )}
+      </div>
+    </aside>
+
+    <div class="conteudo">
+      {
+        beneficios.length > 0 && (
+          <section class="beneficios">
+            <h2>O que esta oferta inclui</h2>
+            <ul>
+              {beneficios.map((b) => (
+                <li>{b}</li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+
+      {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+    </div>
   </div>
-
-  {/* cupom sai no HTML inicial, com selo — nunca atrás de JS */}
-  {cupomVisivel && <CupomCard cupom={cupomVisivel} />}
-
-  {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
 
   {
     relacionadas.length > 0 && loja && (
       <section class="relacionadas">
         <h2>Outras ofertas {loja.nome}</h2>
-        <ul>
+        <div class="grade-relacionadas">
           {relacionadas.map((o) => (
-            <li><a href={`/ofertas/${o.slug}/`}>{o.titulo}</a></li>
+            <CardOferta oferta={o} loja={loja.nome} />
           ))}
-        </ul>
+        </div>
       </section>
     )
   }
@@ -230,17 +307,71 @@ const jsonLd = JSON.stringify({
 </Base>
 
 <style>
-  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
-  .destaque {
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    padding: 1rem;
-    margin: 1rem 0;
+
+  /*
+   * Duas colunas como a página do WordPress: editorial à esquerda, card da oferta à
+   * direita, grudado enquanto o texto rola. São TRÊS áreas na grade (topo, lateral,
+   * conteúdo) e não duas: assim, no celular, o card cai entre o título e o editorial —
+   * onde a decisão acontece — sem precisar duplicar markup.
+   */
+  .oferta { display: block; }
+  @media (min-width: 62rem) {
+    .oferta {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 19rem;
+      gap: 0 2rem;
+      align-items: start;
+    }
+    .topo { grid-column: 1; grid-row: 1; }
+    .conteudo { grid-column: 1; grid-row: 2; }
+    .lateral {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      position: sticky;
+      /* o cabeçalho do site é sticky e tem ~65px; sem essa folga o card fica embaixo dele */
+      top: 5.5rem;
+    }
+  }
+
+  .hero {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+    margin-bottom: 1rem;
+  }
+  h1 { margin: 0 0 0.4rem; }
+  .headline {
+    margin: 0 0 1.25rem;
+    font-size: 1.05rem;
+    line-height: 1.45;
+    color: var(--rz-muted);
+  }
+
+  .cartao-oferta {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    padding: 1.1rem;
+    margin: 0 0 1.5rem;
+    background: var(--rz-surface);
+  }
+  /* o logo vem do WP em proporções variadas (svg de letreiro, png quadrado): teto de
+     altura e `object-fit` impedem que um deles domine o card */
+  .logo {
+    max-width: 60%;
+    max-height: 34px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
   }
   .tipo { margin: 0; font-weight: 600; color: var(--rz-brand); }
   .empilhado { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
@@ -252,13 +383,49 @@ const jsonLd = JSON.stringify({
   }
   .empilhado-partes { font-size: 0.78rem; color: var(--rz-muted); }
   .preco { margin: 0; font-size: 1.5rem; font-weight: 700; }
-  .ciclo { font-size: 0.9rem; font-weight: 400; color: #555; }
-  .preco-em { display: block; font-size: 0.75rem; font-weight: 400; color: #666; }
+  .ciclo { font-size: 0.9rem; font-weight: 400; color: var(--rz-muted); }
+  .preco-em { display: block; font-size: 0.75rem; font-weight: 400; color: var(--rz-muted); }
+  /* o card é estreito: o cupom dentro dele ocupa a largura toda em vez de encolher */
+  .cartao-oferta > :global(*) { max-width: 100%; }
+
+  .beneficios h2 { margin-top: 0; font-size: 1.15rem; }
+  .beneficios ul { margin: 0 0 1.5rem; padding: 0; list-style: none; }
+  .beneficios li {
+    position: relative;
+    padding-left: 1.6rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.45;
+  }
+  /* o "✓" é decoração via ::before: fora do texto, então leitor de tela não soa o
+     símbolo item a item, e a lista continua sendo uma lista */
+  .beneficios li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.42em;
+    width: 0.95rem;
+    height: 0.55rem;
+    border-left: 2.5px solid var(--rz-verified);
+    border-bottom: 2.5px solid var(--rz-verified);
+    transform: rotate(-45deg);
+  }
+
   .corpo :global(img) { max-width: 100%; height: auto; }
   .corpo :global(.tabela-rolavel) { overflow-x: auto; }
   .corpo :global(table) { border-collapse: collapse; min-width: 100%; }
-  .corpo :global(th), .corpo :global(td) { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; }
-  .relacionadas ul { padding-left: 1.2rem; }
+  .corpo :global(th), .corpo :global(td) {
+    border: 1px solid var(--rz-borda);
+    padding: 0.5rem;
+    text-align: left;
+  }
+
+  .relacionadas { margin-top: 2.5rem; }
+  .grade-relacionadas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+  }
+
   .barra-fixa {
     position: sticky;
     bottom: 0;
@@ -269,13 +436,18 @@ const jsonLd = JSON.stringify({
     gap: 1rem;
     margin: 2rem -1.5rem 0;
     padding: 0.7rem 1.5rem;
-    background: rgb(255 255 255 / 0.97);
+    /* token, não branco fixo: a barra some num tenant de fundo escuro se for #fff */
+    background: var(--rz-surface);
     border-top: 1px solid var(--rz-borda);
     box-shadow: 0 -2px 10px rgb(0 0 0 / 0.06);
   }
   .barra-info { display: flex; flex-direction: column; line-height: 1.2; }
   .barra-valor { font-family: var(--rz-fonte-titulos); font-size: 1.15rem; color: var(--rz-deal); }
   .barra-teste { font-size: 0.78rem; color: var(--rz-muted); }
+  /* no desktop o card lateral já é a âncora da ação; a barra vira redundância grudada */
+  @media (min-width: 62rem) {
+    .barra-fixa { display: none; }
+  }
   @media (max-width: 480px) {
     .barra-fixa { margin: 2rem -1rem 0; padding: 0.65rem 1rem; }
   }
