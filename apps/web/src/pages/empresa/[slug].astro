@@ -4,6 +4,7 @@
  * É a página da LOJA: quem ela é e o que temos dela. Complementa /cupom-{loja},
  * que é o catálogo de cupons; aqui o foco é a empresa.
  */
+import CardOferta from '../../components/CardOferta.astro'
 import Base from '../../layouts/Base.astro'
 import { caminhoCanonico, getLojaComMeta, getOfertasDaLoja, urlMidia } from '../../lib/cms'
 
@@ -87,11 +88,10 @@ const jsonLd = JSON.stringify({
     ofertas.length > 0 && (
       <section>
         <h2>Ofertas {loja.nome}</h2>
-        <ul class="lista">
-          {ofertas.map((o) => (
-            <li><a href={`/ofertas/${caminhoCanonico(o.slug)}/`}>{o.titulo}</a></li>
-          ))}
-        </ul>
+        {/* cartão: corrige também o destino — ver comentário em categoria-oferta */}
+        <div class="grade">
+          {ofertas.map((o, i) => <CardOferta oferta={o} loja={loja.nome} prioritario={i < 4} />)}
+        </div>
       </section>
     )
   }
@@ -122,4 +122,9 @@ const jsonLd = JSON.stringify({
   .lista li { margin-bottom: 0.4rem; }
   details { margin-bottom: 0.5rem; }
   summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+  }
 </style>

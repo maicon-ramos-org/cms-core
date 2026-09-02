@@ -9,14 +9,14 @@
  * title/description saem do meta do WP: na virada, página de acervo mantém o que já
  * está indexado (decisão de atribuição — melhoria de título é deploy separado).
  */
+import CardOferta from '../../components/CardOferta.astro'
 import Base from '../../layouts/Base.astro'
 import {
   caminhoCanonico,
+  caminhoDaOferta,
   getCategoriaOfertaBySlug,
   getFilhasDaCategoria,
   getOfertasDaCategoria,
-  type LojaDTO,
-  type OfertaDTO,
 } from '../../lib/cms'
 
 const tenant = Astro.locals.tenant
@@ -52,9 +52,6 @@ const titulo = categoria.meta?.title || `${categoria.nome}: ${ofertas.length} of
 const descricao =
   categoria.meta?.description || `Ofertas de ${categoria.nome} com preço e data de conferência.`
 
-const nomeDaLoja = (o: OfertaDTO): string | null =>
-  o.loja && typeof o.loja === 'object' ? (o.loja as LojaDTO).nome : null
-
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
   '@graph': [
@@ -67,7 +64,8 @@ const jsonLd = JSON.stringify({
         '@type': 'ListItem',
         position: i + 1,
         name: o.titulo,
-        url: `https://${tenant.canonical_host}/ofertas/${caminhoCanonico(o.slug)}/`,
+        // mesma correção do markup: os lifetimes moram em /apps/{slug}
+        url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}`,
       })),
     },
   ],
@@ -97,16 +95,15 @@ const jsonLd = JSON.stringify({
 
   {ofertas.length === 0 && <p>Nenhuma oferta publicada nesta categoria agora.</p>}
 
-  <ul class="lista">
-    {
-      ofertas.map((o) => (
-        <li>
-          <a href={`/ofertas/${caminhoCanonico(o.slug)}/`}>{o.titulo}</a>
-          {nomeDaLoja(o) && <span class="loja"> · {nomeDaLoja(o)}</span>}
-        </li>
-      ))
-    }
-  </ul>
+  {/*
+    Cartão em vez de lista de link: o `CardOferta` usa `caminhoDaOferta`, então além do
+    visual ele corrige o DESTINO — a lista mandava tudo pra `/ofertas/{slug}`, e os 57
+    deals do AppSumo moram em `/apps/{slug}`. Aquilo não dava 404 (as duas rotas servem a
+    mesma oferta), mas linkava a URL não-canônica de dentro do próprio site.
+  */}
+  <div class="grade">
+    {ofertas.map((o, i) => <CardOferta oferta={o} prioritario={i < 4} />)}
+  </div>
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
@@ -119,7 +116,11 @@ const jsonLd = JSON.stringify({
     display: inline-flex; align-items: center; min-height: 36px; padding: 0.3rem 0.85rem;
     border: 1px solid var(--rz-borda); border-radius: 999px; text-decoration: none; font-size: 0.88rem; font-weight: 600;
   }
-  .lista { padding-left: 1.2rem; }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+  }
   .lista li { margin-bottom: 0.4rem; }
   .loja { color: var(--rz-muted); font-size: 0.85rem; }
 </style>
