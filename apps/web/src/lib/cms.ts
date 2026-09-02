@@ -863,7 +863,24 @@ export async function getPostsRelacionados(
       escolhidos.push(escolhido)
     }
   }
-  return escolhidos
+
+  /*
+   * As buscas acima pedem só título e slug de propósito: elas varrem até 200 candidatos
+   * pra ESCOLHER, e trazer capa de 200 posts pra mostrar 4 seria pagar 50x pelo que se usa.
+   * A capa vem aqui, numa consulta só, pelos ids já escolhidos.
+   */
+  if (escolhidos.length === 0) return escolhidos
+  const q = new URLSearchParams({
+    'where[id][in]': escolhidos.map((p) => String(p.id)).join(','),
+    limit: String(escolhidos.length),
+    depth: '1',
+  })
+  for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria']) q.set(`select[${campo}]`, 'true')
+  const cheios = new Map(
+    (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs.map((p) => [String(p.id), p]),
+  )
+  // mantém a ORDEM da seleção: o `in` do Postgres não devolve na ordem pedida
+  return escolhidos.map((p) => cheios.get(String(p.id)) ?? p)
 }
 
 /** Mesma família do hash do auto-linker: a janela do bloco tem que ser estável entre renders. */

@@ -11,7 +11,9 @@
  * Esta rota é o curinga de 1 segmento: rotas com prefixo estático (`/cupom-{loja}`)
  * têm prioridade no Astro, então não há conflito.
  */
+import CardPost from '../components/CardPost.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
+import Compartilhar from '../components/Compartilhar.astro'
 import PaginaConteudo from '../components/PaginaConteudo.astro'
 import Base from '../layouts/Base.astro'
 import {
@@ -24,7 +26,7 @@ import {
   urlMidia,
   type PostDTO,
 } from '../lib/cms'
-import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+import { extraiSumario, lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -83,6 +85,24 @@ const corpoHtml = lexicalParaHtml(post?.corpo, {
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })
+
+/*
+ * Índice do artigo. Sai dos títulos que o próprio conversor gerou, com os ids que ele
+ * gerou — nada de JS no cliente montando lista de âncora.
+ *
+ * Só aparece com 3+ seções: em artigo curto, índice é uma segunda lista de títulos logo
+ * antes dos títulos.
+ */
+const sumario = corpoHtml ? extraiSumario(corpoHtml) : []
+const MIN_SUMARIO = 3
+
+/*
+ * Tempo de leitura. 200 palavras por minuto é a faixa medida pra leitura em português;
+ * o número é do CORPO, não da página, então não conta menu nem rodapé.
+ */
+const palavras = post ? lexicalParaTexto(post.corpo).split(/\s+/).filter(Boolean).length : 0
+const minutos = Math.max(1, Math.round(palavras / 200))
+
 
 // title/description do Rank Math quando vieram na migração — são os que já ranqueiam
 const titulo = post?.meta?.title || post?.titulo || ''
@@ -159,6 +179,7 @@ const jsonLd = JSON.stringify({
       {atualizado && publicado && atualizado.getTime() - publicado.getTime() > 86_400_000 && (
         <span class="atualizado"> · atualizado em {dataLegivel(atualizado)}</span>
       )}
+      {minutos > 0 && <span> · {minutos} min de leitura</span>}
     </p>
 
     {capa?.url && (
@@ -174,22 +195,50 @@ const jsonLd = JSON.stringify({
       />
     )}
 
+    {
+      sumario.length >= MIN_SUMARIO && (
+        /* `<details open>`: recolhível sem JS, e aberto por padrão porque o índice serve
+           pra decidir se vale ler — fechado, ele só ocupa espaço */
+        <details class="sumario" open>
+          <summary>Navegue por tópicos</summary>
+          <ol>
+            {sumario.map((i) => (
+              <li class={i.nivel === 3 ? 'nivel-2' : 'nivel-1'}>
+                <a href={`#${i.id}`}>{i.texto}</a>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )
+    }
+
     {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
 
     {tags.length > 0 && (
       <p class="tags">{tags.map((t) => <span class="tag">{t.nome}</span>)}</p>
     )}
+
+    <Compartilhar url={canonical} titulo={post?.titulo ?? ''} />
+
+    {
+      autor && (
+        <aside class="autor">
+          <p class="autor-nome">{autor.nome}</p>
+          {autor.bio && <p class="autor-bio">{autor.bio}</p>}
+        </aside>
+      )
+    }
   </article>
 
   {
     relacionados.length > 0 && (
       <section class="relacionados">
         <h2>Leia também</h2>
-        <ul>
+        <div class="grade">
           {relacionados.map((p) => (
-            <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
+            <CardPost post={p} />
           ))}
-        </ul>
+        </div>
       </section>
     )
   }
@@ -212,7 +261,89 @@ const jsonLd = JSON.stringify({
     max-width: var(--rz-medida);
     margin-inline: auto;
   }
-  .capa { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
+  /*
+   * A capa ESTOURA a medida de leitura: 768 é a largura certa pro texto e estreita demais
+   * pra imagem de destaque. `calc(100% + 8rem)` com margem negativa a leva a ~896 sem sair
+   * do container, e no celular a `min()` segura em 100%. É o que o site atual faz (texto
+   * 773, capa 1000).
+   */
+  .capa {
+    width: min(100%, calc(100% + 8rem));
+    max-width: none;
+    height: auto;
+    margin: 1rem 0;
+    border-radius: 10px;
+  }
+  @media (min-width: 60rem) {
+    .capa { width: calc(100% + 8rem); margin-inline: -4rem; }
+  }
+
+  /*
+   * Índice. `<details open>` para recolher sem JS. Números por CSS (`counter`) e não no
+   * markup: a lista já é `<ol>`, e duplicar o número no texto faria o leitor de tela
+   * anunciar "1. 1. Comparativo".
+   */
+  .sumario {
+    margin: 1.5rem 0;
+    padding: 0.85rem 1.1rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+  }
+  .sumario summary {
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  .sumario ol {
+    counter-reset: item;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .sumario li { counter-increment: item; line-height: 1.4; }
+  .sumario li::before {
+    content: counter(item) '.';
+    display: inline-block;
+    min-width: 1.4rem;
+    color: var(--rz-muted);
+    font-size: 0.85rem;
+  }
+  .sumario li.nivel-2 { padding-left: 1.4rem; }
+  .sumario a {
+    color: var(--rz-ink);
+    text-decoration: none;
+    font-size: 0.92rem;
+  }
+  .sumario a:hover { color: var(--rz-brand); text-decoration: underline; }
+
+  /* âncora do índice não pode parar embaixo do cabeçalho grudento */
+  .corpo :global(h2),
+  .corpo :global(h3),
+  .corpo :global(h4) { scroll-margin-top: 5rem; }
+
+  .autor {
+    margin-top: 2rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+  }
+  .autor-nome {
+    margin: 0;
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+  }
+  .autor-bio { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
+
+  .relacionados .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+  }
   .corpo :global(img) { max-width: 100%; height: auto; }
   .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
   .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }

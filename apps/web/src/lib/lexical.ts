@@ -45,6 +45,33 @@ const marcaTexto = (no: No): string => {
 
 const filhos = (no: No): string => (no.children ?? []).map(renderaNo).join('')
 
+/** Texto puro de um nó — usado pro id do título e pro sumário. */
+const textoDe = (no: No): string =>
+  no.type === 'text' ? (no.text ?? '') : (no.children ?? []).map(textoDe).join('')
+
+/*
+ * Slug do título. Sem acento (NFD + corte dos diacríticos) porque id com acento vira
+ * percent-encoding no href e fica ilegível na barra do navegador.
+ */
+const slugDeTitulo = (texto: string): string =>
+  texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'secao'
+
+/** Dois títulos iguais no mesmo post existem ("Onde ganha"); o segundo vira `-2`. */
+let idsUsados: Map<string, number> | null = null
+const idUnico = (texto: string): string => {
+  const base = slugDeTitulo(texto)
+  if (!idsUsados) return base
+  const n = (idsUsados.get(base) ?? 0) + 1
+  idsUsados.set(base, n)
+  return n === 1 ? base : `${base}-${n}`
+}
+
 /** Só http(s) vira link: nada de javascript: vindo de conteúdo migrado. */
 const hrefSeguro = (url: string | undefined): string | null =>
   url && /^(https?:\/\/|\/|mailto:|tel:)/i.test(url) ? escapa(url) : null
@@ -104,7 +131,13 @@ function renderaNo(no: No): string {
     case 'heading': {
       // h1 é da página, não do corpo: rebaixa um nível pra não competir no SEO
       const nivel = Math.min(6, Math.max(2, Number(String(no.tag ?? 'h2').replace('h', '')) + 1))
-      return `<h${nivel}>${filhos(no)}</h${nivel}>`
+      /*
+       * `id` em todo título do corpo: é o que permite índice, link direto pra seção e
+       * citação de trecho por agente de IA. Sem ele, um artigo de 12 minutos só pode ser
+       * referenciado inteiro.
+       */
+      const id = idUnico(textoDe(no))
+      return `<h${nivel} id="${id}">${filhos(no)}</h${nivel}>`
     }
     case 'quote':
       return `<blockquote>${filhos(no)}</blockquote>`
@@ -163,12 +196,14 @@ export function lexicalParaHtml(
   reescreveAfiliado = opcoes.reescreveAfiliado ?? null
   resolveMidia = opcoes.resolveMidia ?? null
   hostDoTenant = opcoes.hostDoTenant ?? null
+  idsUsados = new Map()
   try {
     return filhos(raiz)
   } finally {
     reescreveAfiliado = null
     resolveMidia = null
     hostDoTenant = null
+    idsUsados = null
   }
 }
 
@@ -180,4 +215,25 @@ export function lexicalParaTexto(corpo: unknown, limite = 0): string {
     (no.text ?? '') + (no.children ?? []).map(junta).join(no.type === 'paragraph' ? '' : ' ')
   const texto = junta(raiz).replace(/\s+/g, ' ').trim()
   return limite > 0 && texto.length > limite ? `${texto.slice(0, limite - 1).trimEnd()}…` : texto
+}
+
+export interface ItemSumario {
+  id: string
+  texto: string
+  nivel: number
+}
+
+/**
+ * Sumário a partir do HTML que ESTA função gerou — por isso o regex basta: a entrada não é
+ * HTML arbitrário da internet, é a saída de `lexicalParaHtml` logo acima.
+ *
+ * Só h2 e h3: h4 pra baixo transformaria o índice numa segunda cópia do artigo.
+ */
+export function extraiSumario(html: string): ItemSumario[] {
+  const itens: ItemSumario[] = []
+  for (const m of html.matchAll(/<h([23]) id="([^"]+)">(.*?)<\/h[23]>/gs)) {
+    const texto = m[3]!.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim()
+    if (texto) itens.push({ id: m[2]!, texto, nivel: Number(m[1]) })
+  }
+  return itens
 }
