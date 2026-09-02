@@ -21,7 +21,7 @@ const pedida = Number(Astro.url.searchParams.get('pagina') ?? '1')
 const pagina = Number.isFinite(pedida) && pedida > 0 ? Math.floor(pedida) : 1
 
 const [{ docs: posts, totalDocs, totalPages }, categorias] = await Promise.all([
-  getPostsPaginados(tenant.id, pagina, POR_PAGINA, categoria.id),
+  getPostsPaginados(tenant.id, pagina, POR_PAGINA, { categoriaId: categoria.id }),
   getCategorias(tenant.id),
 ])
 

@@ -78,7 +78,15 @@ const tokens = {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{titulo}</title>
     {descricao && <meta name="description" content={descricao} />}
-    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {/*
+      `follow`, não `nofollow`: as páginas que usam esta prop (/busca, /tag/{slug}) são
+      ARQUIVOS — não devem rankear, mas os links delas levam a conteúdo que deve. É o que
+      o WordPress emite hoje nas tags (`follow, noindex`), e trocar por `nofollow` cortaria
+      a passagem do rastreador por 658 páginas de tag.
+
+      Isto NÃO é o noindex de staging: aquele é por HOST e sai do proxy/robots.txt.
+    */}
+    {noindex && <meta name="robots" content="noindex, follow" />}
     {canonical && <link rel="canonical" href={canonical} />}
     {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
     {favicon && <link rel="icon" type={favicon.tipo} href={favicon.url} />}

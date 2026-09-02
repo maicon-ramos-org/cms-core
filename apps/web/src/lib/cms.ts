@@ -437,7 +437,8 @@ export async function getPostsPaginados(
   tenantId: string | number,
   pagina: number,
   porPagina: number,
-  categoriaId?: string | number,
+  /** filtro do arquivo: categoria OU tag. Objeto e não posicional porque já são dois. */
+  filtro: { categoriaId?: string | number; tagId?: string | number } = {},
 ): Promise<{ docs: PostDTO[]; totalDocs: number; totalPages: number }> {
   const q = new URLSearchParams({
     'where[and][0][tenant][equals]': String(tenantId),
@@ -451,9 +452,27 @@ export async function getPostsPaginados(
   for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria', 'meta']) {
     q.set(`select[${campo}]`, 'true')
   }
-  if (categoriaId !== undefined) q.set('where[and][2][categoria][equals]', String(categoriaId))
+  if (filtro.categoriaId !== undefined) q.set('where[and][2][categoria][equals]', String(filtro.categoriaId))
+  if (filtro.tagId !== undefined) q.set('where[and][2][tags][in]', String(filtro.tagId))
   const r = await cmsFetch<FindResult<PostDTO> & { totalPages?: number }>(`/api/posts?${q}`)
   return { docs: r.docs, totalDocs: r.totalDocs, totalPages: r.totalPages ?? 1 }
+}
+
+export interface TagDTO {
+  id: string | number
+  nome: string
+  slug: string
+}
+
+/** Tag pelo slug — alimenta /tag/{slug}. */
+export async function getTagBySlug(tenantId: string | number, slug: string): Promise<TagDTO | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    limit: '1',
+    depth: '0',
+  })
+  return (await cmsFetch<FindResult<TagDTO>>(`/api/tags?${q}`)).docs[0] ?? null
 }
 
 /** As 7 categorias curadas do blog — a taxonomia dos chips editoriais (spec §3). */

@@ -214,8 +214,14 @@ const jsonLd = JSON.stringify({
 
     {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
 
+    {/* eram `<span>`: a tag aparecia e não levava a lugar nenhum. Agora leva a /tag/{slug},
+        que é `noindex, follow` — serve pra navegar e pro rastreador seguir, não pra rankear */}
     {tags.length > 0 && (
-      <p class="tags">{tags.map((t) => <span class="tag">{t.nome}</span>)}</p>
+      <p class="tags">
+        {tags.map((t) => (
+          <a class="tag" href={`/tag/${t.slug}/`}>{t.nome}</a>
+        ))}
+      </p>
     )}
 
     <Compartilhar url={canonical} titulo={post?.titulo ?? ''} />
@@ -350,7 +356,20 @@ const jsonLd = JSON.stringify({
   .corpo :global(th), .corpo :global(td) { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; }
   .corpo :global(th) { background: #fafafa; }
   .corpo :global(blockquote) { border-left: 3px solid var(--cor-primaria); margin: 1rem 0; padding-left: 1rem; color: #444; }
-  .tags { margin-top: 1.5rem; }
-  .tag { display: inline-block; background: #f1f1f1; border-radius: 999px; padding: 0.15rem 0.6rem; margin-right: 0.35rem; font-size: 0.8rem; }
+  .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1.5rem; }
+  /* era `#f1f1f1` fixo — cinza cravado em componente quebra em tenant de tema escuro */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0.15rem 0.7rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 999px;
+    background: var(--rz-surface-brand);
+    color: var(--rz-ink);
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+  .tag:hover { border-color: var(--rz-brand); color: var(--rz-brand); }
   .relacionados ul { padding-left: 1.2rem; }
 </style>

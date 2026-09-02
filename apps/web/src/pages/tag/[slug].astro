@@ -1,0 +1,107 @@
+---
+/**
+ * /tag/{slug} — arquivo por tag.
+ *
+ * PARIDADE COM O WORDPRESS, INCLUSIVE NO QUE ELE NÃO FAZ. Lá `/tag/n8n/` responde 200 e
+ * está linkada nos posts, mas sai com `noindex` e fica fora do sitemap. Reproduzir só o
+ * 200 e indexar seria mudar a decisão de SEO no meio da migração, e mudá-la pro lado
+ * errado: são 658 tags em uso e **332 delas (50%) têm um único post**. Página de arquivo
+ * com um item é o exemplo de manual de conteúdo raso.
+ *
+ * Então: existe, navega, é rastreável para SEGUIR os links (`noindex, follow`), e não
+ * entra no sitemap. O `noindex` que o projeto proíbe é outro — o de HOST, que separa
+ * staging de produção e é decidido pelo proxy. Este é de página, tem motivo próprio, e
+ * segue o mesmo caminho de `/busca`, que já usa a prop do layout.
+ *
+ * Sem `.md` paralelo de propósito: o `.md` existe pra dar o CONTEÚDO ao leitor-agente, e
+ * aqui o conteúdo é uma lista de links cujos destinos já servem o próprio `.md`.
+ */
+import CardPost from '../../components/CardPost.astro'
+import Base from '../../layouts/Base.astro'
+import { getPostsPaginados, getTagBySlug } from '../../lib/cms'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+const tag = await getTagBySlug(tenant.id, slug)
+if (!tag) {
+  return new Response('Tag não encontrada.', { status: 404 })
+}
+
+const POR_PAGINA = 20
+const pedida = Number(Astro.url.searchParams.get('pagina') ?? '1')
+const pagina = Number.isFinite(pedida) && pedida > 0 ? Math.floor(pedida) : 1
+
+const { docs: posts, totalDocs, totalPages } = await getPostsPaginados(tenant.id, pagina, POR_PAGINA, {
+  tagId: tag.id,
+})
+
+if (posts.length === 0) {
+  // tag sem post publicado não é página: é registro de taxonomia órfão
+  return new Response('Tag não encontrada.', { status: 404 })
+}
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, `tags:${tag.id}`] })
+}
+
+const base = `https://${tenant.canonical_host}/tag/${tag.slug}/`
+const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
+const titulo =
+  pagina > 1
+    ? `${tag.nome} — página ${pagina}`
+    : `${tag.nome}: ${totalDocs} ${totalDocs === 1 ? 'artigo' : 'artigos'}`
+const descricao = `Artigos marcados com ${tag.nome} no ${tenant.nome}.`
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `https://${tenant.canonical_host}/blog/` },
+        { '@type': 'ListItem', position: 3, name: tag.nome, item: base },
+      ],
+    },
+  ],
+})
+
+const href = (n: number): string => (n === 1 ? `/tag/${tag.slug}/` : `/tag/${tag.slug}/?pagina=${n}`)
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical} noindex>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a> › <a href="/blog/">Blog</a><span> › {tag.nome}</span>
+  </nav>
+
+  <h1>{tag.nome}</h1>
+  <p class="intro">
+    {totalDocs} {totalDocs === 1 ? 'artigo marcado' : 'artigos marcados'} com esta tag — página {pagina} de {totalPages}.
+  </p>
+
+  <div class="grade">
+    {posts.map((p, i) => <CardPost post={p} prioritario={i < 3} />)}
+  </div>
+
+  <nav class="paginacao" aria-label="Paginação">
+    {pagina > 1 && <a rel="prev" href={href(pagina - 1)}>← Anteriores</a>}
+    {pagina < totalPages && <a rel="next" href={href(pagina + 1)}>Próximos →</a>}
+  </nav>
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .intro { color: var(--rz-muted); font-size: 0.9rem; }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.1rem;
+  }
+  .paginacao { display: flex; gap: 1.5rem; margin-top: 2rem; }
+</style>
