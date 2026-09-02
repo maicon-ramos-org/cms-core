@@ -335,6 +335,27 @@ export async function getMidiaPorUrlAntiga(
   return r.docs[0] ?? null
 }
 
+/**
+ * Várias mídias pelo `wp_url_antiga` de uma vez — o hub de apps precisa de 43 heros e
+ * uma consulta por hero seriam 43 idas ao CMS pra montar uma página.
+ */
+export async function getMidiaPorUrlsAntigas(urls: string[]): Promise<Map<string, MidiaDTO>> {
+  const limpas = [...new Set(urls.filter(Boolean))]
+  if (limpas.length === 0) return new Map()
+  const q = new URLSearchParams({ limit: String(limpas.length), depth: '0' })
+  limpas.forEach((u, i) => q.set(`where[or][${i}][wp_url_antiga][equals]`, u))
+  /*
+   * `filename` é OBRIGATÓRIO na lista: no Payload a `url` do upload é derivada dele, e
+   * pedir `url` sem `filename` devolve `url: null` — silenciosamente, sem erro. Foi assim
+   * que o hub de apps ficou sem nenhuma imagem.
+   */
+  for (const campo of ['url', 'filename', 'alt', 'width', 'height', 'sizes', 'wp_url_antiga']) {
+    q.set(`select[${campo}]`, 'true')
+  }
+  const docs = (await cmsFetch<FindResult<MidiaDTO & { wp_url_antiga?: string }>>(`/api/midia?${q}`)).docs
+  return new Map(docs.filter((m) => m.wp_url_antiga).map((m) => [m.wp_url_antiga!, m]))
+}
+
 export interface CategoriaChip {
   id: string | number
   nome: string
