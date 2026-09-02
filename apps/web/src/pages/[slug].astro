@@ -14,7 +14,6 @@
 import CardPost from '../components/CardPost.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import Compartilhar from '../components/Compartilhar.astro'
-import PaginaConteudo from '../components/PaginaConteudo.astro'
 import Base from '../layouts/Base.astro'
 import {
   caminhoCanonico,
@@ -41,14 +40,25 @@ const slug = Astro.params.slug ?? ''
 const ARQUIVOS_DO_BUILDER = new Set(['home', 'apps', 'ofertas', 'blog'])
 
 const post = await getPostBySlug(tenant.id, slug)
-// sem post, tenta página (institucional/conteúdo): /quem-somos, /glossario, /contato…
-const page = post || ARQUIVOS_DO_BUILDER.has(slug) ? null : await getPageBySlug(tenant.id, slug)
 
-if (!post && (!page || page.template === 'apps')) {
-  return new Response('Página não encontrada.', { status: 404 })
+/*
+ * Sem post, é página (institucional/conteúdo/contato) — e ela vai por REWRITE, não aqui.
+ * O Astro empacota CSS por rota: com os dois templates nesta rota, toda página
+ * institucional carregava o CSS do cartão de post, do compartilhar e do formulário de
+ * contato. O `?__r=1` é o que faz `/pagina/{slug}` responder — direto, ela é 404.
+ */
+if (!post) {
+  if (ARQUIVOS_DO_BUILDER.has(slug)) {
+    return new Response('Página não encontrada.', { status: 404 })
+  }
+  const page = await getPageBySlug(tenant.id, slug)
+  if (!page || page.template === 'apps') {
+    return new Response('Página não encontrada.', { status: 404 })
+  }
+  return Astro.rewrite(`/pagina/${caminhoCanonico(slug)}/?__r=1`)
 }
 
-const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.id), post ? getCategorias(tenant.id) : Promise.resolve([])])
+const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.id), getCategorias(tenant.id)])
 
 const categoria = post?.categoria && typeof post.categoria === 'object' ? post.categoria : null
 const autor = post?.autor && typeof post.autor === 'object' ? post.autor : null
@@ -72,9 +82,8 @@ if (Astro.cache.enabled) {
   Astro.cache.set({
     maxAge: 3600,
     swr: 300,
-    tags: post
-      ? [`tenant:${tenant.slug}`, `posts:${post.id}`, ...(categoria ? [`categorias:${categoria.id}`] : [])]
-      : [`tenant:${tenant.slug}`, `pages:${page!.id}`],
+    // daqui pra baixo só existe post: página saiu por rewrite antes deste ponto
+    tags: [`tenant:${tenant.slug}`, `posts:${post.id}`, ...(categoria ? [`categorias:${categoria.id}`] : [])],
   })
 }
 
@@ -153,8 +162,6 @@ const jsonLd = JSON.stringify({
   ],
 })
 ---
-
-{page && <PaginaConteudo page={page} mapaAfiliados={mapaAfiliados} />}
 
 {post && (
 <Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${post.slug}.md`}>
