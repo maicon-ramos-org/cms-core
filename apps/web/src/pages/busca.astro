@@ -24,9 +24,20 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
 <Base titulo={titulo} descricao={`Resultados de busca em ${tenant.nome}.`} noindex>
   <h1>{termo ? <>Resultados para “{termo}”</> : 'Busca'}</h1>
 
+  {/*
+    Campo NA PÁGINA, não só no cabeçalho. Quem chega aqui vindo do resultado errado
+    precisava voltar ao menu e reabrir a busca pra tentar outra palavra — o formulário é
+    GET nativo, funciona sem JS e já vem preenchido com o termo atual.
+  */}
+  <form class="refina" action="/busca/" method="get" role="search">
+    <label class="sr-only" for="q">Buscar no site</label>
+    <input id="q" type="search" name="q" value={termo} placeholder="Buscar oferta, cupom ou artigo" />
+    <button type="submit">Buscar</button>
+  </form>
+
   {termo && <p class="contagem">{total} {total === 1 ? 'resultado' : 'resultados'}</p>}
 
-  {!termo && <p class="vazio">Digite algo no campo de busca do topo.</p>}
+  {!termo && <p class="vazio">Digite o que procura no campo acima.</p>}
   {termo && total === 0 && (
     <p class="vazio">
       Nada encontrado para “{termo}”. A busca olha o título de posts, ofertas e lojas — tente uma
@@ -36,7 +47,7 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
 
   {r.lojas.length > 0 && (
     <section>
-      <h2>Lojas</h2>
+      <h2>Lojas <span class="quantos">{r.lojas.length}</span></h2>
       <ul class="lista">
         {r.lojas.map((l) => (
           <li><a href={`/cupom-${l.slug}/`}>{l.nome}</a></li>
@@ -47,7 +58,7 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
 
   {r.ofertas.length > 0 && (
     <section>
-      <h2>Ofertas</h2>
+      <h2>Ofertas <span class="quantos">{r.ofertas.length}</span></h2>
       <ul class="lista">
         {r.ofertas.map((o) => (
           <li><a href={caminhoDaOferta(o)}>{o.titulo}</a></li>
@@ -58,7 +69,7 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
 
   {r.posts.length > 0 && (
     <section>
-      <h2>Artigos</h2>
+      <h2>Artigos <span class="quantos">{r.posts.length}</span></h2>
       <ul class="lista">
         {r.posts.map((p) => (
           <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
@@ -69,18 +80,65 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
 </Base>
 
 <style>
+  .refina {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 34rem;
+    margin: 0.75rem 0 1.25rem;
+  }
+  .refina input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 0.9rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 8px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    font: inherit;
+    font-size: 1rem;
+  }
+  .refina button {
+    min-height: 44px;
+    padding: 0 1.2rem;
+    border: 0;
+    border-radius: 8px;
+    background: var(--rz-brand);
+    color: var(--rz-bg);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  /* rótulo só pra leitor de tela: o `placeholder` some quando se digita e não é rótulo */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .quantos {
+    font-family: var(--rz-fonte-corpo);
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--rz-muted);
+  }
   .contagem {
     color: var(--rz-muted);
     font-size: 0.9rem;
-    margin-top: -0.5rem;
   }
-  .vazio {
-    color: var(--rz-muted);
+  .vazio { color: var(--rz-muted); }
+  .lista { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+  .lista li { border-bottom: 1px solid var(--rz-borda); }
+  .lista a {
+    display: block;
+    padding: 0.6rem 0.15rem;
+    color: var(--rz-ink);
+    text-decoration: none;
+    line-height: 1.35;
   }
-  .lista {
-    padding-left: 1.2rem;
-  }
-  .lista li {
-    margin-bottom: 0.4rem;
-  }
+  .lista a:hover { color: var(--rz-brand); }
 </style>

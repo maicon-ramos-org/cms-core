@@ -60,6 +60,23 @@ const jsonLd = JSON.stringify({
 
   <article>
     <h1>{page.titulo}</h1>
+
+    {/*
+      A data já existia e só ia pro JSON-LD. Numa política de privacidade ou termo, "quando
+      isto mudou pela última vez" é parte do conteúdo — quem lê precisa saber se está vendo
+      a versão vigente, e o robô já sabia antes da pessoa.
+    */}
+    {
+      atualizado && (
+        <p class="atualizado">
+          Atualizado em{' '}
+          <time datetime={atualizado.toISOString()}>
+            {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(atualizado)}
+          </time>
+        </p>
+      )
+    }
+
     {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
   </article>
 
@@ -67,7 +84,7 @@ const jsonLd = JSON.stringify({
 </Base>
 
 <style>
-  .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
   /* prosa na medida de leitura, pelo mesmo motivo do post (ver [slug].astro) */
   article {
@@ -80,4 +97,5 @@ const jsonLd = JSON.stringify({
   .corpo :global(th), .corpo :global(td) { border: 1px solid #e5e5e5; padding: 0.5rem; text-align: left; }
   .corpo :global(th) { background: #fafafa; }
   .corpo :global(blockquote) { border-left: 3px solid var(--cor-primaria); margin: 1rem 0; padding-left: 1rem; }
+  .atualizado { margin: 0 0 1.25rem; font-size: 0.85rem; color: var(--rz-muted); }
 </style>
