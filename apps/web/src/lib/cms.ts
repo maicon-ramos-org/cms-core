@@ -281,7 +281,7 @@ export interface PageDTO {
   id: string | number
   titulo: string
   slug: string
-  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional'
+  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional' | 'contato'
   corpo?: unknown
   dados?: AppDados | null
   meta?: { title?: string | null; description?: string | null } | null

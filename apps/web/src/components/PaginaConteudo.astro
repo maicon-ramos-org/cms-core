@@ -7,6 +7,7 @@
  * primeiro e cai aqui quando o slug é de página.
  */
 import Base from '../layouts/Base.astro'
+import FormularioContato from './FormularioContato.astro'
 import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'
 import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
 
@@ -28,6 +29,10 @@ const titulo = page.meta?.title || page.titulo
 const descricao = page.meta?.description || lexicalParaTexto(page.corpo, 155)
 const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(page.slug)}/`
 const atualizado = page.updatedAt ? new Date(page.updatedAt) : null
+
+/* o endpoint volta pra ca com 303 + querystring; e assim que a pagina sabe o que dizer */
+const enviado = Astro.url.searchParams.get('enviado') === '1'
+const erro = Astro.url.searchParams.get('erro')
 
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
@@ -67,7 +72,9 @@ const jsonLd = JSON.stringify({
       a versão vigente, e o robô já sabia antes da pessoa.
     */}
     {
-      atualizado && (
+      /* só no template `institucional`: em política de privacidade e termos, "quando isto
+         mudou" é informação legal. Numa página de contato é ruído. */
+      atualizado && page.template === 'institucional' && (
         <p class="atualizado">
           Atualizado em{' '}
           <time datetime={atualizado.toISOString()}>
@@ -78,6 +85,17 @@ const jsonLd = JSON.stringify({
     }
 
     {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+    {
+      /*
+       * O formulario entra por TEMPLATE, nao por slug: `page.template === 'contato'`.
+       * Ligar pelo slug "contato" seria rota cravada em componente, e o segundo tenant tem
+       * a propria pagina com o proprio slug.
+       */
+      page.template === 'contato' && (
+        <FormularioContato origem={`/${page.slug}/`} enviado={enviado} erro={erro} />
+      )
+    }
   </article>
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
