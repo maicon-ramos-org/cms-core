@@ -55,7 +55,14 @@ if (!post) {
   if (!page || page.template === 'apps') {
     return new Response('Página não encontrada.', { status: 404 })
   }
-  return Astro.rewrite(`/pagina/${caminhoCanonico(slug)}/?__r=1`)
+  /*
+   * A query original vai JUNTO: o rewrite não a leva sozinho, e o alvo enxerga só o que
+   * for passado aqui. Sem isto, o `?letra=` do índice do glossário sumia e a página
+   * respondia sempre a primeira letra — 200 silencioso, filtro nenhum.
+   */
+  const params = new URLSearchParams(Astro.url.search)
+  params.set('__r', '1')
+  return Astro.rewrite(`/pagina/${caminhoCanonico(slug)}/?${params}`)
 }
 
 const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.id), getCategorias(tenant.id)])

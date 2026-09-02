@@ -1,0 +1,107 @@
+---
+/**
+ * Índice A–Z dos posts — o conteúdo do `/glossario/`, gerado do banco.
+ *
+ * A página vinha do WordPress com os 742 títulos e resumos congelados em rich text: 298KB
+ * numa URL só, e já desatualizada na chegada (742 entradas para 741 posts). Índice é uma
+ * VISTA do acervo; guardá-lo como prosa faz ele envelhecer a cada post publicado.
+ *
+ * UMA LETRA POR VEZ, e não tudo: só os títulos com link, sem resumo, já dariam ~112KB —
+ * acima do teto do tipo catálogo. Por letra, a maior (A, com 123 posts) fica em ~29KB.
+ * `?letra=` e não `/glossario/{letra}/` porque não são 27 páginas novas no sitemap: é a
+ * mesma URL com um filtro, do mesmo jeito que `?pagina=` funciona no blog.
+ *
+ * O resumo de cada post FICOU DE FORA: ele é a meta description, que já aparece no cartão
+ * do /blog e na própria página do post. Repeti-lo 741 vezes aqui era o que fazia os 285KB.
+ */
+interface Props {
+  posts: Array<{ titulo: string; slug: string }>
+  letra: string
+}
+
+const { posts, letra } = Astro.props
+
+/** Inicial sem acento; o que não é letra cai em `#` (títulos que abrem com aspas ou número). */
+const inicialDe = (titulo: string): string => {
+  const limpo = titulo.trim().normalize('NFD').replace(/[\u0300-\u036f]/gu, '')
+  const c = limpo.charAt(0).toUpperCase()
+  return /[A-Z]/.test(c) ? c : '#'
+}
+
+const porLetra = new Map<string, Array<{ titulo: string; slug: string }>>()
+for (const p of posts) {
+  const i = inicialDe(p.titulo)
+  if (!porLetra.has(i)) porLetra.set(i, [])
+  porLetra.get(i)!.push(p)
+}
+const letras = [...porLetra.keys()].sort((a, b) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b, 'pt-BR')))
+const ativa = porLetra.has(letra) ? letra : (letras[0] ?? '#')
+const daLetra = porLetra.get(ativa) ?? []
+---
+
+<nav class="letras" aria-label="Índice por letra">
+  {
+    letras.map((l) => (
+      <a href={l === letras[0] ? '/glossario/' : `/glossario/?letra=${encodeURIComponent(l)}`} aria-current={l === ativa ? 'page' : undefined}>
+        {l}
+        <span class="quantos">{porLetra.get(l)!.length}</span>
+      </a>
+    ))
+  }
+</nav>
+
+<p class="contagem">
+  {daLetra.length} {daLetra.length === 1 ? 'artigo começa' : 'artigos começam'} com <strong>{ativa}</strong> — de {posts.length} no acervo.
+</p>
+
+<ul class="entradas">
+  {daLetra.map((p) => <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>)}
+</ul>
+
+<style>
+  .letras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 1rem 0;
+  }
+  .letras a {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-height: 40px;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 8px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .letras a:hover { border-color: var(--rz-brand); color: var(--rz-brand); }
+  .letras a[aria-current='page'] {
+    background: var(--rz-brand);
+    border-color: var(--rz-brand);
+    color: var(--rz-bg);
+  }
+  .quantos {
+    font-family: var(--rz-fonte-corpo);
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.75;
+  }
+
+  .contagem { color: var(--rz-muted); font-size: 0.9rem; }
+
+  .entradas { list-style: none; padding: 0; margin: 1rem 0 0; }
+  .entradas li { border-bottom: 1px solid var(--rz-borda); }
+  .entradas a {
+    display: block;
+    padding: 0.6rem 0.15rem;
+    color: var(--rz-ink);
+    text-decoration: none;
+    line-height: 1.4;
+  }
+  .entradas a:hover { color: var(--rz-brand); }
+</style>

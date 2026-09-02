@@ -281,7 +281,7 @@ export interface PageDTO {
   id: string | number
   titulo: string
   slug: string
-  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional' | 'contato'
+  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional' | 'contato' | 'indice'
   corpo?: unknown
   dados?: AppDados | null
   meta?: { title?: string | null; description?: string | null } | null
@@ -494,6 +494,26 @@ export async function getTagBySlug(tenantId: string | number, slug: string): Pro
     depth: '0',
   })
   return (await cmsFetch<FindResult<TagDTO>>(`/api/tags?${q}`)).docs[0] ?? null
+}
+
+/**
+ * Título e slug de TODOS os posts publicados — alimenta o índice A-Z do `/glossario/`.
+ *
+ * `select` de dois campos e depth 0: são 741 linhas, e trazer o post inteiro pra montar
+ * uma lista de links seria ler o acervo pra escrever o índice dele. Ordenado no banco.
+ */
+export async function getPostsParaIndice(tenantId: string | number): Promise<Array<{ titulo: string; slug: string }>> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    sort: 'titulo',
+    limit: '2000',
+    depth: '0',
+    'select[titulo]': 'true',
+    'select[slug]': 'true',
+  })
+  const r = await cmsFetch<FindResult<{ titulo: string; slug: string }>>(`/api/posts?${q}`)
+  return r.docs
 }
 
 /** As 7 categorias curadas do blog — a taxonomia dos chips editoriais (spec §3). */

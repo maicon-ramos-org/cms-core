@@ -8,15 +8,18 @@
  */
 import Base from '../layouts/Base.astro'
 import FormularioContato from './FormularioContato.astro'
+import IndiceDePosts from './IndiceDePosts.astro'
 import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'
 import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
 
 interface Props {
   page: PageDTO
   mapaAfiliados: Map<string, string>
+  /** só no template `indice`: os posts que a rota buscou */
+  indice?: Array<{ titulo: string; slug: string }>
 }
 
-const { page, mapaAfiliados } = Astro.props
+const { page, mapaAfiliados, indice = [] } = Astro.props
 const tenant = Astro.locals.tenant
 
 const corpoHtml = lexicalParaHtml(page.corpo, {
@@ -92,6 +95,12 @@ const jsonLd = JSON.stringify({
        * Ligar pelo slug "contato" seria rota cravada em componente, e o segundo tenant tem
        * a propria pagina com o proprio slug.
        */
+      page.template === 'indice' && (
+        <IndiceDePosts posts={indice} letra={Astro.url.searchParams.get('letra') ?? ''} />
+      )
+    }
+
+    {
       page.template === 'contato' && (
         <FormularioContato origem={`/${page.slug}/`} enviado={enviado} erro={erro} />
       )

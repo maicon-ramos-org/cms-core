@@ -14,7 +14,7 @@
  * comparação de caminho.
  */
 import PaginaConteudo from '../../components/PaginaConteudo.astro'
-import { getMapaAfiliados, getPageBySlug } from '../../lib/cms'
+import { getMapaAfiliados, getPageBySlug, getPostsParaIndice } from '../../lib/cms'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -32,9 +32,12 @@ if (!page || page.template === 'apps') {
   return new Response('Página não encontrada.', { status: 404 })
 }
 
+/* o índice A-Z só é buscado quando a página é dele — 741 linhas não viajam por engano */
+const indice = page.template === 'indice' ? await getPostsParaIndice(tenant.id) : []
+
 if (Astro.cache.enabled) {
   Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, `pages:${page.id}`] })
 }
 ---
 
-<PaginaConteudo page={page} mapaAfiliados={mapaAfiliados} />
+<PaginaConteudo page={page} mapaAfiliados={mapaAfiliados} indice={indice} />

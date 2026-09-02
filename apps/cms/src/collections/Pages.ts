@@ -55,7 +55,7 @@ export const Pages: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'conteudo',
-      options: ['conteudo', 'apps', 'calculadora', 'institucional', 'contato'],
+      options: ['conteudo', 'apps', 'calculadora', 'institucional', 'contato', 'indice'],
     },
     { name: 'corpo', type: 'richText', admin: { condition: (data) => data?.template === 'conteudo' || data?.template === 'institucional' } },
     {
