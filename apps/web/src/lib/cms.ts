@@ -448,7 +448,7 @@ export async function getPostsPaginados(
     // depth 1 + select: as listas mostram a CAPA e a categoria, sem trazer o corpo do post
     depth: '1',
   })
-  for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria']) {
+  for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria', 'meta']) {
     q.set(`select[${campo}]`, 'true')
   }
   if (categoriaId !== undefined) q.set('where[and][2][categoria][equals]', String(categoriaId))
@@ -875,7 +875,7 @@ export async function getPostsRelacionados(
     limit: String(escolhidos.length),
     depth: '1',
   })
-  for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria']) q.set(`select[${campo}]`, 'true')
+  for (const campo of ['titulo', 'slug', 'publicado_em', 'capa', 'categoria', 'meta']) q.set(`select[${campo}]`, 'true')
   const cheios = new Map(
     (await cmsFetch<FindResult<PostDTO>>(`/api/posts?${q}`)).docs.map((p) => [String(p.id), p]),
   )

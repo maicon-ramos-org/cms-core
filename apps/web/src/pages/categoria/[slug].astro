@@ -58,7 +58,8 @@ const jsonLd = JSON.stringify({
       '@id': `${canonical}#breadcrumb`,
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
-        { '@type': 'ListItem', position: 2, name: 'Blog', item: `https://${tenant.canonical_host}/blog` },
+        // com barra: `/blog` responde 301, e breadcrumb não deve apontar pra redirect
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `https://${tenant.canonical_host}/blog/` },
         { '@type': 'ListItem', position: 3, name: categoria.nome, item: base },
       ],
     },
@@ -73,6 +74,11 @@ const jsonLd = JSON.stringify({
 
   <h1>{categoria.nome}</h1>
   <ChipsCategorias categorias={categorias} ativa={categoria.slug} />
+
+  {/* a descrição já alimentava a meta description e não aparecia pra quem chega na
+      página — é o texto que diz do que a categoria trata, e o site atual mostra */}
+  {categoria.descricao_seo && <p class="descricao">{categoria.descricao_seo}</p>}
+
   <p class="intro">{totalDocs} artigos — página {pagina} de {totalPages}.</p>
 
   <div class="grade">
@@ -93,8 +99,21 @@ const jsonLd = JSON.stringify({
   .trilha { font-size: 0.85rem; color: var(--rz-subtle); margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
   .intro { color: var(--rz-muted); font-size: 0.9rem; }
-  .lista { padding-left: 1.2rem; }
-  .lista li { margin-bottom: 0.45rem; }
-  .data { color: var(--rz-muted); font-size: 0.85rem; }
+  .descricao {
+    max-width: 52rem;
+    margin: 0.75rem 0 0;
+    color: var(--rz-ink);
+    line-height: 1.55;
+  }
+  /*
+   * A grade FALTAVA: quando as listas viraram cartão, o markup mudou aqui mas o CSS não —
+   * ficaram as regras da lista antiga (`.lista`, `.data`), que nada mais usa, e os cartões
+   * empilhavam em uma coluna só.
+   */
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.1rem;
+  }
   .paginacao { display: flex; gap: 1.5rem; margin-top: 1.5rem; }
 </style>

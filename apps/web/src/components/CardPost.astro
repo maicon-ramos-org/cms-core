@@ -26,6 +26,13 @@ const src = urlMidia(cartao?.url ?? capa?.url)
 
 const categoria = post.categoria && typeof post.categoria === 'object' ? post.categoria : null
 
+/*
+ * O resumo do cartão é a meta description migrada do Rank Math — está preenchida em 100%
+ * dos posts e é exatamente uma frase que descreve o artigo. Escrever outra seria inventar
+ * texto sobre conteúdo alheio; usar o primeiro parágrafo daria recorte no meio da frase.
+ */
+const resumo = post.meta?.description ?? null
+
 const data = post.publicado_em ? new Date(post.publicado_em) : null
 const dataLegivel = data ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(data) : null
 ---
@@ -51,6 +58,7 @@ const dataLegivel = data ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium
         {dataLegivel && <time datetime={data!.toISOString()}>{dataLegivel}</time>}
       </span>
       <span class="titulo">{post.titulo}</span>
+      {resumo && <span class="resumo">{resumo}</span>}
     </span>
   </a>
 </article>
@@ -105,5 +113,16 @@ const dataLegivel = data ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium
     font-size: 1rem;
     font-weight: 600;
     line-height: 1.35;
+  }
+  /* três linhas e corta: altura variável aqui desalinha a fileira inteira */
+  .resumo {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--rz-muted);
   }
 </style>
