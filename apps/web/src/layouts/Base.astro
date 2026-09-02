@@ -123,6 +123,17 @@ const tokens = {
         --rz-surface-expirado: var(--surfaceExpirado);
         --rz-aviso: var(--aviso);
         --rz-borda: #e7e4f0;
+        /*
+         * Duas larguras, medidas no site atual: o CONTAINER (grade, cabeçalho, rodapé)
+         * ocupa 1190px lá e ocupava 944 aqui — era o "parece bem menor". 74,5rem dá 1192,
+         * e a folga até a borda fica igual à de lá (~44px em 1280).
+         *
+         * A MEDIDA de leitura tem 773 lá e tinha os mesmos 944 aqui: linha longa demais
+         * para ler. Container largo com texto estreito é o arranjo certo — por isso são
+         * dois tokens, e não um.
+         */
+        --rz-container: 74.5rem;
+        --rz-medida: 48rem;
         --rz-fonte-titulos: var(--fontTitulos), 'Segoe UI', Arial, sans-serif;
         --rz-fonte-corpo: var(--fontCorpo), 'Segoe UI', Arial, sans-serif;
         /* nome antigo mantido: componentes migrados ainda o referenciam */
@@ -148,9 +159,9 @@ const tokens = {
         text-decoration: none;
         letter-spacing: -0.01em;
       }
-      main { max-width: 62rem; margin: 0 auto; padding: 1.5rem; }
+      main { max-width: var(--rz-container); margin: 0 auto; padding: 1.5rem; }
       footer.site {
-        max-width: 62rem;
+        max-width: var(--rz-container);
         margin: 3rem auto 0;
         padding: 1.5rem;
         border-top: 1px solid var(--rz-borda);

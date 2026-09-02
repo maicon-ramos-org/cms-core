@@ -28,6 +28,19 @@ export const urlMidia = (url?: string | null): string | undefined => {
   return /^https?:\/\//i.test(url) ? url : `${CMS_PUBLIC_URL().replace(/\/$/, '')}${url}`
 }
 
+/**
+ * Imagem do Payload. `sizes.cartao` é o derivado de 640px gerado por `regenera:tamanhos`;
+ * pode não existir (upload antigo ainda não reprocessado), e por isso quem consome sempre
+ * cai no original.
+ */
+export interface MidiaDTO {
+  url?: string
+  alt?: string
+  width?: number
+  height?: number
+  sizes?: { cartao?: { url?: string | null; width?: number | null; height?: number | null } | null } | null
+}
+
 export interface TenantDTO {
   id: string | number
   slug: string
@@ -52,27 +65,14 @@ export interface TenantDTO {
     cor_aviso?: string
     fonte_titulos?: string
     fonte_corpo?: string
-    /** letreiro da marca, usado no cabeçalho */
-    logo?: { url?: string; alt?: string } | string | number | null
+    /** letreiro da marca, usado no cabeçalho e no rodapé */
+    logo?: MidiaDTO | string | number | null
     /** ícone QUADRADO da aba — não é o logo em tamanho menor; ver colecoes.md */
-    favicon?: { url?: string; alt?: string } | string | number | null
+    favicon?: MidiaDTO | string | number | null
   }
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean
   seo?: { title_pattern_loja?: string; gsc_property?: string; sitemap_enabled?: boolean }
-}
-
-/**
- * Imagem do Payload. `sizes.cartao` é o derivado de 640px gerado por `regenera:tamanhos`;
- * pode não existir (upload antigo ainda não reprocessado), e por isso quem consome sempre
- * cai no original.
- */
-export interface MidiaDTO {
-  url?: string
-  alt?: string
-  width?: number
-  height?: number
-  sizes?: { cartao?: { url?: string | null; width?: number | null; height?: number | null } | null } | null
 }
 
 export interface LojaDTO {

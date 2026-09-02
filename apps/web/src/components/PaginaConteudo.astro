@@ -69,6 +69,11 @@ const jsonLd = JSON.stringify({
 <style>
   .trilha { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
+  /* prosa na medida de leitura, pelo mesmo motivo do post (ver [slug].astro) */
+  article {
+    max-width: var(--rz-medida);
+    margin-inline: auto;
+  }
   .corpo :global(img) { max-width: 100%; height: auto; }
   .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
   .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }

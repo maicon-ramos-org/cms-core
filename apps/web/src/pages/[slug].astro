@@ -166,7 +166,7 @@ const jsonLd = JSON.stringify({
         class="capa"
         src={urlMidia(capa.url)}
         srcset={capaSrcset}
-        sizes="(min-width: 62rem) 59rem, 100vw"
+        sizes="(min-width: 48rem) 48rem, 100vw"
         alt={capa.alt ?? post?.titulo ?? ''}
         width={capa.width}
         height={capa.height}
@@ -203,6 +203,15 @@ const jsonLd = JSON.stringify({
   .trilha a { color: inherit; }
   .creditos { font-size: 0.9rem; color: #555; margin-top: -0.5rem; }
   .atualizado { color: #777; }
+  /*
+   * O artigo fica na MEDIDA de leitura, não na largura do container. Com o container em
+   * 1190 o texto correria a linha inteira — cerca de 140 caracteres, quase o dobro do que
+   * se lê sem perder a linha. O site atual usa 773px aqui; `--rz-medida` é isso.
+   */
+  article {
+    max-width: var(--rz-medida);
+    margin-inline: auto;
+  }
   .capa { max-width: 100%; height: auto; border-radius: 8px; margin: 1rem 0; }
   .corpo :global(img) { max-width: 100%; height: auto; }
   .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
