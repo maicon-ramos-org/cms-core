@@ -69,6 +69,7 @@ const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.i
 
 const categoria = post?.categoria && typeof post.categoria === 'object' ? post.categoria : null
 const autor = post?.autor && typeof post.autor === 'object' ? post.autor : null
+const avatarAutor = autor?.avatar && typeof autor.avatar === 'object' ? autor.avatar : null
 const capa = post?.capa && typeof post.capa === 'object' ? post.capa : null
 /*
  * O original tem ~1200px e a coluna do artigo tem 944 no desktop: ali ele é o tamanho
@@ -243,8 +244,27 @@ const jsonLd = JSON.stringify({
     {
       autor && (
         <aside class="autor">
-          <p class="autor-nome">{autor.nome}</p>
-          {autor.bio && <p class="autor-bio">{autor.bio}</p>}
+          {/*
+            A foto vem da MÍDIA, não do Gravatar. O site atual embute a URL do
+            secure.gravatar.com, o que é uma requisição a domínio de terceiro em toda
+            página de post — a mesma coisa que o projeto evita nas fontes. Aqui o arquivo
+            está no acervo e sai do nosso domínio.
+          */}
+          {avatarAutor?.url && (
+            <img
+              class="autor-foto"
+              src={urlMidia(avatarAutor.url)}
+              alt={autor.nome}
+              width={avatarAutor.width ?? 96}
+              height={avatarAutor.height ?? 96}
+              loading="lazy"
+              decoding="async"
+            />
+          )}
+          <div>
+            <p class="autor-nome">{autor.nome}</p>
+            {autor.bio && <p class="autor-bio">{autor.bio}</p>}
+          </div>
         </aside>
       )
     }
@@ -346,6 +366,9 @@ const jsonLd = JSON.stringify({
   .corpo :global(h4) { scroll-margin-top: 5rem; }
 
   .autor {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
     margin-top: 2rem;
     padding: 1rem 1.1rem;
     border: 1px solid var(--rz-borda);
@@ -358,6 +381,13 @@ const jsonLd = JSON.stringify({
     font-weight: 700;
   }
   .autor-bio { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
+  .autor-foto {
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    object-fit: cover;
+  }
 
   .relacionados .grade {
     display: grid;

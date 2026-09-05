@@ -371,7 +371,11 @@ export interface PostDTO {
   corpo?: unknown
   categoria?: { id: string | number; nome: string; slug: string } | string | number | null
   tags?: Array<{ id: string | number; nome: string; slug: string }> | string[] | null
-  autor?: { id: string | number; nome: string; slug: string; bio?: string; sameAs?: string[] } | string | number | null
+  autor?:
+    | { id: string | number; nome: string; slug: string; bio?: string; sameAs?: string[]; avatar?: MidiaDTO | string | number | null }
+    | string
+    | number
+    | null
   capa?: MidiaDTO | string | number | null
   meta?: { title?: string | null; description?: string | null } | null
   publicado_em?: string | null
