@@ -224,8 +224,10 @@ export async function getLojas(tenantId: string | number): Promise<LojaDTO[]> {
     'where[tenant][equals]': String(tenantId),
     limit: '100',
     sort: 'nome',
-    depth: '0',
+    // depth 1: a home mostra o LOGO das lojas, e com depth 0 vinha só o id
+    depth: '1',
   })
+  for (const campo of ['nome', 'slug', 'logo']) q.set(`select[${campo}]`, 'true')
   return (await cmsFetch<FindResult<LojaDTO>>(`/api/lojas?${q}`)).docs
 }
 
