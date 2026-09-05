@@ -243,6 +243,7 @@ const jsonLd = JSON.stringify({
         {cupomVisivel ? (
           <CupomCard cupom={cupomVisivel} compacto>
             <Fragment slot="nota">
+              <div class="dados">
               {precoFormatado && (
                 <p class="linha-dado">
                   <strong>a partir de {precoFormatado}</strong>
@@ -267,6 +268,7 @@ const jsonLd = JSON.stringify({
                   </p>
                 )
               )}
+              </div>
             </Fragment>
           </CupomCard>
         ) : (
@@ -399,7 +401,9 @@ const jsonLd = JSON.stringify({
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 0.7rem;
+    /* 1rem e não 0,7: com o card enxuto sobrou espaço, e o que estava apertado era o
+       RITMO — os blocos encostavam uns nos outros e o card parecia uma parede só */
+    gap: 1rem;
     border: 1px solid var(--rz-borda);
     border-radius: 12px;
     padding: 1.25rem 1.1rem;
@@ -467,6 +471,15 @@ const jsonLd = JSON.stringify({
     flex-direction: column;
     align-items: center;
     width: 100%;
+    /* estava SEM gap: raspadinha, linhas e selo se encostavam. 1rem pra bater com o gap
+       do card: ritmo desigual entre blocos irmãos é o que faz um card parecer torto */
+    gap: 1rem;
+  }
+  /* as duas linhas de dado são um par — respiram entre si menos que do resto */
+  .cartao-oferta :global(.dados) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
   }
 
   .beneficios h2 { margin-top: 0; font-size: 1.15rem; }
