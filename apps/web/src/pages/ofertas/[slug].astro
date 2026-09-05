@@ -226,47 +226,64 @@ const jsonLd = JSON.stringify({
             quem rolou até o card não tem mais o topo da página na tela */}
         {oferta.headline && <p class="lateral-headline">{oferta.headline}</p>}
 
-        <p class="tipo">{rotuloTipo[oferta.tipo ?? 'cupom'] ?? 'Oferta'}</p>
-
         {/*
-          O diferencial da oferta, na cor de desconto. É RÓTULO editorial (o texto que o
-          site escreve), e por isso não leva selo nem data — o número com carimbo é o
-          `desconto_loja` logo abaixo, e os dois coexistem dizendo coisas diferentes.
+          O DIFERENCIAL, e só ele, em destaque. O card mostrava dez blocos: tipo da oferta,
+          rótulo, desconto composto, desconto da loja, preço grande com data, raspadinha,
+          condições, selo e botão. Numa coluna de 19rem isso vira parede.
         */}
         {oferta.rotulo_oferta && <p class="rotulo-oferta">{oferta.rotulo_oferta}</p>}
 
-        {composto && (
-          <p class="empilhado">
-            <span class="empilhado-total">até {composto.total_pct}%</span>
-            <span class="empilhado-partes">{decomposicao}</span>
-          </p>
-        )}
-
-        {/* sem composição possível, o que se sabe aparece separado — nunca somado no chute */}
-        {descontoLojaIsolado && (
-          <p class="empilhado">
-            <span class="empilhado-total">{descontoLojaIsolado.valor}%</span>
-            <span class="empilhado-partes">da loja{cupomVisivel ? ' · cupom soma no checkout' : ''}</span>
-          </p>
-        )}
-
-        {precoFormatado && (
-          <p class="preco">
-            {precoFormatado}
-            {oferta.preco?.ciclo === 'mensal' && <span class="ciclo">/mês</span>}
-            {precoEm && (
-              <span class="preco-em">
-                preço visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
-              </span>
-            )}
-          </p>
-        )}
-
         {/* cupom sai no HTML inicial, com selo — nunca atrás de JS */}
+        {/*
+          Preço e desconto viraram uma linha miúda cada, ENTRE o botão e o selo — mas
+          continuam com a data. Preço sem data quebra a promessa da faixa da home ("todo
+          preço aqui aparece com a data em que foi conferido"), e essa promessa é o
+          produto. Enxugar é tirar peso visual, não tirar o carimbo.
+        */}
         {cupomVisivel ? (
-          <CupomCard cupom={cupomVisivel} compacto />
+          <CupomCard cupom={cupomVisivel} compacto>
+            <Fragment slot="nota">
+              {precoFormatado && (
+                <p class="linha-dado">
+                  <strong>a partir de {precoFormatado}</strong>
+                  {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                  {precoEm && (
+                    <span class="quando">
+                      {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                    </span>
+                  )}
+                </p>
+              )}
+              {composto ? (
+                <p class="linha-dado">
+                  <strong>até {composto.total_pct}% no total</strong>
+                  <span class="quando"> · {decomposicao}</span>
+                </p>
+              ) : (
+                descontoLojaIsolado && (
+                  <p class="linha-dado">
+                    <strong>{descontoLojaIsolado.valor}% da loja</strong>
+                    <span class="quando"> · cupom soma no checkout</span>
+                  </p>
+                )
+              )}
+            </Fragment>
+          </CupomCard>
         ) : (
-          <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
+          <>
+            <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
+            {precoFormatado && (
+              <p class="linha-dado">
+                <strong>a partir de {precoFormatado}</strong>
+                {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                {precoEm && (
+                  <span class="quando">
+                    {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                  </span>
+                )}
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -339,7 +356,7 @@ const jsonLd = JSON.stringify({
   @media (min-width: 62rem) {
     .oferta {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 19rem;
+      grid-template-columns: minmax(0, 1fr) 23rem;
       gap: 0 2rem;
       align-items: start;
     }
@@ -419,26 +436,24 @@ const jsonLd = JSON.stringify({
     font-weight: 700;
     line-height: 1.35;
   }
-  .tipo { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--rz-brand); }
+  /* o diferencial é o único bloco grande do card — o resto virou linha miúda */
   .rotulo-oferta {
     margin: 0;
     font-family: var(--rz-fonte-titulos);
-    font-size: 1.4rem;
+    font-size: 1.5rem;
     font-weight: 700;
     line-height: 1.2;
     color: var(--rz-deal);
   }
-  .empilhado { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
-  .empilhado-total {
-    font-family: var(--rz-fonte-titulos);
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--rz-deal);
+  /* renderizada dentro do CupomCard pelo slot — daí o :global */
+  .cartao-oferta :global(.linha-dado) {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--rz-ink);
   }
-  .empilhado-partes { font-size: 0.78rem; color: var(--rz-muted); }
-  .preco { margin: 0; font-size: 1.5rem; font-weight: 700; }
-  .ciclo { font-size: 0.9rem; font-weight: 400; color: var(--rz-muted); }
-  .preco-em { display: block; font-size: 0.75rem; font-weight: 400; color: var(--rz-muted); }
+  .cartao-oferta :global(.linha-dado) strong { font-weight: 700; }
+  .cartao-oferta :global(.quando) { color: var(--rz-muted); font-weight: 400; }
   /* o card é estreito: o cupom dentro dele ocupa a largura toda em vez de encolher */
   .cartao-oferta > :global(*) { max-width: 100%; }
   .cartao-oferta :global(.cupom.compacto) {

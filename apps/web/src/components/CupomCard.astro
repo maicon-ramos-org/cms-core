@@ -144,7 +144,15 @@ const selo = (() => {
       </a>
     </p>
 
-    {cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
+    {/*
+      No card CHEIO, `condicoes` é a linha curta do cupom ("50% OFF por 2 meses").
+      No COMPACTO ela sai: do jeito que o import preencheu, ela repete o preço ou o
+      desconto que a barra lateral já mostra — e mostra SEM data, que é justamente o que a
+      regra do projeto não permite. No lugar dela entra a nota da página, que vem com o
+      carimbo.
+    */}
+    {!compacto && cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
+    <slot name="nota" />
 
     {
       selo && (
@@ -161,24 +169,27 @@ const selo = (() => {
     }
   </div>
 
-  {!destino && <CtaAfiliado tipo="cupom" docId={cupom.id} />}
+  {/*
+    O botão grande só no card CHEIO. No compacto (barra lateral da oferta) ele era o botão
+    de RESERVA pro `window.open` bloqueado — e agora a aba abre dentro do clique, então ele
+    virou repetição. O link miúdo da revelação continua ali como rede de segurança.
+  */}
+  {!destino && !compacto && <CtaAfiliado tipo="cupom" docId={cupom.id} />}
 </article>
 
 <script>
   /*
-   * Revelação do cupom (ADR-0007). A ordem importa e é a do site antigo: revela e copia
-   * PRIMEIRO, conta 3 segundos, e só então abre a loja em nova aba — a pessoa fica com o
-   * código na tela desta aba enquanto a loja carrega na outra.
+   * Revelação do cupom (ADR-0007): o código só existe no HTML depois do clique, porque na
+   * resposta de IA ele seria entregue sem a compra passar pelo link de afiliado.
    *
-   * A nova aba é aberta DENTRO do clique original? Não: vem depois do timer, e por isso
-   * pode ser bloqueada. É o motivo do botão de reserva embaixo, que é um link normal e o
-   * navegador nunca bloqueia.
+   * A loja abre DENTRO do clique, em nova aba — é o comportamento do site antigo. Havia
+   * aqui um contador de 3 segundos abrindo a aba pelo `setInterval`; fora do gesto do
+   * usuário isso é bloqueado pelo navegador, e era esse bloqueio que justificava um botão
+   * grande de reserva no card. Aberta no clique, ela passa sempre.
    *
-   * Se qualquer coisa falhar (rede fora, endpoint 404), o `href` original é seguido: a
-   * pessoa vai pra loja mesmo sem ver o código. Falhar levando pra loja é melhor que
-   * falhar travando.
+   * O código é revelado e copiado nesta aba enquanto a loja carrega na outra. Se o fetch
+   * falhar, a loja já abriu: sobra mostrar o caminho manual, nunca travar.
    */
-  const SEGUNDOS = 3
 
   document.querySelectorAll<HTMLAnchorElement>('a.raspadinha[data-cupom]').forEach((el) => {
     const caixa = el.closest('.cupom')
@@ -199,13 +210,21 @@ const selo = (() => {
       emCurso = true
       evento.preventDefault()
 
+      /*
+       * A loja abre AQUI, dentro do clique — não depois de um contador.
+       *
+       * Antes eram 3 segundos e um `window.open` dentro do `setInterval`. Fora do gesto do
+       * usuário, o navegador bloqueia essa abertura: era por isso que existia um botão
+       * grande de reserva embaixo. Aberta dentro do clique, ela nunca é bloqueada, o botão
+       * de reserva some do card e o comportamento fica o do site antigo — clicou, a loja
+       * abre em nova aba e o código aparece nesta.
+       */
+      window.open(el.href, '_blank', 'noopener')
+
       void fetch(`/api/cupom/${el.dataset.cupom}`, { headers: { accept: 'application/json' } })
         .then((r) => (r.ok ? (r.json() as Promise<{ codigo?: string }>) : null))
         .then((dados) => {
-          if (!dados?.codigo) {
-            window.location.href = el.href // sem código: segue pra loja do mesmo jeito
-            return
-          }
+          if (!dados?.codigo) return // sem código não há o que revelar; a loja já abriu
           texto.textContent = dados.codigo
           // a classe some com o botão verde e centraliza o código na pílula
           el.classList.add('revelado')
@@ -213,24 +232,14 @@ const selo = (() => {
           if (acao) acao.remove()
 
           revelacao.hidden = false
-          let resta = SEGUNDOS
-          msg.textContent = `Abrindo a oferta em ${resta}s…`
-          const timer = setInterval(() => {
-            resta -= 1
-            if (resta > 0) {
-              msg.textContent = `Abrindo a oferta em ${resta}s…`
-              return
-            }
-            clearInterval(timer)
-            const aba = window.open(cta.href, '_blank', 'noopener')
-            msg.textContent = aba
-              ? 'Abrimos a oferta em uma nova aba. Se preferir:'
-              : 'Seu navegador bloqueou a nova aba. Use o botão:'
-            cta.hidden = false
-          }, 1000)
+          msg.textContent = 'Código copiado. Abrimos a loja em outra aba — se não abriu:'
+          cta.hidden = false
         })
         .catch(() => {
-          window.location.href = el.href
+          // a loja já abriu; aqui só resta oferecer o caminho manual
+          revelacao.hidden = false
+          msg.textContent = 'Não conseguimos mostrar o código agora. Pela loja:'
+          cta.hidden = false
         })
     })
   })
