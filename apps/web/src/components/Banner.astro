@@ -1,0 +1,64 @@
+---
+/**
+ * Banner promocional da home. Duas imagens, uma requisição: `<picture>` com `media` faz o
+ * navegador baixar SÓ a que serve à largura dele — trocar por CSS (`display:none`) baixaria
+ * as duas.
+ *
+ * `width`/`height` vêm da mídia porque o gate de budget reprova imagem sem dimensão, e um
+ * banner de 250px de altura sem reserva de espaço empurra a home inteira quando carrega.
+ *
+ * O destino é a página da oferta, nunca o link de afiliado: o clique no afiliado acontece
+ * lá dentro, pelo `/r/{id}`, com o selo e a data à vista.
+ */
+import { caminhoDaOferta, urlMidia, type BannerDTO, type OfertaDTO } from '../lib/cms'
+
+interface Props {
+  banner: BannerDTO
+}
+
+const { banner } = Astro.props
+
+const larga = banner.imagem
+const estreita = banner.imagem_mobile
+const oferta = banner.oferta && typeof banner.oferta === 'object' ? (banner.oferta as OfertaDTO) : null
+
+// sem imagem ou sem destino não há banner — melhor nada do que um retângulo que não leva a lugar nenhum
+const destino = oferta ? caminhoDaOferta(oferta) : null
+---
+
+{
+  larga?.url && destino && (
+    <a class="banner" href={destino}>
+      <picture>
+        {estreita?.url && <source media="(max-width: 46rem)" srcset={urlMidia(estreita.url)} width={estreita.width} height={estreita.height} />}
+        <img
+          src={urlMidia(larga.url)}
+          alt={larga.alt ?? oferta?.titulo ?? ''}
+          width={larga.width ?? 970}
+          height={larga.height ?? 250}
+          fetchpriority="high"
+          decoding="async"
+        />
+      </picture>
+    </a>
+  )
+}
+
+<style>
+  .banner {
+    display: block;
+    margin: 0 0 1.5rem;
+    border-radius: 12px;
+    overflow: hidden;
+    line-height: 0;
+  }
+  .banner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  /* o mobile é 300x250 — centraliza em vez de esticar até deformar */
+  @media (max-width: 46rem) {
+    .banner img { width: auto; max-width: 100%; margin: 0 auto; }
+  }
+</style>

@@ -183,6 +183,25 @@ const tokens = {
       }
     </style>
     <style is:global>
+      /*
+       * Some da vista, fica no documento — H1 da home, rótulo do campo de busca. Precisa
+       * ser GLOBAL: style escopado do layout não alcança o markup das páginas, e foi
+       * exatamente assim que o H1 continuou aparecendo na primeira tentativa.
+       *
+       * Não é `display:none` nem `visibility:hidden`: os dois tiram do leitor de tela
+       * também, que é o oposto do que se quer.
+       */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
       /* Estas regras miram elementos das PÁGINAS (h1 do post, links do corpo), que o
          style escopado deste layout não alcança — daí o is:global. As variáveis vêm por
          herança do bloco acima, então continuam sendo dado do tenant. */

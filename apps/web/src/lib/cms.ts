@@ -516,6 +516,37 @@ export async function getPostsParaIndice(tenantId: string | number): Promise<Arr
   return r.docs
 }
 
+export interface BannerDTO {
+  id: string | number
+  nome: string
+  imagem?: MidiaDTO | null
+  imagem_mobile?: MidiaDTO | null
+  oferta?: OfertaDTO | string | number | null
+}
+
+/**
+ * Banner ativo de uma posição. A janela de datas é filtrada NO BANCO: banner vencido que
+ * chega até o componente é banner que alguém esquece de esconder.
+ */
+export async function getBannerDaPosicao(
+  tenantId: string | number,
+  posicao: string,
+): Promise<BannerDTO | null> {
+  const agora = new Date().toISOString()
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][posicao][equals]': posicao,
+    'where[and][2][ativo][equals]': 'true',
+    'where[and][3][or][0][inicia_em][less_than_equal]': agora,
+    'where[and][3][or][1][inicia_em][exists]': 'false',
+    'where[and][4][or][0][termina_em][greater_than]': agora,
+    'where[and][4][or][1][termina_em][exists]': 'false',
+    limit: '1',
+    depth: '1',
+  })
+  return (await cmsFetch<FindResult<BannerDTO>>(`/api/banners?${q}`)).docs[0] ?? null
+}
+
 /** As 7 categorias curadas do blog — a taxonomia dos chips editoriais (spec §3). */
 export async function getCategorias(tenantId: string | number): Promise<Array<{ id: string | number; nome: string; slug: string }>> {
   const q = new URLSearchParams({
