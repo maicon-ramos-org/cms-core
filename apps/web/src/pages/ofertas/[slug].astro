@@ -93,6 +93,25 @@ const canonical = `https://${tenant.canonical_host}${caminhoDaOferta(oferta)}`
 
 const precoValido = typeof oferta.preco?.valor === 'number' && oferta.preco.valor > 0
 const moeda = oferta.preco?.moeda ?? 'BRL'
+/*
+ * LIFETIME TEM PÁGINA PRÓPRIA dentro da de oferta. Os 57 deals do AppSumo vieram de
+ * `/apps/{slug}` com uma estrutura que a oferta normal não tem: preço de antes riscado,
+ * seis destaques com título e descrição, um veredito e um FAQ. Isso mora em
+ * `ofertas.dados` (contrato) porque richText guarda prosa e não estrutura — passando por
+ * Lexical, destaque virava par de parágrafos e FAQ virava texto corrido.
+ */
+const lt = oferta.tipo === 'lifetime' ? (oferta.dados ?? null) : null
+const ltFeatures = (lt?.features ?? []).filter((f) => f.t)
+const ltFaq = (lt?.faq ?? []).filter((f) => f.q && f.a)
+const ltNome = lt?.nome || oferta.titulo
+/** o preço de ANTES sai na mesma moeda do preço atual — os dois vêm do mesmo card do WP */
+const precoAntigoFormatado =
+  typeof lt?.preco_antigo === 'number'
+    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: oferta.preco?.moeda ?? 'BRL' }).format(
+        lt.preco_antigo,
+      )
+    : null
+
 const precoFormatado = precoValido
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(oferta.preco!.valor!)
   : null
@@ -259,9 +278,18 @@ const jsonLd = JSON.stringify({
           )
         }
 
+        {/* "AppSumo · Lifetime Deal": diz o MODELO da oferta antes do preço. Sem essa
+            linha, "$ 29" ao lado de "$ 144" riscado lê como desconto temporário, que é
+            outra coisa — o lifetime não volta ao preço cheio, ele acaba */}
+        {lt?.sumo && <p class="selo-sumo">{lt.sumo}</p>}
+
         {/* a headline se repete de propósito: aqui ela é a promessa ao lado da ação, e
             quem rolou até o card não tem mais o topo da página na tela */}
-        {oferta.headline && <p class="lateral-headline">{oferta.headline}</p>}
+        {oferta.headline ? (
+          <p class="lateral-headline">{oferta.headline}</p>
+        ) : (
+          lt?.tagline && <p class="lateral-headline">{lt.tagline}</p>
+        )}
 
         {/*
           O DIFERENCIAL, e só ele, em destaque. O card mostrava dez blocos: tipo da oferta,
@@ -310,16 +338,54 @@ const jsonLd = JSON.stringify({
           </CupomCard>
         ) : (
           <>
-            <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta na loja" ref="oferta" />
-            {precoFormatado && (
-              <p class="linha-dado">
-                <strong>a partir de {precoFormatado}</strong>
-                {oferta.preco?.ciclo === 'mensal' && '/mês'}
-                {precoEm && (
-                  <span class="quando">
-                    {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
-                  </span>
+            {/*
+              No lifetime o preço vem ANTES do botão e em tamanho grande: é pagamento
+              único, e o número é o argumento. "a partir de" seria mentira — não há
+              mensalidade a partir da qual contar.
+            */}
+            {lt && precoFormatado && (
+              <p class="preco-lifetime">
+                {precoAntigoFormatado && <s class="antes">{precoAntigoFormatado}</s>}
+                <strong>{precoFormatado}</strong>
+                {descontoLojaIsolado && <span class="off">-{descontoLojaIsolado.valor}%</span>}
+              </p>
+            )}
+            {lt?.once && <p class="uma-vez">{lt.once}</p>}
+
+            <CtaAfiliado
+              tipo="oferta"
+              docId={oferta.id}
+              rotulo={lt && precoFormatado ? `Pegar o ${ltNome} por ${precoFormatado} →` : 'Ver oferta na loja'}
+              ref="oferta"
+            />
+
+            {/* o preço grande já apareceu acima; aqui fica só o carimbo da data, que é a
+                promessa do site e não pode sumir por causa do layout novo */}
+            {lt
+              ? precoEm && (
+                  <p class="linha-dado">
+                    <span class="quando">
+                      preço visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                    </span>
+                  </p>
+                )
+              : precoFormatado && (
+                  <p class="linha-dado">
+                    <strong>a partir de {precoFormatado}</strong>
+                    {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                    {precoEm && (
+                      <span class="quando">
+                        {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                      </span>
+                    )}
+                  </p>
                 )}
+
+            {(lt?.selos ?? []).length > 0 && (
+              <p class="selos-lifetime">
+                {(lt?.selos ?? []).map((b) => (
+                  <span class="selo-lt">{b}</span>
+                ))}
               </p>
             )}
           </>
@@ -343,7 +409,43 @@ const jsonLd = JSON.stringify({
         )
       }
 
+      {/* o título da introdução vem do template, não do corpo: assim as quatro seções do
+          lifetime ficam todas em h2, sem o salto de h1 pra h3 */}
+      {lt?.intro_titulo && <h2>{lt.intro_titulo}</h2>}
       {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+      {ltFeatures.length > 0 && (
+        <section>
+          <h2>Destaques</h2>
+          <div class="grade-destaques">
+            {ltFeatures.map((f) => (
+              <article class="destaque-lt">
+                <h3>{f.t}</h3>
+                {f.d && <p>{f.d}</p>}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {lt?.veredito && (
+        <section class="veredito">
+          <h2>Vale a pena? Nosso veredito</h2>
+          <p>{lt.veredito}</p>
+        </section>
+      )}
+
+      {ltFaq.length > 0 && (
+        <section class="faq-lt">
+          <h2>Perguntas frequentes</h2>
+          {ltFaq.map((f) => (
+            <details>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </section>
+      )}
     </div>
   </div>
 
@@ -618,4 +720,68 @@ const jsonLd = JSON.stringify({
   @media (max-width: 480px) {
     .barra-fixa { margin: 2rem -1rem 0; padding: 0.65rem 1rem; }
   }
+
+  /* ---- lifetime (AppSumo) ---- */
+  .selo-sumo {
+    margin: 0 0 0.35rem;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rz-brand);
+  }
+  .preco-lifetime {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.6rem 0 0.15rem;
+  }
+  .preco-lifetime strong { font-family: var(--rz-fonte-titulos); font-size: 2rem; line-height: 1; font-weight: 700; }
+  .preco-lifetime .antes { color: var(--rz-muted); font-size: 1rem; }
+  /* o percentual usa a cor de DESCONTO, a mesma do resto do site — é a mesma informação */
+  .preco-lifetime .off {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--rz-deal);
+  }
+  .uma-vez { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--rz-muted); }
+  .selos-lifetime { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.75rem 0 0; }
+  .selo-lt {
+    font-size: 0.7rem;
+    color: var(--rz-muted);
+    background: var(--rz-surface-brand);
+    border: 1px solid var(--rz-borda);
+    border-radius: 999px;
+    padding: 0.12rem 0.55rem;
+  }
+
+  /*
+   * Os destaques são CARTÕES, como no site antigo. Em lista virariam seis parágrafos
+   * "título — descrição" seguidos, que é exatamente o que se perdia quando eles passavam
+   * por richText: o formato é o que separa seis recursos de um bloco de texto.
+   */
+  .grade-destaques {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 0.85rem;
+    margin: 1rem 0;
+  }
+  .destaque-lt {
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    background: var(--rz-surface);
+    padding: 0.9rem 1rem;
+  }
+  .destaque-lt h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+  .destaque-lt p { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--rz-muted); }
+
+  .veredito p {
+    border-left: 3px solid var(--rz-brand);
+    padding-left: 1rem;
+    margin: 0;
+  }
+  .faq-lt details { margin-bottom: 0.5rem; }
+  .faq-lt summary { cursor: pointer; font-weight: 600; }
 </style>

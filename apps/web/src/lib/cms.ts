@@ -189,6 +189,22 @@ export interface OfertaDTO {
   imagem?: MidiaDTO | string | number | null
   /** a linha de descrição do cartão (short_description/excerpt do WP) */
   resumo?: string | null
+  /**
+   * A estrutura da página de LIFETIME (contrato: `ofertas.dados`). Existe só onde
+   * `tipo = 'lifetime'`; o richText guarda a introdução, e o que é grade fica aqui.
+   */
+  dados?: {
+    nome?: string
+    intro_titulo?: string
+    sumo?: string
+    tagline?: string
+    preco_antigo?: number | null
+    once?: string
+    selos?: string[]
+    features?: Array<{ t?: string; d?: string }>
+    veredito?: string
+    faq?: Array<{ q?: string; a?: string }>
+  } | null
   /** a linha abaixo do H1 e no card lateral (brand_headline do WP) */
   headline?: string | null
   /** o diferencial em destaque no card (affiliate_offer do WP) — rótulo, não medição */

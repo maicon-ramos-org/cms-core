@@ -149,6 +149,21 @@ export const Ofertas: CollectionConfig = {
           'a linha de descrição do cartão (migrada do short_description/excerpt do WP). Escreva você — nunca saída de LLM: aqui se fala de preço e benefício',
       },
     },
+    {
+      /**
+       * A estrutura da página de LIFETIME (contrato: `ofertas.dados`). Espelha
+       * `pages.dados`, e pelo mesmo motivo: richText guarda PROSA, não estrutura. Os seis
+       * destaques do deal são título + descrição e o FAQ é pergunta + resposta; passando
+       * por Lexical viram parágrafos soltos e a página perde o formato. O que é grade
+       * continua grade porque o dado continua estruturado.
+       */
+      name: 'dados',
+      type: 'json',
+      admin: {
+        condition: (data) => data?.tipo === 'lifetime',
+        description: 'estrutura da página de lifetime (destaques, veredito, faq) — extraída do WP, nunca de LLM',
+      },
+    },
     { name: 'destaque', type: 'checkbox', defaultValue: false, admin: { description: 'home/hubs' } },
     { name: 'wordpress_id', type: 'text', unique: true, index: true, admin: { description: '{post_type}:{ID} — import idempotente' } },
     { name: 'slug_wp', type: 'text', index: true },
