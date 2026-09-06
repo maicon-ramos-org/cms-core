@@ -417,7 +417,13 @@ const jsonLd = JSON.stringify({
   @media (min-width: 62rem) {
     .oferta {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 23rem;
+      /*
+       * A coluna de conteúdo para na MEDIDA de leitura em vez de esticar. Com o container
+       * fluido até 1520px ela chegava a 1072px — 131 caracteres por linha, quando o post
+       * ao lado usa 94. A grade inteira centraliza no que sobra.
+       */
+      grid-template-columns: minmax(0, var(--rz-medida)) 23rem;
+      justify-content: center;
       gap: 0 2rem;
       align-items: start;
     }
