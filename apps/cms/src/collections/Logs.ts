@@ -13,7 +13,13 @@ export const QueriesLog: CollectionConfig = {
     update: nunca,
   },
   fields: [
-    { name: 'origem', type: 'select', required: true, options: ['chat', 'mcp', 'busca'] },
+    /*
+     * `webmcp` = ferramenta chamada pelo agente DENTRO do navegador (PRD 11). Separado de
+     * `mcp` de propósito: são públicos diferentes com atritos diferentes — o remoto exige
+     * que a pessoa adicione um conector, o do navegador não. Somar os dois num número só
+     * apagaria justamente a comparação que interessa medir.
+     */
+    { name: 'origem', type: 'select', required: true, options: ['chat', 'mcp', 'webmcp', 'busca'] },
     { name: 'texto', type: 'text', required: true },
     { name: 'tools', type: 'json', admin: { description: 'tools/filtros usados na resposta' } },
     { name: 'achou', type: 'checkbox', required: true, defaultValue: false },

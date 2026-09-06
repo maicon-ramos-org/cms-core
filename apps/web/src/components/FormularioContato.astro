@@ -1,0 +1,144 @@
+---
+/**
+ * Formulário de contato — POST nativo pra `/api/contato`, sem JavaScript nenhum.
+ *
+ * O honeypot (`site`) é escondido por CSS e não por `type="hidden"`: campo hidden é o
+ * primeiro que um bot ignora, enquanto um `<input>` normal fora da tela ele preenche.
+ * `tabindex="-1"` e `autocomplete="off"` mantêm-no fora do caminho de quem usa teclado.
+ *
+ * SEM `toolautosubmit` (PRD 11, risco 4): o atributo faria o agente SUBMETER o formulário
+ * sozinho. Mensagem enviada em nome de alguém sem essa pessoa confirmar é spam com o nome
+ * dela. O agente preenche; quem aperta o botão é gente.
+ *
+ * O `t` carrega o instante do render pro endpoint medir quanto tempo passou até o envio.
+ * Como a página é cacheada por tag, esse valor pode vir de um HTML de minutos atrás — por
+ * isso o teste é só de tempo MÍNIMO, nunca de máximo.
+ */
+interface Props {
+  origem: string
+  enviado?: boolean
+  erro?: string | null
+}
+
+const { origem, enviado = false, erro = null } = Astro.props
+
+const AVISOS: Record<string, string> = {
+  campos: 'Preencha nome, e-mail e mensagem.',
+  email: 'Esse e-mail não parece válido — confira e tente de novo.',
+  limite: 'Você já enviou várias mensagens na última hora. Tente mais tarde.',
+  envio: 'Não conseguimos registrar sua mensagem agora. Tente de novo em alguns minutos.',
+}
+---
+
+{
+  enviado ? (
+    <p class="ok" role="status">
+      Mensagem recebida. A gente responde no e-mail que você deixou.
+    </p>
+  ) : (
+    <form
+      class="contato"
+      method="post"
+      action="/api/contato"
+      toolname="enviar_mensagem_ao_runzos"
+      tooldescription="Preenche uma mensagem para a equipe do Runzos. Quem envia é a pessoa, não o agente."
+    >
+      {erro && (
+        <p class="erro" role="alert">
+          {AVISOS[erro] ?? AVISOS.envio}
+        </p>
+      )}
+
+      <input type="hidden" name="origem" value={origem} />
+      <input type="hidden" name="t" value={String(Date.now())} />
+
+      <p class="armadilha" aria-hidden="true">
+        <label for="site">Não preencha este campo</label>
+        <input id="site" type="text" name="site" tabindex="-1" autocomplete="off" />
+      </p>
+
+      <p class="campo">
+        <label for="nome">Nome</label>
+        <input id="nome" name="nome" type="text" required maxlength="120" autocomplete="name" toolparamdescription="Nome de quem está escrevendo" />
+      </p>
+
+      <p class="campo">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" required maxlength="200" autocomplete="email" toolparamdescription="E-mail para receber a resposta" />
+      </p>
+
+      <p class="campo">
+        <label for="mensagem">Mensagem</label>
+        <textarea id="mensagem" name="mensagem" required maxlength="4000" rows="6" toolparamdescription="O que a pessoa quer dizer" />
+      </p>
+
+      <button type="submit">Enviar mensagem</button>
+    </form>
+  )
+}
+
+<style>
+  .contato { max-width: 34rem; }
+  .campo { display: flex; flex-direction: column; gap: 0.3rem; margin: 0 0 1rem; }
+  label {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  input,
+  textarea {
+    min-height: 44px;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 8px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    font: inherit;
+    font-size: 1rem;
+  }
+  textarea { resize: vertical; line-height: 1.5; }
+  input:focus-visible,
+  textarea:focus-visible { border-color: var(--rz-brand); }
+
+  button {
+    min-height: 44px;
+    padding: 0 1.4rem;
+    border: 0;
+    border-radius: 8px;
+    background: var(--rz-brand);
+    color: var(--rz-on-brand);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  /* fora da tela, não `display:none`: o bot preenche o que existe no DOM */
+  .armadilha {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .ok,
+  .erro {
+    max-width: 34rem;
+    margin: 0 0 1rem;
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
+    line-height: 1.5;
+  }
+  .ok {
+    border: 1px solid var(--rz-borda);
+    background: var(--rz-surface-verificado);
+    color: var(--rz-verified);
+    font-weight: 600;
+  }
+  .erro {
+    border: 1px solid var(--rz-borda);
+    background: var(--rz-surface-expirado);
+    color: var(--rz-aviso);
+  }
+</style>

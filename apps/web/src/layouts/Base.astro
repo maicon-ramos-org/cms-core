@@ -1,18 +1,161 @@
 ---
+/*
+ * Fontes no <head>, e a explicação mora AQUI e não em comentário HTML: comentário no
+ * markup viaja pro leitor em toda página.
+ *
+ * - `?raw` embute o @font-face em vez de servir folha externa. A folha era uma ida e volta
+ *   BLOQUEANTE antes de o navegador saber sequer qual arquivo de fonte buscar; são 4KB,
+ *   custam menos que a requisição que economizam — ainda mais pra leitor de celular vindo
+ *   de busca, que vê uma página só e não reaproveita cache.
+ * - Preload dos dois arquivos `latin`, um por família. Como a fonte é variável, esses dois
+ *   cobrem TODOS os pesos da página — não existe "preload da face errada". E só `latin`:
+ *   acento do português (ã, ç, é) mora em U+0000-00FF, então `latin-ext` quase nunca é
+ *   buscado em texto pt-BR.
+ */
+import fontesCss from '../../public/fontes/fontes.css?raw'
+import Cabecalho from '../components/Cabecalho.astro'
+import Rodape from '../components/Rodape.astro'
+import { urlMidia } from '../lib/cms'
+import { PADRAO_CLARO, PADRAO_ESCURO, SOMBRAS, resolvePaleta, temaEscuroAtivo } from '../lib/tema'
+
 /**
- * Layout base — tema vem dos tokens do TENANT (zero marca hardcoded, PRD 02 RF1).
+ * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
+ * RF1). Os papéis são os de design-tokens.md v1.0.0, aprovado 27/08 com auditoria WCAG
+ * AA: `--rz-action` só existe no botão que monetiza, e o texto dentro dele é escuro
+ * porque branco sobre aquele verde reprova (2,44 contra o mínimo de 4,5).
+ *
  * HTML 100% renderizado no servidor: dado de cupom NUNCA em Server Island (regra dura).
  */
 interface Props {
   titulo: string
   descricao?: string
   noindex?: boolean
+  /** canonical ABSOLUTO no host do tenant (staging nunca canoniza pra si mesmo) */
+  canonical?: string
+  /** gêmeo em markdown da página (agent-readable) */
+  markdown?: string
 }
 
-const { titulo, descricao, noindex = false } = Astro.props
+const { titulo, descricao, noindex = false, canonical, markdown } = Astro.props
 const tenant = Astro.locals.tenant
-const corPrimaria = tenant.tema?.cor_primaria ?? '#0ea5e9'
-const corFundo = tenant.tema?.cor_fundo ?? '#ffffff'
+const t = tenant.tema ?? {}
+
+/** Fallbacks só existem pra não quebrar tenant novo sem tema preenchido. */
+/**
+ * Ícone da aba: DADO do tenant, não arquivo em `public/`. Sem ele o navegador pede
+ * `/favicon.ico` e leva 404 em toda página — era o único erro de console do site.
+ */
+const midiaFavicon = tenant.tema?.favicon
+const favicon =
+  midiaFavicon && typeof midiaFavicon === 'object' && midiaFavicon.url
+    ? { url: urlMidia(midiaFavicon.url), tipo: midiaFavicon.url.endsWith('.svg') ? 'image/svg+xml' : 'image/png' }
+    : null
+
+/*
+ * O CONJUNTO de ícones. Um arquivo só não serve: o Safari quer PNG de 180 pro atalho, o
+ * Android quer 192/512 pelo manifest, e navegador antigo quer .ico. O SVG cobre os
+ * modernos e escala sozinho — por isso vem primeiro na ordem.
+ *
+ * `tema.favicon` (um SVG solto) continua como reserva pra tenant que ainda não tem o
+ * conjunto: o 3d, por exemplo.
+ */
+const url = (m: unknown): string | undefined =>
+  m && typeof m === 'object' && (m as { url?: string }).url ? urlMidia((m as { url?: string }).url) : undefined
+const ic = tenant.tema?.icones ?? {}
+const icones = {
+  svg: url(ic.svg) ?? (favicon?.tipo === 'image/svg+xml' ? favicon.url : undefined),
+  ico: url(ic.ico),
+  apple: url(ic.apple),
+}
+const temManifest = Boolean(url(ic.png192) && url(ic.png512))
+
+/*
+ * AS DUAS PALETAS (PRD 12). O escuro não é filtro sobre o claro: são dois conjuntos de
+ * valores para os mesmos papéis, os dois auditados pela trava de contraste do Payload.
+ *
+ * As duas saem SEMPRE no mesmo HTML, e é o `@media (prefers-color-scheme: dark)` lá
+ * embaixo que escolhe. Isso é o que mantém a página única por rota: o cache por tag do
+ * ADR-0001 não se divide em variantes, o rastreador recebe o mesmo documento de sempre, e
+ * não existe momento em que a tela pisca claro antes de virar escura — nada disso depende
+ * de JavaScript.
+ */
+const claro = resolvePaleta(t, PADRAO_CLARO)
+const escuroAtivo = temaEscuroAtivo(tenant)
+/*
+ * Tenant sem paleta escura curada recebe a CLARA de volta dentro do bloco escuro. Parece
+ * redundante e é de propósito: o CSS sai sempre com a mesma forma (nada de bloco que
+ * aparece e some, que é onde o Astro e o cache brigam), e um tenant sem escuro
+ * simplesmente não muda de cor quando o sistema está no escuro. Melhor claro numa tela
+ * escura do que um escuro deduzido no chute.
+ */
+const escuro = escuroAtivo ? resolvePaleta(tenant.tema_escuro, PADRAO_ESCURO) : claro
+const sombras = escuroAtivo ? SOMBRAS.escuro : SOMBRAS.claro
+
+/*
+ * A SUPERFÍCIE INVERTIDA (rodapé). No tema claro ela é a inversão literal dos papéis: o
+ * fundo vira a cor do texto e o texto vira a cor do fundo — a laje escura que separa o
+ * rodapé do resto da página.
+ *
+ * No escuro essa mesma conta se vira contra si mesma: `--rz-ink` já é quase-branco, e o
+ * rodapé viraria uma laje BRANCA no pé de uma página escura — o defeito mais visível que
+ * um tema escuro mal feito produz. Então no escuro a laje deixa de ser inversão e passa a
+ * ser elevação: a superfície de marca, que é um degrau acima do fundo.
+ *
+ * Fica resolvido AQUI, e não com um segundo `@media` dentro do rodapé, porque só este
+ * arquivo sabe se o tenant TEM tema escuro. Um media query solto no componente pintaria o
+ * rodapé de um tenant que optou por ficar só no claro.
+ */
+const inverso = escuroAtivo
+  ? { fundo: escuro.cor_superficie_marca, ink: escuro.cor_texto }
+  : { fundo: claro.cor_texto, ink: claro.cor_fundo }
+
+const fontes = {
+  fontTitulos: t.fonte_titulos ?? 'Lexend Deca',
+  fontCorpo: t.fonte_corpo ?? 'Open Sans',
+}
+
+/**
+ * Os nomes curtos que `define:vars` injeta. Prefixo `d` = escuro. Um mapa por paleta, com
+ * as MESMAS chaves — se um papel existir só de um lado, o token fica indefinido e a
+ * página perde a cor no tema em que ninguém olhou.
+ */
+const varsDoTema = (p: typeof claro, prefixo = '') => ({
+  [`${prefixo}brand`]: p.cor_primaria,
+  [`${prefixo}onBrand`]: p.cor_sobre_marca,
+  [`${prefixo}bg`]: p.cor_fundo,
+  [`${prefixo}action`]: p.cor_acao,
+  [`${prefixo}onAction`]: p.cor_sobre_acao,
+  [`${prefixo}deal`]: p.cor_desconto,
+  [`${prefixo}verified`]: p.cor_verificado,
+  [`${prefixo}ink`]: p.cor_texto,
+  [`${prefixo}muted`]: p.cor_apoio,
+  [`${prefixo}subtle`]: p.cor_sutil,
+  [`${prefixo}surface`]: p.cor_superficie,
+  [`${prefixo}surfaceBrand`]: p.cor_superficie_marca,
+  [`${prefixo}surfaceVerified`]: p.cor_superficie_verificado,
+  [`${prefixo}borda`]: p.cor_borda,
+  [`${prefixo}bordaCodigo`]: p.cor_borda_codigo,
+  [`${prefixo}surfaceExpirado`]: p.cor_superficie_expirado,
+  [`${prefixo}aviso`]: p.cor_aviso,
+})
+
+const vars = {
+  ...varsDoTema(claro),
+  ...varsDoTema(escuro, 'd'),
+  ...fontes,
+  sombraSuave: SOMBRAS.claro.suave,
+  sombraMedia: SOMBRAS.claro.media,
+  sombraForte: SOMBRAS.claro.forte,
+  dSombraSuave: sombras.suave,
+  dSombraMedia: sombras.media,
+  dSombraForte: sombras.forte,
+  inversoFundo: claro.cor_texto,
+  inversoInk: claro.cor_fundo,
+  dInversoFundo: inverso.fundo,
+  dInversoInk: inverso.ink,
+  /* o que o navegador deve assumir quando o sistema pede escuro */
+  esquemaEscuro: escuroAtivo ? 'dark' : 'light',
+}
 ---
 
 <!doctype html>
@@ -22,56 +165,223 @@ const corFundo = tenant.tema?.cor_fundo ?? '#ffffff'
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{titulo}</title>
     {descricao && <meta name="description" content={descricao} />}
-    {noindex && <meta name="robots" content="noindex, nofollow" />}
-    <style define:vars={{ corPrimaria, corFundo }}>
+    {/*
+      `follow`, não `nofollow`: as páginas que usam esta prop (/busca, /tag/{slug}) são
+      ARQUIVOS — não devem rankear, mas os links delas levam a conteúdo que deve. É o que
+      o WordPress emite hoje nas tags (`follow, noindex`), e trocar por `nofollow` cortaria
+      a passagem do rastreador por 658 páginas de tag.
+
+      Isto NÃO é o noindex de staging: aquele é por HOST e sai do proxy/robots.txt.
+    */}
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
+    {/*
+      Ordem importa: o navegador escolhe o ÚLTIMO que entende. `.ico` primeiro como piso,
+      SVG depois porque é o melhor onde há suporte.
+    */}
+    {icones.ico && <link rel="icon" href={icones.ico} sizes="32x32" />}
+    {icones.svg && <link rel="icon" type="image/svg+xml" href={icones.svg} />}
+    {icones.apple && <link rel="apple-touch-icon" href={icones.apple} />}
+    {temManifest && <link rel="manifest" href="/manifest.webmanifest" />}
+    {/*
+      `theme-color` pinta a barra do navegador no celular. Duas: a superfície clara no tema
+      claro e o fundo escuro no escuro — uma cor só faria o texto do sistema sumir em um
+      dos dois. Saem do TEMA do tenant, como o resto.
+    */}
+    <meta name="theme-color" content={claro.cor_superficie_marca} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content={escuro.cor_superficie_marca} media="(prefers-color-scheme: dark)" />
+    <meta name="msapplication-TileColor" content={claro.cor_primaria} />
+    <link rel="preload" href="/fontes/open-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fontes/lexend-deca-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <style is:inline set:html={fontesCss}></style>
+    <style
+      define:vars={vars}
+    >
       :root {
-        --cor-primaria: var(--corPrimaria);
-        --cor-fundo: var(--corFundo);
+        /*
+         * `color-scheme` não é enfeite: é o que faz campo de formulário, barra de rolagem,
+         * `<select>` nativo e a moldura que o navegador desenha acompanharem o tema. Sem
+         * ele o site escurece e as caixas de texto continuam brancas.
+         */
+        color-scheme: light;
+        --rz-brand: var(--brand);
+        --rz-on-brand: var(--onBrand);
+        --rz-bg: var(--bg);
+        --rz-action: var(--action);
+        --rz-on-action: var(--onAction);
+        --rz-deal: var(--deal);
+        --rz-verified: var(--verified);
+        --rz-ink: var(--ink);
+        --rz-muted: var(--muted);
+        --rz-subtle: var(--subtle);
+        --rz-surface: var(--surface);
+        --rz-surface-brand: var(--surfaceBrand);
+        --rz-surface-verificado: var(--surfaceVerified);
+        --rz-borda-codigo: var(--bordaCodigo);
+        --rz-surface-expirado: var(--surfaceExpirado);
+        --rz-aviso: var(--aviso);
+        --rz-borda: var(--borda);
+        --rz-sombra-suave: var(--sombraSuave);
+        --rz-sombra-media: var(--sombraMedia);
+        --rz-sombra-forte: var(--sombraForte);
+        /* laje que contrasta com a página — hoje só o rodapé */
+        --rz-inverso: var(--inversoFundo);
+        --rz-inverso-ink: var(--inversoInk);
+        /*
+         * Duas larguras, medidas no site atual: o CONTAINER (grade, cabeçalho, rodapé)
+         * ocupa 1190px lá e ocupava 944 aqui — era o "parece bem menor". 74,5rem dá 1192,
+         * e a folga até a borda fica igual à de lá (~44px em 1280).
+         *
+         * A MEDIDA de leitura tem 773 lá e tinha os mesmos 944 aqui: linha longa demais
+         * para ler. Container largo com texto estreito é o arranjo certo — por isso são
+         * dois tokens, e não um.
+         */
+        /*
+         * FLUIDO até 95rem (1520px). Antes era fixo em 74,5rem: numa tela de 1440 ou 1680
+         * sobrava margem vazia dos dois lados enquanto os cartões apertavam.
+         *
+         * `100vw - 5.5rem` mantém exatamente a largura de antes num viewport de 1280 (os
+         * mesmos 1192px), então nada muda onde já estava bom — só cresce onde havia espaço
+         * ocioso. O teto de 95rem é o do runzos de referência, medido: 1518px.
+         */
+        --rz-container: min(95rem, 100vw - 5.5rem);
+        --rz-medida: 48rem;
+        --rz-fonte-titulos: var(--fontTitulos), 'Segoe UI', Arial, sans-serif;
+        --rz-fonte-corpo: var(--fontCorpo), 'Segoe UI', Arial, sans-serif;
+        /*
+         * Nome antigo mantido: componentes migrados ainda o referenciam. Aponta pro TOKEN
+         * (--rz-brand) e não pro valor cru (--brand) — senão o componente que ficou no
+         * nome velho continuaria roxo-claro no tema escuro, que foi exatamente o defeito
+         * que o PRD 12 foi caçar.
+         */
+        --cor-primaria: var(--rz-brand);
+        --cor-fundo: var(--rz-bg);
       }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: system-ui, -apple-system, sans-serif;
-        background: var(--cor-fundo);
-        color: #1a1a1a;
-        line-height: 1.6;
+
+      /*
+       * O TEMA ESCURO. Só troca de valor: nenhuma regra de layout, nenhuma classe nova,
+       * nenhum elemento a mais no HTML. Tudo que já lê `--rz-*` escurece junto, inclusive
+       * componente que ninguém tocou — é por isso que o passo anterior deste PRD foi
+       * matar os hex cravados, e não escrever CSS escuro componente a componente.
+       */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: var(--esquemaEscuro);
+          --rz-brand: var(--dbrand);
+          --rz-on-brand: var(--donBrand);
+          --rz-bg: var(--dbg);
+          --rz-action: var(--daction);
+          --rz-on-action: var(--donAction);
+          --rz-deal: var(--ddeal);
+          --rz-verified: var(--dverified);
+          --rz-ink: var(--dink);
+          --rz-muted: var(--dmuted);
+          --rz-subtle: var(--dsubtle);
+          --rz-surface: var(--dsurface);
+          --rz-surface-brand: var(--dsurfaceBrand);
+          --rz-surface-verificado: var(--dsurfaceVerified);
+          --rz-borda-codigo: var(--dbordaCodigo);
+          --rz-surface-expirado: var(--dsurfaceExpirado);
+          --rz-aviso: var(--daviso);
+          --rz-borda: var(--dborda);
+          --rz-sombra-suave: var(--dSombraSuave);
+          --rz-sombra-media: var(--dSombraMedia);
+          --rz-sombra-forte: var(--dSombraForte);
+          --rz-inverso: var(--dInversoFundo);
+          --rz-inverso-ink: var(--dInversoInk);
+        }
       }
       header.site {
-        border-bottom: 2px solid var(--cor-primaria);
-        padding: 1rem 1.5rem;
+        position: sticky; /* header fixo, como no site atual (design v1.1) */
+        top: 0;
+        z-index: 20;
+        border-bottom: 1px solid var(--rz-borda);
+        background: var(--rz-surface);
+        padding: 0.75rem 1.5rem;
         display: flex;
         align-items: center;
         gap: 1rem;
       }
       header.site a.marca {
-        font-size: 1.25rem;
+        font-family: var(--rz-fonte-titulos);
+        font-size: 1.35rem;
         font-weight: 700;
-        color: var(--cor-primaria);
+        color: var(--rz-brand);
         text-decoration: none;
+        letter-spacing: -0.01em;
       }
-      main { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
+      main { max-width: var(--rz-container); margin: 0 auto; padding: 1.5rem; }
       footer.site {
-        max-width: 960px;
-        margin: 2rem auto 0;
+        max-width: var(--rz-container);
+        margin: 3rem auto 0;
         padding: 1.5rem;
-        border-top: 1px solid #e5e5e5;
+        border-top: 1px solid var(--rz-borda);
         font-size: 0.85rem;
-        color: #555;
+        color: var(--rz-muted);
+      }
+      @media (max-width: 480px) {
+        body { font-size: 17px; }
+        h1 { font-size: 1.6rem; }
+        main { padding: 1rem; }
+      }
+    </style>
+    <style is:global>
+      /*
+       * Some da vista, fica no documento — H1 da home, rótulo do campo de busca. Precisa
+       * ser GLOBAL: style escopado do layout não alcança o markup das páginas, e foi
+       * exatamente assim que o H1 continuou aparecendo na primeira tentativa.
+       *
+       * Não é `display:none` nem `visibility:hidden`: os dois tiram do leitor de tela
+       * também, que é o oposto do que se quer.
+       */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      /* Estas regras miram elementos das PÁGINAS (h1 do post, links do corpo), que o
+         style escopado deste layout não alcança — daí o is:global. As variáveis vêm por
+         herança do bloco acima, então continuam sendo dado do tenant. */
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: var(--rz-fonte-corpo);
+        font-size: 18px;
+        background: var(--rz-bg);
+        color: var(--rz-ink);
+        line-height: 1.6;
+      }
+      h1, h2, h3, h4 { font-family: var(--rz-fonte-titulos); line-height: 1.25; }
+      h1 { font-weight: 700; font-size: 2rem; letter-spacing: -0.015em; }
+      h2 { font-weight: 600; font-size: 1.4rem; margin-top: 2rem; }
+      h3 { font-weight: 600; font-size: 1.15rem; }
+      a { color: var(--rz-brand); }
+      /* regra 2 do design: foco de teclado visível em TUDO que interage */
+      :where(a, button, summary, input, select, textarea):focus-visible {
+        outline: 3px solid var(--rz-brand);
+        outline-offset: 2px;
+        border-radius: 3px;
+      }
+      /* regra 1: alvo de toque >= 44px em item de lista clicável */
+      main li > a { display: inline-block; padding: 0.25rem 0; min-height: 32px; }
+      @media (max-width: 480px) {
+        body { font-size: 17px; }
+        h1 { font-size: 1.6rem; }
       }
     </style>
   </head>
   <body>
-    <header class="site">
-      <a class="marca" href="/">{tenant.nome}</a>
-    </header>
+    <Cabecalho />
     <main>
       <slot />
     </main>
-    <footer class="site">
-      <p>
-        {tenant.nome} é um site independente de cupons e ofertas. Podemos receber comissão
-        por compras feitas através dos nossos links, sem custo extra pra você.
-      </p>
-    </footer>
+    <Rodape />
   </body>
 </html>

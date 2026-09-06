@@ -1,0 +1,69 @@
+---
+/**
+ * Chips de categoria (spec-desconto-e-historico §3).
+ *
+ * Regra dura da spec: **um chip nunca mistura taxonomias**. Este componente serve só a
+ * taxonomia EDITORIAL (as 7 categorias do blog, sem cap). O catálogo tem a sua própria
+ * (`categoria-oferta`) e o hub de apps fica sem chips até a curadoria dos rótulos.
+ */
+import type { CategoriaChip } from '../lib/cms'
+
+interface Props {
+  categorias: CategoriaChip[]
+  /** slug da categoria atual, quando estamos dentro de uma */
+  ativa?: string | null
+}
+
+const { categorias, ativa = null } = Astro.props
+---
+
+{
+  categorias.length > 0 && (
+    <nav class="chips" aria-label="Categorias do blog">
+      <a class:list={['chip', { ativo: ativa === null }]} href="/blog/">Todos</a>
+      {categorias.map((c) => (
+        <a class:list={['chip', { ativo: ativa === c.slug }]} href={`/categoria/${c.slug}/`}>
+          {c.nome}
+        </a>
+      ))}
+    </nav>
+  )
+}
+
+<style>
+  /* rolagem horizontal no mobile — o chip não quebra linha nem some */
+  .chips {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.25rem 0 0.75rem;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 999px;
+    background: var(--rz-surface);
+    color: var(--rz-brand);
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  /*
+   * Ativo: marca com o texto que o TENANT diz ir por cima dela. Era `#fff` cravado, o que
+   * dava dois defeitos de uma vez — no tema escuro a marca clareia e o branco some nela, e
+   * no tenant 3d o branco sobre laranja reprovava (2,80). Agora é papel de cor, e o par
+   * `cor_sobre_marca`/`cor_primaria` é auditado no schema.
+   */
+  .chip.ativo {
+    background: var(--rz-brand);
+    border-color: var(--rz-brand);
+    color: var(--rz-on-brand);
+  }
+</style>

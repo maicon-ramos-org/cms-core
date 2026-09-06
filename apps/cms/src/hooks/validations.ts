@@ -19,9 +19,33 @@ export const efetivo = <T = unknown>(
 
 const vazio = (v: unknown): boolean => v === null || v === undefined
 
-/** Convenção global do contrato: slug kebab-case em toda coleção de conteúdo. */
-export const validaSlugKebab = (value: string | null | undefined): true | string =>
-  !value || /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value) || 'slug deve ser kebab-case ([a-z0-9-], sem espaços/maiúsculas)'
+/**
+ * Convenção global: kebab-case para o slug de conteúdo que NASCE aqui.
+ *
+ * Conteúdo migrado é exceção deliberada: o slug do WordPress se copia byte a byte, mesmo
+ * com caractere fora do kebab. Normalizar (era o que o import fazia) muda a URL que já
+ * está indexada e vira 404 na virada — a auditoria achou 3 posts com U+2011, hífen
+ * não-quebrável, exatamente assim. Do doc migrado ainda se exige URL segura: nada de
+ * espaço, barra, `?` ou `#`, que quebrariam o roteamento.
+ */
+const PERIGOSO_EM_URL = /[\s/?#\\[\]@!$&'()*+,;=%]/
+
+export const validaSlugKebab = (
+  value: string | null | undefined,
+  opcoes?: { data?: { wordpress_id?: unknown } },
+): true | string => {
+  if (!value) return true
+  const migrado = Boolean(opcoes?.data?.wordpress_id)
+  if (migrado) {
+    return (
+      !PERIGOSO_EM_URL.test(value) ||
+      'slug migrado é cópia do WordPress, mas não pode conter espaço, barra, % ou caractere reservado de URL'
+    )
+  }
+  return (
+    /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value) || 'slug deve ser kebab-case ([a-z0-9-], sem espaços/maiúsculas)'
+  )
+}
 
 /**
  * Unicidade composta (tenant, campo) — contrato colecoes.md: "slug unique POR tenant".

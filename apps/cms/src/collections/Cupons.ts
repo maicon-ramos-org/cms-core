@@ -13,7 +13,11 @@ const normalizaCodigo: CollectionBeforeValidateHook = ({ data }) => {
 /** "verificado_em / metodo — ✔ ao publicar": estado publicado exige o selo. */
 const exigeSeloAoPublicar: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
   const estado = efetivo(data, originalDoc, 'estado')
-  if (estado === 'publicado') {
+  // `importado` é exceção declarada, não afrouxamento: o WP não tinha verificação porque o
+  // selo é feature nova. As outras origens seguem exigindo — a regra nasceu pra conter
+  // agente inventando cupom, e para agente ela vale inteira.
+  const origem = efetivo(data, originalDoc, 'origem')
+  if (estado === 'publicado' && origem !== 'importado') {
     // efetivo(): PATCH {verificado_em: null} não pode passar herdando o valor antigo
     const verificadoEm = efetivo(data, originalDoc, 'verificado_em')
     const metodo = efetivo(data, originalDoc, 'metodo')
@@ -90,6 +94,21 @@ export const Cupons: CollectionConfig = {
         return true
       },
     },
+    {
+      name: 'aplica_sobre',
+      type: 'select',
+      required: true,
+      defaultValue: 'desconhecido',
+      options: [
+        { label: 'Sobre o preço cheio (soma direta)', value: 'preco_cheio' },
+        { label: 'Sobre o preço já com desconto da loja', value: 'preco_ja_descontado' },
+        { label: 'Desconhecido', value: 'desconhecido' },
+      ],
+      admin: {
+        description:
+          'sobre QUAL preço o cupom incide. Varia por loja e campanha — errar isso é prometer desconto que o usuário não recebe. Desconhecido faz a composição não exibir total.',
+      },
+    },
     { name: 'condicoes', type: 'textarea', admin: { description: 'mínimo de compra, primeira compra etc.' } },
     { name: 'validade', type: 'date', admin: { description: 'null = sem data conhecida (decay cuida)' } },
     {
@@ -109,6 +128,19 @@ export const Cupons: CollectionConfig = {
         { name: 'origem', type: 'text', required: true },
         { name: 'ts', type: 'date', required: true },
       ],
+    },
+    {
+      name: 'origem',
+      type: 'select',
+      required: true,
+      defaultValue: 'manual',
+      index: true,
+      options: [
+        { label: 'importado (migração do WP — publica sem selo)', value: 'importado' },
+        { label: 'agente (exige verificação para publicar)', value: 'agente' },
+        { label: 'manual (exige verificação para publicar)', value: 'manual' },
+      ],
+      admin: { description: 'governa a exigência do selo — ver colecoes.md' },
     },
     { name: 'verificado_em', type: 'date' },
     { name: 'metodo', type: 'select', options: ['corroboracao', 'api', 'manual'] },

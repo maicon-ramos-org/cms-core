@@ -1,0 +1,95 @@
+---
+/**
+ * Hub /blog — URL real do site antigo. Lista o acervo por data REAL de publicação, com
+ * paginação: são 735 posts, então página única não serve nem pro leitor nem pro crawler.
+ */
+import ChipsCategorias from '../components/ChipsCategorias.astro'
+import CardPost from '../components/CardPost.astro'
+import Ferramentas from '../components/Ferramentas.astro'
+import Base from '../layouts/Base.astro'
+import { getCategorias, getPostsPaginados } from '../lib/cms'
+
+const tenant = Astro.locals.tenant
+
+const POR_PAGINA = 20
+const paginaPedida = Number(Astro.url.searchParams.get('pagina') ?? '1')
+const pagina = Number.isFinite(paginaPedida) && paginaPedida > 0 ? Math.floor(paginaPedida) : 1
+
+const [{ docs: posts, totalDocs, totalPages }, categorias] = await Promise.all([
+  getPostsPaginados(tenant.id, pagina, POR_PAGINA),
+  getCategorias(tenant.id),
+])
+
+if (pagina > 1 && posts.length === 0) {
+  return new Response('Página não encontrada.', { status: 404 })
+}
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, 'posts:hub'] })
+}
+
+const base = `https://${tenant.canonical_host}/blog/`
+// canonical da paginada é ela mesma (nunca a página 1: seriam páginas distintas)
+const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
+const titulo = pagina > 1 ? `Blog — página ${pagina}` : `Blog: ${totalDocs} artigos sobre VPS, automação e IA`
+const descricao = `Artigos com teste prático e preço conferido — VPS, n8n, automação e IA. ${totalDocs} publicações.`
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
+    {
+      '@type': 'ItemList',
+      '@id': `${canonical}#lista`,
+      numberOfItems: posts.length,
+      itemListElement: posts.map((p, i) => ({
+        '@type': 'ListItem',
+        position: (pagina - 1) * POR_PAGINA + i + 1,
+        name: p.titulo,
+        url: `https://${tenant.canonical_host}/${p.slug}`,
+      })),
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+  <nav class="trilha" aria-label="Você está em"><a href="/">Início</a><span> › Blog</span></nav>
+
+  <h1>Blog</h1>
+  <ChipsCategorias categorias={categorias} />
+  <p class="intro">{totalDocs} artigos — página {pagina} de {totalPages}.</p>
+
+  <div class="grade">
+    {posts.map((p, i) => <CardPost post={p} prioritario={i < 3} />)}
+  </div>
+
+  <nav class="paginacao" aria-label="Paginação">
+    {pagina > 1 && <a rel="prev" href={pagina - 1 === 1 ? '/blog/' : `/blog/?pagina=${pagina - 1}`}>← Anteriores</a>}
+    {pagina < totalPages && <a rel="next" href={`/blog/?pagina=${pagina + 1}`}>Próximos →</a>}
+  </nav>
+
+  <Ferramentas tipo="arquivo" />
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .intro { color: var(--rz-muted); }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.1rem;
+      /*
+     * TRÊS por linha no desktop, não quatro. Com o container fluido até 1520px, quatro
+     * colunas davam cartão estreito numa tela larga — o oposto do que a largura extra
+     * serve. Abaixo de 62rem o `auto-fill` acima assume e a grade se vira sozinha.
+     */
+    @media (min-width: 62rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+  .paginacao { display: flex; gap: 1.5rem; margin-top: 1.5rem; }
+</style>

@@ -5,9 +5,18 @@
  * - selo por cupom + bloco de última verificação + FAQ visível + FAQPage JSON-LD
  * - SSR + cache tags [tenant:{slug}, loja:{slug}]
  */
+import CardOferta from '../components/CardOferta.astro'
 import CupomCard from '../components/CupomCard.astro'
+import Ferramentas from '../components/Ferramentas.astro'
 import Base from '../layouts/Base.astro'
-import { getCuponsDaLoja, getLojaBySlug } from '../lib/cms'
+import {
+  getCuponsDaLoja,
+  getCuponsExpiradosDaLoja,
+  getLojaBySlug,
+  getOfertasDaLoja,
+  urlMidia,
+  type MidiaDTO,
+} from '../lib/cms'
 
 const tenant = Astro.locals.tenant
 const slugLoja = Astro.params.loja ?? ''
@@ -21,7 +30,19 @@ if (Astro.cache.enabled) {
   Astro.cache.set({ maxAge: 300, swr: 60, tags: [`tenant:${tenant.slug}`, `loja:${loja.slug}`] })
 }
 
-const cupons = await getCuponsDaLoja(loja.id)
+/*
+ * As OFERTAS da loja entram aqui desde 01/09. A página se chama "cupons {loja}" e mostrava
+ * só os cupons: na Hostinger isso era UM card numa página inteira, enquanto a loja tem 9
+ * ofertas publicadas. Quem chega buscando "cupom Hostinger" e não encontra cupom precisa
+ * sair com alguma coisa — e as ofertas são a coisa que existe.
+ */
+const [cupons, expirados, ofertas] = await Promise.all([
+  getCuponsDaLoja(loja.id),
+  getCuponsExpiradosDaLoja(loja.id),
+  getOfertasDaLoja(loja.id),
+])
+
+const logo: MidiaDTO | null = loja.logo && typeof loja.logo === 'object' ? loja.logo : null
 
 const agora = new Date()
 const mes = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(agora)
@@ -35,40 +56,157 @@ let titulo = pattern
 // singular sem quebrar o pattern configurável do tenant
 if (cupons.length === 1) titulo = titulo.replace(/\b1 Cupons\b/, '1 Cupom').replace(/\bTestados\b/, 'Testado')
 
+/*
+ * SEM CUPOM, o pattern do tenant não serve: 21 das 26 lojas não têm cupom hoje, e todas
+ * ganhavam um H1 começando por "0 Cupons ... Testados", que anuncia o vazio no título e
+ * na SERP. Aqui o título passa a falar do que a página TEM — as ofertas da loja.
+ */
+if (cupons.length === 0) {
+  titulo =
+    ofertas.length > 0
+      ? `Cupons ${loja.nome}: ${ofertas.length} ${ofertas.length === 1 ? 'oferta verificada' : 'ofertas verificadas'}`
+      : `Cupons ${loja.nome}`
+}
+
 const ultimaVerificacao = cupons
   .map((c) => (c.verificado_em ? new Date(c.verificado_em) : null))
   .filter((d): d is Date => d !== null)
   .sort((a, b) => b.getTime() - a.getTime())[0]
 
 const faq = loja.faq ?? []
-const jsonLd =
-  faq.length > 0
-    ? JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'FAQPage',
-        mainEntity: faq.map((item) => ({
-          '@type': 'Question',
-          name: item.pergunta,
-          acceptedAnswer: { '@type': 'Answer', text: item.resposta },
-        })),
-      })
-    : null
+
+/*
+ * A página não tinha `canonical` NENHUM até 01/09 — numa página que monetiza, e que tem
+ * uma irmã sobre a mesma loja em /empresa/{slug}. Sem ele, é o buscador que decide qual
+ * das duas é a versão boa.
+ */
+const canonical = `https://${tenant.canonical_host}/cupom-${loja.slug}/`
+
+/* Grafo com @id (regra do projeto): breadcrumb sempre, FAQ só quando a loja tem FAQ. */
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonical}#colecao`,
+      url: canonical,
+      name: titulo,
+      about: { '@type': 'Organization', name: loja.nome },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: `Cupons ${loja.nome}`, item: canonical },
+      ],
+    },
+    ...(faq.length > 0
+      ? [
+          {
+            '@type': 'FAQPage',
+            '@id': `${canonical}#faq`,
+            mainEntity: faq.map((item) => ({
+              '@type': 'Question',
+              name: item.pergunta,
+              acceptedAnswer: { '@type': 'Answer', text: item.resposta },
+            })),
+          },
+        ]
+      : []),
+  ],
+})
 ---
 
-<Base titulo={titulo} descricao={`Cupons ${loja.nome} com selo de verificação — atualizado em ${mesCapitalizado} de ${agora.getFullYear()}.`}>
-  <h1>{titulo}</h1>
+<Base
+  titulo={titulo}
+  descricao={
+    cupons.length > 0
+      ? `Cupons ${loja.nome} com selo de verificação — atualizado em ${mesCapitalizado} de ${agora.getFullYear()}.`
+      : `${loja.nome} não tem cupom ativo agora. Veja as ofertas com preço e desconto conferidos, atualizado em ${mesCapitalizado} de ${agora.getFullYear()}.`
+  }
+  canonical={canonical}
+>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a><span> › Cupons {loja.nome}</span>
+  </nav>
+
+  <div class="cabecalho-loja">
+    {
+      logo?.url && (
+        <img
+          class="logo"
+          src={urlMidia(logo.url)}
+          alt={loja.nome}
+          width={logo.width ?? 160}
+          height={logo.height ?? 40}
+          fetchpriority="high"
+          decoding="async"
+        />
+      )
+    }
+    <div>
+      <h1>{titulo}</h1>
+      {
+        ultimaVerificacao && (
+          <p class="ultima-verificacao">
+            Última verificação deste catálogo:{' '}
+            {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' }).format(ultimaVerificacao)}
+          </p>
+        )
+      }
+    </div>
+  </div>
 
   {
-    ultimaVerificacao && (
-      <p class="ultima-verificacao">
-        Última verificação deste catálogo:{' '}
-        {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' }).format(ultimaVerificacao)}
+    cupons.length === 0 && (
+      <p class="sem-cupom">
+        Nenhum cupom ativo pra {loja.nome} agora.{' '}
+        {ofertas.length > 0 && <>As ofertas abaixo continuam valendo — várias já trazem o desconto no link.</>}
       </p>
     )
   }
-
-  {cupons.length === 0 && <p>Nenhum cupom ativo pra {loja.nome} agora — volte em breve.</p>}
   {cupons.map((cupom) => <CupomCard cupom={cupom} />)}
+
+  {
+    ofertas.length > 0 && (
+      <section class="ofertas-loja">
+        <h2>Ofertas {loja.nome}</h2>
+        <div class="grade">
+          {ofertas.map((o) => (
+            <CardOferta oferta={o} loja={loja.nome} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  {/* Expirados ficam, recolhidos: transparência é o argumento do produto (design v1.1) */}
+  {
+    expirados.length > 0 && (
+      <details class="expirados">
+        <summary>
+          {expirados.length} {expirados.length === 1 ? 'cupom expirado' : 'cupons expirados'} — mantidos por transparência
+        </summary>
+        <p class="aviso-expirado">
+          Estes códigos não funcionavam na última verificação. Ficam aqui para você conferir
+          o histórico — nunca apagamos o que já testamos.
+        </p>
+        <ul class="lista-expirada">
+          {expirados.map((c) => (
+            <li>
+              <span class="codigo-expirado">{c.codigo}</span>
+              {c.verificado_em && (
+                <span class="quando">
+                  testado em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(c.verificado_em))}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
+    )
+  }
 
   {
     faq.length > 0 && (
@@ -84,11 +222,84 @@ const jsonLd =
     )
   }
 
-  {jsonLd && <script is:inline type="application/ld+json" set:html={jsonLd} />}
+  {/* PRD 11: id e data de cada cupom; o CÓDIGO não entra aqui (ADR-0007) */}
+  <Ferramentas
+    tipo="loja"
+    dados={{
+      loja: loja.nome,
+      cupons: cupons.map((c) => ({
+        id: c.id,
+        verificado_em: c.verificado_em ?? null,
+        desconto: c.desconto_valor ?? null,
+        condicoes: c.condicoes ?? null,
+      })),
+    }}
+  />
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>
-  .ultima-verificacao { font-size: 0.9rem; color: #555; }
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+
+  .cabecalho-loja {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .cabecalho-loja h1 { margin: 0 0 0.25rem; }
+  /* mesmo teto do card da oferta: o logo vem do WP em proporções variadas */
+  .logo {
+    flex: none;
+    max-width: 7rem;
+    max-height: 44px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  @media (max-width: 480px) {
+    .cabecalho-loja { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  }
+
+  .sem-cupom { color: var(--rz-muted); }
+
+  .ofertas-loja { margin-top: 2rem; }
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+      /*
+     * TRÊS por linha no desktop, não quatro. Com o container fluido até 1520px, quatro
+     * colunas davam cartão estreito numa tela larga — o oposto do que a largura extra
+     * serve. Abaixo de 62rem o `auto-fill` acima assume e a grade se vira sozinha.
+     */
+    @media (min-width: 62rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+  .ultima-verificacao { margin: 0; font-size: 0.9rem; color: var(--rz-muted); }
+  /* Sem `opacity` no container: derruba o contraste do texto abaixo do mínimo (v1.1). */
+  .expirados {
+    background: var(--rz-surface-expirado);
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin: 1.5rem 0;
+  }
+  .expirados summary { font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  .aviso-expirado { font-size: 0.85rem; color: var(--rz-aviso); margin: 0.5rem 0; }
+  .lista-expirada { list-style: none; padding: 0; margin: 0; }
+  .lista-expirada li { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.3rem 0; }
+  .codigo-expirado {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    text-decoration: line-through;
+    color: var(--rz-ink);
+  }
+  .quando { font-size: 0.8rem; color: var(--rz-muted); }
   details { margin-bottom: 0.5rem; }
   summary { cursor: pointer; font-weight: 600; }
 </style>

@@ -1,0 +1,43 @@
+---
+/**
+ * Alvo INTERNO do rewrite de `/{slug}` quando o slug é uma página (institucional,
+ * conteúdo, contato) e não um post.
+ *
+ * POR QUE EXISTE, se `/{slug}` já sabia renderizar página: o Astro empacota CSS POR ROTA.
+ * Com post e página na mesma rota, toda página institucional baixava o CSS do cartão de
+ * post, do compartilhar e do formulário de contato — 4,4KB que a /quem-somos nunca usa. O
+ * rewrite dá a cada template o próprio pacote.
+ *
+ * NÃO É URL PÚBLICA. O acesso direto devolve 404: só responde com o marcador `__r=1`, que
+ * apenas o rewrite põe. Medido: o alvo enxerga o PRÓPRIO pathname e a query passada, então
+ * o marcador é o único jeito de distinguir rewrite de visita — daí ele, e não uma
+ * comparação de caminho.
+ */
+import PaginaConteudo from '../../components/PaginaConteudo.astro'
+import { getMapaAfiliados, getPageBySlug, getPostsParaIndice } from '../../lib/cms'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+if (Astro.url.searchParams.get('__r') !== '1') {
+  return new Response('Página não encontrada.', { status: 404 })
+}
+
+const [page, mapaAfiliados] = await Promise.all([
+  getPageBySlug(tenant.id, slug),
+  getMapaAfiliados(tenant.id),
+])
+
+if (!page || page.template === 'apps') {
+  return new Response('Página não encontrada.', { status: 404 })
+}
+
+/* o índice A-Z só é buscado quando a página é dele — 741 linhas não viajam por engano */
+const indice = page.template === 'indice' ? await getPostsParaIndice(tenant.id) : []
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, `pages:${page.id}`] })
+}
+---
+
+<PaginaConteudo page={page} mapaAfiliados={mapaAfiliados} indice={indice} />

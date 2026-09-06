@@ -15,6 +15,11 @@ const exigeCampoDoTemplate: CollectionBeforeValidateHook = ({ data, originalDoc 
       errors: [{ message: `template "${template}" exige o campo dados (json do template).`, path: 'dados' }],
     })
   }
+  /*
+   * `contato` fica de fora desta exigência: ali o conteúdo é o FORMULÁRIO, e um texto
+   * acima dele é opcional. Exigir corpo obrigaria a inventar prosa pra uma página que
+   * precisa de três campos e um botão.
+   */
   if ((template === 'conteudo' || template === 'institucional') && (corpo === null || corpo === undefined)) {
     throw new ValidationError({
       collection: 'pages',
@@ -50,7 +55,7 @@ export const Pages: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'conteudo',
-      options: ['conteudo', 'apps', 'calculadora', 'institucional'],
+      options: ['conteudo', 'apps', 'calculadora', 'institucional', 'contato', 'indice'],
     },
     { name: 'corpo', type: 'richText', admin: { condition: (data) => data?.template === 'conteudo' || data?.template === 'institucional' } },
     {

@@ -1,0 +1,128 @@
+---
+/**
+ * Página institucional / de conteúdo migrada do WP (/quem-somos, /glossario,
+ * /politica-de-privacidade, /contato, /ebook-hermes-agent).
+ *
+ * Fica em componente porque divide a URL `/{slug}` com os posts: a rota tenta post
+ * primeiro e cai aqui quando o slug é de página.
+ */
+import Base from '../layouts/Base.astro'
+import FormularioContato from './FormularioContato.astro'
+import IndiceDePosts from './IndiceDePosts.astro'
+import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'
+import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+
+interface Props {
+  page: PageDTO
+  mapaAfiliados: Map<string, string>
+  /** só no template `indice`: os posts que a rota buscou */
+  indice?: Array<{ titulo: string; slug: string }>
+}
+
+const { page, mapaAfiliados, indice = [] } = Astro.props
+const tenant = Astro.locals.tenant
+
+const corpoHtml = lexicalParaHtml(page.corpo, {
+  reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
+  resolveMidia: urlMidia,
+  hostDoTenant: tenant.canonical_host,
+})
+
+const titulo = page.meta?.title || page.titulo
+const descricao = page.meta?.description || lexicalParaTexto(page.corpo, 155)
+const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(page.slug)}/`
+const atualizado = page.updatedAt ? new Date(page.updatedAt) : null
+
+/* o endpoint volta pra ca com 303 + querystring; e assim que a pagina sabe o que dizer */
+const enviado = Astro.url.searchParams.get('enviado') === '1'
+const erro = Astro.url.searchParams.get('erro')
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${canonical}#pagina`,
+      name: page.titulo,
+      url: canonical,
+      ...(descricao ? { description: descricao } : {}),
+      ...(atualizado ? { dateModified: atualizado.toISOString() } : {}),
+      isPartOf: { '@type': 'WebSite', '@id': `https://${tenant.canonical_host}/#site`, name: tenant.nome },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: page.titulo, item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${page.slug}.md`}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a><span> › {page.titulo}</span>
+  </nav>
+
+  <article>
+    <h1>{page.titulo}</h1>
+
+    {/*
+      A data já existia e só ia pro JSON-LD. Numa política de privacidade ou termo, "quando
+      isto mudou pela última vez" é parte do conteúdo — quem lê precisa saber se está vendo
+      a versão vigente, e o robô já sabia antes da pessoa.
+    */}
+    {
+      /* só no template `institucional`: em política de privacidade e termos, "quando isto
+         mudou" é informação legal. Numa página de contato é ruído. */
+      atualizado && page.template === 'institucional' && (
+        <p class="atualizado">
+          Atualizado em{' '}
+          <time datetime={atualizado.toISOString()}>
+            {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(atualizado)}
+          </time>
+        </p>
+      )
+    }
+
+    {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+    {
+      /*
+       * O formulario entra por TEMPLATE, nao por slug: `page.template === 'contato'`.
+       * Ligar pelo slug "contato" seria rota cravada em componente, e o segundo tenant tem
+       * a propria pagina com o proprio slug.
+       */
+      page.template === 'indice' && (
+        <IndiceDePosts posts={indice} letra={Astro.url.searchParams.get('letra') ?? ''} />
+      )
+    }
+
+    {
+      page.template === 'contato' && (
+        <FormularioContato origem={`/${page.slug}/`} enviado={enviado} erro={erro} />
+      )
+    }
+  </article>
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  /* prosa na medida de leitura, pelo mesmo motivo do post (ver [slug].astro) */
+  article {
+    max-width: var(--rz-medida);
+    margin-inline: auto;
+  }
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
+  .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }
+  .corpo :global(th), .corpo :global(td) { border: 1px solid var(--rz-borda); padding: 0.5rem; text-align: left; }
+  .corpo :global(th) { background: var(--rz-surface-brand); }
+  .corpo :global(blockquote) { border-left: 3px solid var(--cor-primaria); margin: 1rem 0; padding-left: 1rem; }
+  .atualizado { margin: 0 0 1.25rem; font-size: 0.85rem; color: var(--rz-muted); }
+</style>

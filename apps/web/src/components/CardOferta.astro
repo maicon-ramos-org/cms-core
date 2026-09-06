@@ -1,0 +1,201 @@
+---
+/**
+ * Cartão de oferta — a peça das vitrines da home e dos hubs.
+ *
+ * O formato é o do runzos.com: imagem, marca, título, uma linha de descrição e o benefício
+ * destacado embaixo. A imagem e o resumo vêm do WordPress (ver `enriquece-ofertas.ts`);
+ * antes disso o cartão era só texto, e a home parecia um índice em vez de uma vitrine.
+ *
+ * O selo do canto NÃO é texto escrito por ninguém: é o campo do banco formatado. Desconto
+ * só vira "70% OFF" se tiver `verificado_em` (a mesma régua do resto do site — número sem
+ * carimbo não é dado); sem desconto verificado, cai pro preço; sem preço, o tipo da oferta.
+ *
+ * O selo é VERDE só quando é desconto conferido, porque verde aqui é a cor de "verificado"
+ * do tema. Preço e tipo ficam neutros: pintar tudo de verde faria o selo dizer "conferido"
+ * sobre número que ninguém conferiu.
+ *
+ * O verde de AÇÃO (`--rz-action`) fica de fora de propósito — ele é do botão que monetiza,
+ * e um botão de ação em 36 cartões da home apaga o único que importa na página da oferta.
+ */
+import { caminhoDaOferta, urlMidia, type LojaDTO, type MidiaDTO, type OfertaDTO } from '../lib/cms'
+
+interface Props {
+  oferta: OfertaDTO
+  /** nome da loja resolvido pelo chamador quando o `depth` não trouxe o objeto */
+  loja?: string | null
+  /** cartão acima da dobra: carrega a imagem de imediato em vez de adiar */
+  prioritario?: boolean
+}
+
+const { oferta, loja, prioritario = false } = Astro.props
+
+const nomeLoja =
+  loja ?? (oferta.loja && typeof oferta.loja === 'object' ? (oferta.loja as LojaDTO).nome : null)
+
+const img: MidiaDTO | null = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+/*
+ * O derivado de 640px, não o original de 1280 — o cartão renderiza em ~300px e o arquivo
+ * grande custa 3x mais byte pela mesma pixelagem na tela. Cai no original quando a mídia
+ * ainda não foi reprocessada (`regenera:tamanhos`), porque imagem grande é melhor que
+ * cartão vazio.
+ */
+const cartao = img?.sizes?.cartao
+const src = urlMidia(cartao?.url ?? img?.url)
+const largura = cartao?.width ?? img?.width ?? 1280
+const altura = cartao?.height ?? img?.height ?? 720
+
+const moeda = (valor: number, cod?: string | null): string =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cod || 'BRL' }).format(valor)
+
+/** Mesmos rótulos do hub /ofertas — o enum do banco escrito por extenso, nada além disso. */
+const rotuloTipo: Record<string, string> = {
+  cupom: 'cupom',
+  credito: 'crédito',
+  lifetime: 'lifetime',
+  desconto_api: 'desconto em API',
+}
+
+/** Selo: desconto verificado > preço > tipo. Nunca um rótulo inventado. */
+const selo = ((): { texto: string; tom: 'desconto' | 'preco' | 'tipo' } | null => {
+  const d = oferta.desconto_loja
+  if (d?.verificado_em && typeof d.valor === 'number' && d.valor > 0) {
+    return {
+      texto: d.tipo === 'valor' ? `${moeda(d.valor, d.moeda)} OFF` : `${d.valor}% OFF`,
+      tom: 'desconto',
+    }
+  }
+  /*
+   * Crédito fica SEM selo de preço de propósito. Em oferta de crédito o `preco` é o valor
+   * do plano da loja, não o que se paga pra ganhar o crédito — "Railway: US$20 de crédito
+   * grátis" com um "a partir de US$ 5,00" ao lado diz uma coisa e mostra outra.
+   */
+  const p = oferta.tipo === 'credito' ? null : oferta.preco
+  if (typeof p?.valor === 'number' && p.valor > 0) {
+    const v = moeda(p.valor, p.moeda)
+    return { texto: p.ciclo === 'mensal' ? `a partir de ${v}/mês` : `a partir de ${v}`, tom: 'preco' }
+  }
+  const t = oferta.tipo ? rotuloTipo[oferta.tipo] : null
+  return t ? { texto: t, tom: 'tipo' } : null
+})()
+---
+
+<a class="cartao" href={caminhoDaOferta(oferta)}>
+  {
+    src && (
+      <img
+        class="capa"
+        src={src}
+        alt={img?.alt ?? ''}
+        width={largura}
+        height={altura}
+        loading={prioritario ? 'eager' : 'lazy'}
+        decoding="async"
+      />
+    )
+  }
+  <span class="corpo">
+    {nomeLoja && <span class="loja">{nomeLoja}</span>}
+    <span class="titulo">{oferta.titulo}</span>
+    {oferta.resumo && <span class="resumo">{oferta.resumo}</span>}
+    {
+      selo && (
+        <span class="rodape">
+          <span class:list={['selo', selo.tom]}>{selo.texto}</span>
+        </span>
+      )
+    }
+  </span>
+</a>
+
+<style>
+  .cartao {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    text-decoration: none;
+  }
+  .cartao:hover {
+    border-color: var(--rz-brand);
+  }
+
+  /* `aspect-ratio` + `object-fit` mantêm a fileira alinhada mesmo com arte de proporção
+     diferente; width/height no HTML reservam o espaço e evitam o pulo no carregamento. */
+  .capa {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: var(--rz-surface-brand);
+  }
+
+  .corpo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1;
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  .loja {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rz-muted);
+  }
+  .titulo {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* duas linhas e corta: o resumo é apoio do título, e altura variável aqui desalinha a
+     fileira inteira. O texto completo continua na página da oferta. */
+  .resumo {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--rz-muted);
+  }
+
+  /* o selo desce pro rodapé do cartão para a grade alinhar mesmo com títulos de alturas
+     diferentes — sem isso cada cartão termina numa altura e a fileira fica serrilhada.
+     O empurrão mora no invólucro para o selo poder virar pílula sem brigar por margem. */
+  .rodape {
+    margin-top: auto;
+    padding-top: 0.7rem;
+  }
+  .selo {
+    display: inline-block;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .selo.desconto {
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: var(--rz-surface-verificado);
+    color: var(--rz-verified);
+    font-size: 0.85rem;
+  }
+  .selo.preco { font-size: 0.85rem; font-weight: 600; color: var(--rz-muted); }
+  /* o rótulo de tipo é o degrau mais fraco: informa o formato da oferta sem fingir número */
+  .selo.tipo {
+    font-family: var(--rz-fonte-corpo);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--rz-muted);
+  }
+</style>

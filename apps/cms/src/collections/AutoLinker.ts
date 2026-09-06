@@ -51,6 +51,18 @@ export const LinksGerados: CollectionConfig = {
       required: true,
     },
     { name: 'ancora', type: 'text', required: true },
+    {
+      name: 'fonte_ancora',
+      type: 'select',
+      required: true,
+      defaultValue: 'curada',
+      index: true,
+      options: [
+        { label: 'curada (ancoras_alvo)', value: 'curada' },
+        { label: 'derivada (título do destino)', value: 'derivada' },
+      ],
+      admin: { description: 'regra 1b — sem isto não dá pra medir nem revogar só uma classe' },
+    },
     { name: 'run_id', type: 'text', required: true, index: true },
   ],
 }

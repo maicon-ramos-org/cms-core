@@ -1,0 +1,787 @@
+---
+/**
+ * PRD 02/03 — página /ofertas/{slug} (paridade de URL com o WordPress atual).
+ *
+ * Decisão de render: SSR + cache por tag. A oferta muda com o catálogo (preço, cupom,
+ * estado), então NÃO é prerender — e o dado de cupom nunca vai pra Server Island: sai
+ * inteiro no HTML inicial, porque crawler de IA não executa JS.
+ */
+import CardOferta from '../../components/CardOferta.astro'
+import Compartilhar from '../../components/Compartilhar.astro'
+import CtaAfiliado from '../../components/CtaAfiliado.astro'
+import CupomCard from '../../components/CupomCard.astro'
+import Ferramentas from '../../components/Ferramentas.astro'
+import Base from '../../layouts/Base.astro'
+import { compor } from '@runzos/desconto'
+
+import { caminhoDaOferta, caminhoCanonico, getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
+import { lexicalParaHtml, lexicalParaTexto } from '../../lib/lexical'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+const oferta = await getOfertaBySlug(tenant.id, slug)
+if (!oferta) {
+  return new Response('Oferta não encontrada.', { status: 404 })
+}
+
+const loja: LojaDTO | null = oferta.loja && typeof oferta.loja === 'object' ? oferta.loja : null
+const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
+
+/**
+ * Cupom migrado do WP entra em `revisao` (sem selo de verificação) e o /r/{id} se recusa
+ * a monetizá-lo — corretamente. Então a página só mostra o card do cupom quando ele está
+ * num estado visível; senão o CTA é o da oferta, que funciona. Mesma régua do
+ * /cupom-{loja}: sem selo, sem cupom na tela.
+ */
+const CUPOM_VISIVEL = new Set(['publicado', 'expirando'])
+const cupomVisivel = cupom && CUPOM_VISIVEL.has(cupom.estado) ? cupom : null
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({
+    maxAge: 300,
+    swr: 60,
+    tags: [
+      `tenant:${tenant.slug}`,
+      `ofertas:${oferta.id}`,
+      ...(loja ? [`loja:${loja.slug}`] : []),
+      ...(cupom ? [`cupons:${cupom.id}`] : []),
+    ],
+  })
+}
+
+// 6 explícito: o padrão do helper subiu pra 12 por causa da página da loja, e aqui a
+// fileira de relacionadas tem tamanho próprio
+const relacionadas = loja ? await getOfertasDaLoja(loja.id, oferta.id, 6) : []
+
+/**
+ * Desconto empilhado (spec §1). `compor()` devolve null quando falta dado ou quando o
+ * modo de incidência é desconhecido — e aí a página mostra os dois descontos SEPARADOS,
+ * nunca um total inventado. (O "77%" do mockup era impossível: 70+10 dá 73 ou 80.)
+ */
+const composto = compor(oferta.desconto_loja, cupomVisivel)
+const decomposicao = composto
+  ? composto.parcelas.map((p) => `${p.valor_pct}% ${p.rotulo}`).join(' + ')
+  : null
+const descontoLojaIsolado =
+  !composto && oferta.desconto_loja?.tipo === 'percentual' && typeof oferta.desconto_loja.valor === 'number'
+    ? oferta.desconto_loja
+    : null
+
+/** Link de afiliado desta oferta/cupom que apareça no corpo migrado vira /r/{id}. */
+const destinos = new Map<string, string>()
+if (oferta.url_afiliado_fonte) destinos.set(oferta.url_afiliado_fonte, `/r/o${oferta.id}?ref=corpo`)
+if (cupom?.url_afiliado_fonte) destinos.set(cupom.url_afiliado_fonte, `/r/c${cupom.id}?ref=corpo`)
+
+const corpoHtml = lexicalParaHtml(oferta.corpo, {
+  reescreveAfiliado: (url) => destinos.get(url) ?? destinos.get(url.replace(/\/$/, '')) ?? null,
+  resolveMidia: urlMidia,
+  hostDoTenant: tenant.canonical_host,
+})
+/**
+ * Na virada, title e description de página de acervo são os que o WP publica hoje —
+ * decisão de atribuição: o Google já vai recrawlear tudo por causa da troca de origem,
+ * e somar mudança de título à mesma janela impede saber qual das duas mexeu no tráfego.
+ * Melhorar título é deploy separado, depois do gate.
+ */
+const resumo = lexicalParaTexto(oferta.corpo, 155)
+const tituloPagina = oferta.meta?.title || oferta.titulo
+const descricao = oferta.meta?.description || resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`
+
+// canonical absoluto no host do tenant (nunca o host da requisição: staging não canoniza pra si)
+const canonical = `https://${tenant.canonical_host}${caminhoDaOferta(oferta)}`
+
+const precoValido = typeof oferta.preco?.valor === 'number' && oferta.preco.valor > 0
+const moeda = oferta.preco?.moeda ?? 'BRL'
+/*
+ * LIFETIME TEM PÁGINA PRÓPRIA dentro da de oferta. Os 57 deals do AppSumo vieram de
+ * `/apps/{slug}` com uma estrutura que a oferta normal não tem: preço de antes riscado,
+ * seis destaques com título e descrição, um veredito e um FAQ. Isso mora em
+ * `ofertas.dados` (contrato) porque richText guarda prosa e não estrutura — passando por
+ * Lexical, destaque virava par de parágrafos e FAQ virava texto corrido.
+ */
+const lt = oferta.tipo === 'lifetime' ? (oferta.dados ?? null) : null
+const ltFeatures = (lt?.features ?? []).filter((f) => f.t)
+const ltFaq = (lt?.faq ?? []).filter((f) => f.q && f.a)
+const ltNome = lt?.nome || oferta.titulo
+/** o preço de ANTES sai na mesma moeda do preço atual — os dois vêm do mesmo card do WP */
+const precoAntigoFormatado =
+  typeof lt?.preco_antigo === 'number'
+    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: oferta.preco?.moeda ?? 'BRL' }).format(
+        lt.preco_antigo,
+      )
+    : null
+
+const precoFormatado = precoValido
+  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(oferta.preco!.valor!)
+  : null
+const precoEm = oferta.preco?.preco_em ? new Date(oferta.preco.preco_em) : null
+
+/*
+ * Imagem em destaque. `srcset` com os dois tamanhos: o derivado de 640 atende a coluna
+ * no desktop e a tela do celular; o original de 1280 cobre densidade 2x. Sem isso a
+ * página baixaria 1280px pra exibir em 620.
+ */
+const img = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+/* absoluta: o Google precisa BUSCAR essa imagem, e caminho relativo no schema não serve */
+const imagemUrl = img?.url ? urlMidia(img.url) : undefined
+const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
+const heroSrcset = [
+  img?.sizes?.cartao?.url ? `${urlMidia(img.sizes.cartao.url)} 640w` : null,
+  img?.url ? `${urlMidia(img.url)} ${img.width ?? 1280}w` : null,
+]
+  .filter(Boolean)
+  .join(', ')
+
+const logoLoja = loja?.logo && typeof loja.logo === 'object' ? loja.logo : null
+const beneficios = (oferta.beneficios ?? []).map((b) => b.texto).filter((t): t is string => Boolean(t))
+
+const rotuloTipo: Record<string, string> = {
+  cupom: 'Cupom de desconto',
+  credito: 'Crédito grátis',
+  lifetime: 'Oferta lifetime',
+  desconto_api: 'Desconto em API',
+}
+
+/**
+ * JSON-LD em GRAFO com @id (regra do projeto): Offer com preço/moeda REAIS do banco +
+ * BreadcrumbList. Sem preço no banco não se inventa `price` — o nó Offer sai sem ele.
+ */
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    /*
+     * PRODUCT com `offers` dentro, e não um `Offer` solto.
+     *
+     * O dado era o mesmo e o Google não aproveitava: rich result de preço exige `Product`
+     * com a propriedade `offers` — `Offer` na raiz do grafo não é elegível. A gente tinha
+     * preço, moeda, vendedor e data de conferência publicados num formato que nenhum
+     * buscador lê como produto.
+     */
+    {
+      '@type': 'Product',
+      '@id': `${canonical}#produto`,
+      name: oferta.titulo,
+      url: canonical,
+      ...(oferta.resumo ? { description: oferta.resumo } : {}),
+      ...(imagemUrl ? { image: imagemUrl } : {}),
+      // a marca do produto é a LOJA que o vende (Hostinger VPS → marca Hostinger)
+      ...(loja ? { brand: { '@type': 'Brand', name: loja.nome } } : {}),
+      /*
+       * `offers` só existe quando HÁ preço. O Google exige `price` + `priceCurrency` no
+       * Offer; sem eles o nó não vira rich result e ainda aparece como aviso no teste. Um
+       * Product sem offers é honesto — diz o que é, sem prometer preço que não temos.
+       */
+      ...(precoValido
+        ? {
+            offers: {
+              '@type': 'Offer',
+              '@id': `${canonical}#offer`,
+              url: canonical,
+              price: oferta.preco!.valor,
+              priceCurrency: moeda,
+              /*
+               * `priceValidUntil` fica FORA de propósito: a gente sabe quando o preço foi
+               * VISTO, não até quando ele vale. Inventar validade seria a única mentira
+               * possível neste nó.
+               */
+              availability: 'https://schema.org/InStock',
+              ...(precoEm ? { availabilityStarts: precoEm.toISOString() } : {}),
+              // seller SEM url: `lojas.url_site` foi derivado do link de afiliado na
+              // migração e costuma ser o domínio da REDE (m.do.co, anrdoezrs.net).
+              // Publicar isso seria link de afiliado cru no HTML — proibido. Volta quando
+              // o campo passar pela curadoria.
+              ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
+              /*
+               * `discountCode` SAIU (ADR-0007): publicar o código no schema é entregá-lo
+               * pronto ao Google e à resposta de IA, que é exatamente o vazamento que a
+               * revelação por clique fecha.
+               */
+            },
+          }
+        : {}),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        ...(loja
+          ? [
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: `Cupons ${loja.nome}`,
+                item: `https://${tenant.canonical_host}/cupom-${loja.slug}/`,
+              },
+            ]
+          : []),
+        { '@type': 'ListItem', position: loja ? 3 : 2, name: oferta.titulo, item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+<Base
+  titulo={tituloPagina}
+  descricao={descricao}
+  canonical={canonical}
+  markdown={`/ofertas/${oferta.slug}.md`}
+>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a>
+    {loja && <> › <a href={`/cupom-${loja.slug}/`}>Cupons {loja.nome}</a></>}
+    <span> › {oferta.titulo}</span>
+  </nav>
+
+  <div class="oferta">
+    <div class="topo">
+      {
+        heroSrc && (
+          <img
+            class="hero"
+            src={heroSrc}
+            srcset={heroSrcset}
+            sizes="(min-width: 62rem) 40rem, 100vw"
+            alt={img?.alt ?? oferta.titulo}
+            width={img?.width ?? 1280}
+            height={img?.height ?? 720}
+            fetchpriority="high"
+            decoding="async"
+          />
+        )
+      }
+
+      <h1>{oferta.titulo}</h1>
+      {oferta.headline && <p class="headline">{oferta.headline}</p>}
+    </div>
+
+    {/*
+      O card fica na coluna 2 no desktop e, no celular, cai logo depois do título — antes
+      do editorial — porque é ele que carrega cupom e preço. É por isso que o topo e o
+      conteúdo são dois blocos separados na grade em vez de um só.
+    */}
+    <aside class="lateral" aria-label="Resumo da oferta">
+      <div class:list={['cartao-oferta', { 'com-cupom': Boolean(cupomVisivel) }]}>
+        {
+          logoLoja?.url && (
+            <img
+              class="logo"
+              src={urlMidia(logoLoja.url)}
+              alt={loja?.nome ?? ''}
+              width={logoLoja.width ?? 160}
+              height={logoLoja.height ?? 40}
+              loading="lazy"
+              decoding="async"
+            />
+          )
+        }
+
+        {/* "AppSumo · Lifetime Deal": diz o MODELO da oferta antes do preço. Sem essa
+            linha, "$ 29" ao lado de "$ 144" riscado lê como desconto temporário, que é
+            outra coisa — o lifetime não volta ao preço cheio, ele acaba */}
+        {lt?.sumo && <p class="selo-sumo">{lt.sumo}</p>}
+
+        {/* a headline se repete de propósito: aqui ela é a promessa ao lado da ação, e
+            quem rolou até o card não tem mais o topo da página na tela */}
+        {oferta.headline ? (
+          <p class="lateral-headline">{oferta.headline}</p>
+        ) : (
+          lt?.tagline && <p class="lateral-headline">{lt.tagline}</p>
+        )}
+
+        {/*
+          O DIFERENCIAL, e só ele, em destaque. O card mostrava dez blocos: tipo da oferta,
+          rótulo, desconto composto, desconto da loja, preço grande com data, raspadinha,
+          condições, selo e botão. Numa coluna de 19rem isso vira parede.
+        */}
+        {oferta.rotulo_oferta && <p class="rotulo-oferta">{oferta.rotulo_oferta}</p>}
+
+        {/* cupom sai no HTML inicial, com selo — nunca atrás de JS */}
+        {/*
+          Preço e desconto viraram uma linha miúda cada, ENTRE o botão e o selo — mas
+          continuam com a data. Preço sem data quebra a promessa da faixa da home ("todo
+          preço aqui aparece com a data em que foi conferido"), e essa promessa é o
+          produto. Enxugar é tirar peso visual, não tirar o carimbo.
+        */}
+        {cupomVisivel ? (
+          <CupomCard cupom={cupomVisivel} compacto>
+            <Fragment slot="nota">
+              <div class="dados">
+              {precoFormatado && (
+                <p class="linha-dado">
+                  <strong>a partir de {precoFormatado}</strong>
+                  {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                  {precoEm && (
+                    <span class="quando">
+                      {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                    </span>
+                  )}
+                </p>
+              )}
+              {composto ? (
+                <p class="linha-dado">
+                  <strong>até {composto.total_pct}% no total</strong>
+                  <span class="quando"> · {decomposicao}</span>
+                </p>
+              ) : (
+                descontoLojaIsolado && (
+                  <p class="linha-dado">
+                    <strong>{descontoLojaIsolado.valor}% da loja</strong>
+                    <span class="quando"> · cupom soma no checkout</span>
+                  </p>
+                )
+              )}
+              </div>
+            </Fragment>
+          </CupomCard>
+        ) : (
+          <>
+            {/*
+              No lifetime o preço vem ANTES do botão e em tamanho grande: é pagamento
+              único, e o número é o argumento. "a partir de" seria mentira — não há
+              mensalidade a partir da qual contar.
+            */}
+            {lt && precoFormatado && (
+              <p class="preco-lifetime">
+                {precoAntigoFormatado && <s class="antes">{precoAntigoFormatado}</s>}
+                <strong>{precoFormatado}</strong>
+                {descontoLojaIsolado && <span class="off">-{descontoLojaIsolado.valor}%</span>}
+              </p>
+            )}
+            {lt?.once && <p class="uma-vez">{lt.once}</p>}
+
+            <CtaAfiliado
+              tipo="oferta"
+              docId={oferta.id}
+              rotulo={lt && precoFormatado ? `Pegar o ${ltNome} por ${precoFormatado} →` : 'Ver oferta na loja'}
+              ref="oferta"
+            />
+
+            {/* o preço grande já apareceu acima; aqui fica só o carimbo da data, que é a
+                promessa do site e não pode sumir por causa do layout novo */}
+            {lt
+              ? precoEm && (
+                  <p class="linha-dado">
+                    <span class="quando">
+                      preço visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                    </span>
+                  </p>
+                )
+              : precoFormatado && (
+                  <p class="linha-dado">
+                    <strong>a partir de {precoFormatado}</strong>
+                    {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                    {precoEm && (
+                      <span class="quando">
+                        {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
+                      </span>
+                    )}
+                  </p>
+                )}
+
+            {(lt?.selos ?? []).length > 0 && (
+              <p class="selos-lifetime">
+                {(lt?.selos ?? []).map((b) => (
+                  <span class="selo-lt">{b}</span>
+                ))}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      <Compartilhar url={canonical} titulo={oferta.titulo} />
+    </aside>
+
+    <div class="conteudo">
+      {
+        beneficios.length > 0 && (
+          <section class="beneficios">
+            <h2>O que esta oferta inclui</h2>
+            <ul>
+              {beneficios.map((b) => (
+                <li>{b}</li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+
+      {/* o título da introdução vem do template, não do corpo: assim as quatro seções do
+          lifetime ficam todas em h2, sem o salto de h1 pra h3 */}
+      {lt?.intro_titulo && <h2>{lt.intro_titulo}</h2>}
+      {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+      {ltFeatures.length > 0 && (
+        <section>
+          <h2>Destaques</h2>
+          <div class="grade-destaques">
+            {ltFeatures.map((f) => (
+              <article class="destaque-lt">
+                <h3>{f.t}</h3>
+                {f.d && <p>{f.d}</p>}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {lt?.veredito && (
+        <section class="veredito">
+          <h2>Vale a pena? Nosso veredito</h2>
+          <p>{lt.veredito}</p>
+        </section>
+      )}
+
+      {ltFaq.length > 0 && (
+        <section class="faq-lt">
+          <h2>Perguntas frequentes</h2>
+          {ltFaq.map((f) => (
+            <details>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </section>
+      )}
+    </div>
+  </div>
+
+  {
+    relacionadas.length > 0 && loja && (
+      <section class="relacionadas">
+        <h2>Outras ofertas {loja.nome}</h2>
+        <div class="grade-relacionadas">
+          {relacionadas.map((o) => (
+            <CardOferta oferta={o} loja={loja.nome} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  {/* Barra fixa: mantém a ação na zona do polegar enquanto o editorial rola (v1.1). */}
+  <div class="barra-fixa">
+    <div class="barra-info">
+      {precoFormatado && <strong class="barra-valor">{precoFormatado}</strong>}
+      {cupomVisivel?.verificado_em && (
+        <span class="barra-teste">
+          testado em {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(cupomVisivel.verificado_em))}
+        </span>
+      )}
+      {!cupomVisivel && oferta.tipo && <span class="barra-teste">{rotuloTipo[oferta.tipo] ?? 'Oferta'}</span>}
+    </div>
+    {cupomVisivel ? (
+      <CtaAfiliado tipo="cupom" docId={cupomVisivel.id} rotulo="Pegar cupom" ref="barra" />
+    ) : (
+      <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta" ref="barra" />
+    )}
+  </div>
+
+  {/*
+    Ferramentas WebMCP desta oferta (PRD 11). O `verificado_em` e o `preco_em` vão junto
+    porque a regra de nunca mostrar número sem carimbo vale pra ferramenta também.
+  */}
+  <Ferramentas
+    tipo="oferta"
+    dados={{
+      md: `/ofertas/${oferta.slug}.md`,
+      ofertaId: oferta.id,
+      cupomId: cupomVisivel?.id ?? null,
+      oferta: {
+        titulo: oferta.titulo,
+        loja: loja?.nome ?? null,
+        preco: precoFormatado,
+        preco_em: precoEm ? precoEm.toISOString() : null,
+        desconto_loja: oferta.desconto_loja?.valor ?? null,
+        rotulo: oferta.rotulo_oferta ?? null,
+        url: canonical,
+      },
+    }}
+  />
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+
+  /*
+   * Duas colunas como a página do WordPress: editorial à esquerda, card da oferta à
+   * direita, grudado enquanto o texto rola. São TRÊS áreas na grade (topo, lateral,
+   * conteúdo) e não duas: assim, no celular, o card cai entre o título e o editorial —
+   * onde a decisão acontece — sem precisar duplicar markup.
+   */
+  .oferta { display: block; }
+  @media (min-width: 62rem) {
+    .oferta {
+      display: grid;
+      /*
+       * A coluna de conteúdo para na MEDIDA de leitura em vez de esticar. Com o container
+       * fluido até 1520px ela chegava a 1072px — 131 caracteres por linha, quando o post
+       * ao lado usa 94. A grade inteira centraliza no que sobra.
+       */
+      grid-template-columns: minmax(0, var(--rz-medida)) 23rem;
+      justify-content: center;
+      gap: 0 2rem;
+      align-items: start;
+    }
+    .topo { grid-column: 1; grid-row: 1; }
+    .conteudo { grid-column: 1; grid-row: 2; }
+    .lateral {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      position: sticky;
+      /* o cabeçalho do site é sticky e tem ~65px; sem essa folga o card fica embaixo dele */
+      top: 5.5rem;
+    }
+  }
+
+  .hero {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+    margin-bottom: 1rem;
+  }
+  h1 { margin: 0 0 0.4rem; }
+  .headline {
+    margin: 0 0 1.25rem;
+    font-size: 1.05rem;
+    line-height: 1.45;
+    color: var(--rz-muted);
+  }
+
+  /*
+   * Centralizado, como no site antigo: o card é uma coluna estreita com logo, promessa,
+   * número e ação — em coluna estreita, texto alinhado à esquerda deixa cada linha
+   * começando num lugar e o olho volta ao início toda vez.
+   */
+  .cartao-oferta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    /* 1,5rem: com o card enxuto sobrou espaço, e o que estava apertado era o RITMO — os
+       blocos encostavam uns nos outros e o card parecia uma parede só */
+    gap: 1.5rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    padding: 1.25rem 1.1rem;
+    margin: 0 0 0.5rem;
+    background: var(--rz-surface);
+  }
+  /* tracejado SÓ quando há cupom: é a borda "de cupom", e usá-la numa oferta sem código
+     prometeria um código que não existe */
+  .cartao-oferta.com-cupom {
+    border-style: dashed;
+    border-width: 2px;
+    border-color: var(--rz-borda-codigo);
+  }
+  /* o logo vem do WP em proporções variadas (svg de letreiro, png quadrado): teto de
+     altura e `object-fit` impedem que um deles domine o card */
+  .logo {
+    max-width: 60%;
+    max-height: 34px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  /*
+   * No desktop a headline do card fica ao LADO da que está sob o H1 e as duas se
+   * sustentam. No celular elas empilham a dois dedos de distância e viram eco — some.
+   */
+  @media (max-width: 61.99rem) {
+    .lateral-headline { display: none; }
+  }
+  .lateral-headline {
+    margin: 0;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  /* o diferencial é o único bloco grande do card — o resto virou linha miúda */
+  .rotulo-oferta {
+    margin: 0;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--rz-deal);
+  }
+  /* renderizada dentro do CupomCard pelo slot — daí o :global */
+  .cartao-oferta :global(.linha-dado) {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--rz-ink);
+  }
+  .cartao-oferta :global(.linha-dado) strong { font-weight: 700; }
+  .cartao-oferta :global(.quando) { color: var(--rz-muted); font-weight: 400; }
+  /* o card é estreito: o cupom dentro dele ocupa a largura toda em vez de encolher */
+  .cartao-oferta > :global(*) { max-width: 100%; }
+  .cartao-oferta :global(.cupom.compacto) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  .cartao-oferta :global(.cupom.compacto .corpo) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    /* estava SEM gap: raspadinha, linhas e selo se encostavam. Mesmo valor do gap do
+       card: ritmo desigual entre blocos irmãos é o que faz um card parecer torto */
+    gap: 1.5rem;
+  }
+  /* as duas linhas de dado são um par — respiram entre si menos que do resto */
+  .cartao-oferta :global(.dados) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .beneficios h2 { margin-top: 0; font-size: 1.15rem; }
+  .beneficios ul { margin: 0 0 1.5rem; padding: 0; list-style: none; }
+  .beneficios li {
+    position: relative;
+    padding-left: 1.6rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.45;
+  }
+  /* o "✓" é decoração via ::before: fora do texto, então leitor de tela não soa o
+     símbolo item a item, e a lista continua sendo uma lista */
+  .beneficios li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.42em;
+    width: 0.95rem;
+    height: 0.55rem;
+    border-left: 2.5px solid var(--rz-verified);
+    border-bottom: 2.5px solid var(--rz-verified);
+    transform: rotate(-45deg);
+  }
+
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(.tabela-rolavel) { overflow-x: auto; }
+  .corpo :global(table) { border-collapse: collapse; min-width: 100%; }
+  .corpo :global(th), .corpo :global(td) {
+    border: 1px solid var(--rz-borda);
+    padding: 0.5rem;
+    text-align: left;
+  }
+
+  .relacionadas { margin-top: 2.5rem; }
+  .grade-relacionadas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+      /*
+     * TRÊS por linha no desktop, não quatro. Com o container fluido até 1520px, quatro
+     * colunas davam cartão estreito numa tela larga — o oposto do que a largura extra
+     * serve. Abaixo de 62rem o `auto-fill` acima assume e a grade se vira sozinha.
+     */
+    @media (min-width: 62rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+  .barra-fixa {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 2rem -1.5rem 0;
+    padding: 0.7rem 1.5rem;
+    /* token, não branco fixo: a barra some num tenant de fundo escuro se for #fff */
+    background: var(--rz-surface);
+    border-top: 1px solid var(--rz-borda);
+    box-shadow: 0 -2px 10px var(--rz-sombra-suave);
+  }
+  .barra-info { display: flex; flex-direction: column; line-height: 1.2; }
+  .barra-valor { font-family: var(--rz-fonte-titulos); font-size: 1.15rem; color: var(--rz-deal); }
+  .barra-teste { font-size: 0.78rem; color: var(--rz-muted); }
+  /* no desktop o card lateral já é a âncora da ação; a barra vira redundância grudada */
+  @media (min-width: 62rem) {
+    .barra-fixa { display: none; }
+  }
+  @media (max-width: 480px) {
+    .barra-fixa { margin: 2rem -1rem 0; padding: 0.65rem 1rem; }
+  }
+
+  /* ---- lifetime (AppSumo) ---- */
+  .selo-sumo {
+    margin: 0 0 0.35rem;
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rz-brand);
+  }
+  .preco-lifetime {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.6rem 0 0.15rem;
+  }
+  .preco-lifetime strong { font-family: var(--rz-fonte-titulos); font-size: 2rem; line-height: 1; font-weight: 700; }
+  .preco-lifetime .antes { color: var(--rz-muted); font-size: 1rem; }
+  /* o percentual usa a cor de DESCONTO, a mesma do resto do site — é a mesma informação */
+  .preco-lifetime .off {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--rz-deal);
+  }
+  .uma-vez { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--rz-muted); }
+  .selos-lifetime { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.75rem 0 0; }
+  .selo-lt {
+    font-size: 0.7rem;
+    color: var(--rz-muted);
+    background: var(--rz-surface-brand);
+    border: 1px solid var(--rz-borda);
+    border-radius: 999px;
+    padding: 0.12rem 0.55rem;
+  }
+
+  /*
+   * Os destaques são CARTÕES, como no site antigo. Em lista virariam seis parágrafos
+   * "título — descrição" seguidos, que é exatamente o que se perdia quando eles passavam
+   * por richText: o formato é o que separa seis recursos de um bloco de texto.
+   */
+  .grade-destaques {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 0.85rem;
+    margin: 1rem 0;
+  }
+  .destaque-lt {
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    background: var(--rz-surface);
+    padding: 0.9rem 1rem;
+  }
+  .destaque-lt h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+  .destaque-lt p { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--rz-muted); }
+
+  .veredito p {
+    border-left: 3px solid var(--rz-brand);
+    padding-left: 1rem;
+    margin: 0;
+  }
+  .faq-lt details { margin-bottom: 0.5rem; }
+  .faq-lt summary { cursor: pointer; font-weight: 600; }
+</style>

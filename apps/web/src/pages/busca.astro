@@ -1,0 +1,140 @@
+---
+/**
+ * Busca do site. Existe porque o campo no cabeçalho precisa levar a algum lugar — campo
+ * que não busca é enfeite, e enfeite que parece funcionalidade é pior que ausência.
+ *
+ * É BUSCA POR TÍTULO, deliberadamente simples: `like` no título de posts, ofertas e lojas.
+ * Não indexa corpo nem ordena por relevância. Quando o volume pedir, o lugar disso é um
+ * índice de verdade — não um `like` mais esperto.
+ *
+ * `noindex`: página de resultado não entra no índice do Google (conteúdo duplicado do
+ * catálogo, e URL infinita por query).
+ */
+import Base from '../layouts/Base.astro'
+import { buscaSimples, caminhoDaOferta } from '../lib/cms'
+
+const tenant = Astro.locals.tenant
+const termo = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 80)
+const r = termo ? await buscaSimples(tenant.id, termo) : { posts: [], ofertas: [], lojas: [] }
+const total = r.posts.length + r.ofertas.length + r.lojas.length
+
+const titulo = termo ? `Busca: ${termo}` : 'Busca'
+---
+
+<Base titulo={titulo} descricao={`Resultados de busca em ${tenant.nome}.`} noindex>
+  <h1>{termo ? <>Resultados para “{termo}”</> : 'Busca'}</h1>
+
+  {/*
+    Campo NA PÁGINA, não só no cabeçalho. Quem chega aqui vindo do resultado errado
+    precisava voltar ao menu e reabrir a busca pra tentar outra palavra — o formulário é
+    GET nativo, funciona sem JS e já vem preenchido com o termo atual.
+  */}
+  <form
+    class="refina"
+    action="/busca/"
+    method="get"
+    role="search"
+    toolname="refinar_busca"
+    tooldescription="Refaz a busca do Runzos com outro termo."
+  >
+    <label class="sr-only" for="q">Buscar no site</label>
+    <input id="q" type="search" name="q" value={termo} placeholder="Buscar oferta, cupom ou artigo" />
+    <button type="submit">Buscar</button>
+  </form>
+
+  {termo && <p class="contagem">{total} {total === 1 ? 'resultado' : 'resultados'}</p>}
+
+  {!termo && <p class="vazio">Digite o que procura no campo acima.</p>}
+  {termo && total === 0 && (
+    <p class="vazio">
+      Nada encontrado para “{termo}”. A busca olha o título de posts, ofertas e lojas — tente uma
+      palavra mais curta.
+    </p>
+  )}
+
+  {r.lojas.length > 0 && (
+    <section>
+      <h2>Lojas <span class="quantos">{r.lojas.length}</span></h2>
+      <ul class="lista">
+        {r.lojas.map((l) => (
+          <li><a href={`/cupom-${l.slug}/`}>{l.nome}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {r.ofertas.length > 0 && (
+    <section>
+      <h2>Ofertas <span class="quantos">{r.ofertas.length}</span></h2>
+      <ul class="lista">
+        {r.ofertas.map((o) => (
+          <li><a href={caminhoDaOferta(o)}>{o.titulo}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {r.posts.length > 0 && (
+    <section>
+      <h2>Artigos <span class="quantos">{r.posts.length}</span></h2>
+      <ul class="lista">
+        {r.posts.map((p) => (
+          <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+</Base>
+
+<style>
+  .refina {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 34rem;
+    margin: 0.75rem 0 1.25rem;
+  }
+  .refina input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 0.9rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 8px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    font: inherit;
+    font-size: 1rem;
+  }
+  .refina button {
+    min-height: 44px;
+    padding: 0 1.2rem;
+    border: 0;
+    border-radius: 8px;
+    background: var(--rz-brand);
+    color: var(--rz-on-brand);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .quantos {
+    font-family: var(--rz-fonte-corpo);
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--rz-muted);
+  }
+  .contagem {
+    color: var(--rz-muted);
+    font-size: 0.9rem;
+  }
+  .vazio { color: var(--rz-muted); }
+  .lista { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+  .lista li { border-bottom: 1px solid var(--rz-borda); }
+  .lista a {
+    display: block;
+    padding: 0.6rem 0.15rem;
+    color: var(--rz-ink);
+    text-decoration: none;
+    line-height: 1.35;
+  }
+  .lista a:hover { color: var(--rz-brand); }
+</style>

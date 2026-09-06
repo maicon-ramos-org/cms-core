@@ -1,82 +1,465 @@
 ---
 /**
- * Card de cupom — dado 100% do banco, renderizado no servidor.
- * Selo de verificação: verificado há Xh + método (+ taxa quando houver) — PRD 02 RF5.
+ * Card de cupom — dado 100% do banco, renderizado no SERVIDOR (crawler não roda JS).
+ *
+ * Anatomia do design-tokens.md v1.1:
+ * - o CÓDIGO É REVELADO NO CLIQUE, não no carregamento (ADR-0007). O HTML traz só os
+ *   últimos caracteres; o resto chega de `/api/cupom/{id}` depois do toque, junto com a
+ *   cópia, a contagem e a ida pra loja pelo redirect de afiliado. Sem JS o mesmo elemento
+ *   é um link comum que leva à loja — o que não acontece é a pessoa (ou a IA) levar o
+ *   código sem passar pelo link que paga o site.
+ * - o que continua no HTML sem JS: desconto, condições, selo, validade. A página responde
+ *   "tem cupom? tem, X%, conferido em tal dia" pro rastreador; o que ela não entrega é o
+ *   literal do código.
+ * - selo com escudo SVG (nunca emoji) no formato "testado hoje às 09h14, no checkout".
+ * - o selo SUBSTITUI a escassez artificial do site atual — é o argumento que só nós temos.
  */
 import type { CupomDTO } from '../lib/cms'
 import CtaAfiliado from './CtaAfiliado.astro'
 
 interface Props {
   cupom: CupomDTO
+  /** decomposição do desconto ("70% da loja + 10% nosso cupom") quando houver dado */
+  decomposicao?: string | null
+  /**
+   * Página do cupom. Quando existe, o card mostra "Ver cupom" em vez do CÓDIGO — é a
+   * listagem (home, hub) levando pra página em vez de entregar o código ali.
+   *
+   * Não é estilo: quem LÊ o código na listagem vai pra loja por fora e some da medição.
+   * O clique é o que mede resgate, e é o que passa pelo redirect que monetiza. Na página
+   * do cupom o código aparece inteiro — o desenho aprovado guarda ele pra lá.
+   */
+  destino?: string | null
+  /**
+   * Dentro de um card que já mostra desconto e preço (a lateral da página de oferta),
+   * o card do cupom perde a moldura e o número grande: dois quadros aninhados dizendo o
+   * mesmo desconto é ruído, não ênfase. O que fica é o que só ele tem — código, selo e CTA.
+   */
+  compacto?: boolean
 }
 
-const { cupom } = Astro.props
+const { cupom, decomposicao = null, destino = null, compacto = false } = Astro.props
+
+/*
+ * Só há número quando o import conseguiu extrair um. Três dos sete cupons publicados vieram
+ * com `desconto_tipo: outro` e sem valor — nesses, o slot do desconto exibia a palavra
+ * "Oferta", que é o lugar mais nobre do card ocupado pela informação mais fraca. Sem
+ * número, o card começa direto pelo código.
+ */
+const temDesconto =
+  typeof cupom.desconto_valor === 'number' || cupom.desconto_tipo === 'frete'
 
 const descontoLabel = (() => {
   switch (cupom.desconto_tipo) {
     case 'percentual':
-      return `${cupom.desconto_valor ?? '?'}% OFF`
+      return `${cupom.desconto_valor ?? '?'}%`
     case 'valor':
-      return `R$ ${cupom.desconto_valor ?? '?'} OFF`
+      return `R$ ${cupom.desconto_valor ?? '?'}`
     case 'frete':
-      return 'FRETE GRÁTIS'
+      return 'Frete grátis'
     default:
-      return 'OFERTA'
+      return 'Oferta'
   }
 })()
+const sufixoDesconto = cupom.desconto_tipo === 'percentual' || cupom.desconto_tipo === 'valor' ? 'OFF' : null
 
-const seloVerificacao = (() => {
+/**
+ * O que o HTML mostra antes do clique: os últimos 4 caracteres, que é o tanto que sobra
+ * à direita do botão verde. Bastam pra parecer código de verdade e não bastam pra usar.
+ * Código curto (≤4) vira `••••` inteiro — mostrar "20OFF" de um cupom "20OFF" seria
+ * revelar tudo com um passo a mais no meio.
+ */
+const mascara = cupom.codigo.length > 4 ? cupom.codigo.slice(-4) : '••••'
+
+/** "testado hoje às 09h14, no checkout · 94%" — o formato do artboard. */
+const selo = (() => {
   if (!cupom.verificado_em) return null
-  const horas = Math.max(0, Math.round((Date.now() - new Date(cupom.verificado_em).getTime()) / 3_600_000))
-  const quando = horas < 1 ? 'agora há pouco' : horas < 48 ? `há ${horas}h` : `há ${Math.round(horas / 24)} dias`
+  const quando = new Date(cupom.verificado_em)
+  const agora = new Date()
+  const mesmoDia = quando.toDateString() === agora.toDateString()
+  const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(quando).replace(':', 'h')
+  const dia = mesmoDia
+    ? 'hoje'
+    : `em ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(quando)}`
   const metodo =
-    cupom.metodo === 'api' ? 'via API da loja' : cupom.metodo === 'corroboracao' ? 'por corroboração' : 'manualmente'
-  return `Verificado ${quando} ${metodo}`
+    cupom.metodo === 'api' ? 'via API da loja' : cupom.metodo === 'corroboracao' ? 'por corroboração' : 'no checkout'
+  const taxa = typeof cupom.taxa_sucesso === 'number' ? ` · ${cupom.taxa_sucesso}%` : ''
+  return `testado ${dia} às ${hora}, ${metodo}${taxa}`
 })()
 ---
 
-<article class="cupom">
-  <div class="desconto">{descontoLabel}</div>
+<article class:list={['cupom', { compacto }]}>
+  {
+    !compacto && temDesconto && (
+      <p class="desconto">
+        <span class="desconto-numero">{descontoLabel}</span>
+        {sufixoDesconto && <span class="desconto-sufixo">{sufixoDesconto}</span>}
+        {decomposicao && <span class="desconto-decomposicao">{decomposicao}</span>}
+      </p>
+    )
+  }
+
   <div class="corpo">
-    <code class="codigo">{cupom.codigo}</code>
-    {cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
     {
-      seloVerificacao && (
+      destino ? (
+        <a class="ver" href={destino}>
+          Ver cupom
+        </a>
+      ) : (
+        /*
+         * "Raspadinha": a pílula com o código ocupa a largura toda e o botão verde cobre
+         * a esquerda dela, deixando os últimos caracteres à mostra. É a forma do site
+         * antigo, e ela faz um trabalho que texto não faz — mostra que existe um código
+         * ali e que ele está coberto, em vez de pedir que a pessoa acredite.
+         *
+         * Continua sendo UM link: sem JS o clique leva à loja pelo redirect que monetiza.
+         */
+        <a
+          class="raspadinha"
+          href={`/r/c${cupom.id}?ref=codigo`}
+          rel="sponsored nofollow"
+          data-cupom={String(cupom.id)}
+          aria-label="Ver o cupom e ir para a loja"
+        >
+          <span class="raspadinha-codigo">{mascara}</span>
+          <span class="raspadinha-botao" aria-hidden="true"><span class="raspadinha-rotulo">Ver cupom</span></span>
+        </a>
+      )
+    }
+
+    {/*
+      Pré-renderizada e `hidden`: nó criado por script não carrega o atributo do CSS
+      escopado do Astro e sairia sem estilo. O script só troca texto e tira o `hidden`.
+    */}
+    <p class="revelacao" hidden aria-live="polite">
+      <span class="revelacao-msg"></span>
+      <a
+        class="revelacao-cta"
+        href={`/r/c${cupom.id}?ref=revelado`}
+        target="_blank"
+        rel="sponsored nofollow noopener"
+        hidden
+      >
+        Acessar oferta
+      </a>
+    </p>
+
+    {/*
+      No card CHEIO, `condicoes` é a linha curta do cupom ("50% OFF por 2 meses").
+      No COMPACTO ela sai: do jeito que o import preencheu, ela repete o preço ou o
+      desconto que a barra lateral já mostra — e mostra SEM data, que é justamente o que a
+      regra do projeto não permite. No lugar dela entra a nota da página, que vem com o
+      carimbo.
+    */}
+    {!compacto && cupom.condicoes && <p class="condicoes">{cupom.condicoes}</p>}
+    <slot name="nota" />
+
+    {
+      selo && (
         <p class="selo">
-          ✓ {seloVerificacao}
-          {typeof cupom.taxa_sucesso === 'number' && ` · funcionou pra ${cupom.taxa_sucesso}% de quem usou`}
+          <svg class="escudo" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <path
+              fill="currentColor"
+              d="M8 0 1.5 2.4v5.1c0 3.6 2.7 6.9 6.5 8.5 3.8-1.6 6.5-4.9 6.5-8.5V2.4L8 0Zm3.4 5.8-4 4.4a.8.8 0 0 1-1.2 0L4.6 8.4a.8.8 0 1 1 1.2-1l1 1.2 3.4-3.8a.8.8 0 1 1 1.2 1Z"
+            />
+          </svg>
+          <span>{selo}</span>
         </p>
       )
     }
   </div>
-  <CtaAfiliado tipo="cupom" docId={cupom.id} />
+
+  {/*
+    O botão grande só no card CHEIO. No compacto (barra lateral da oferta) ele era o botão
+    de RESERVA pro `window.open` bloqueado — e agora a aba abre dentro do clique, então ele
+    virou repetição. O link miúdo da revelação continua ali como rede de segurança.
+  */}
+  {!destino && !compacto && <CtaAfiliado tipo="cupom" docId={cupom.id} />}
 </article>
 
+<script>
+  /*
+   * Revelação do cupom (ADR-0007): o código só existe no HTML depois do clique, porque na
+   * resposta de IA ele seria entregue sem a compra passar pelo link de afiliado.
+   *
+   * A loja abre DENTRO do clique, em nova aba — é o comportamento do site antigo. Havia
+   * aqui um contador de 3 segundos abrindo a aba pelo `setInterval`; fora do gesto do
+   * usuário isso é bloqueado pelo navegador, e era esse bloqueio que justificava um botão
+   * grande de reserva no card. Aberta no clique, ela passa sempre.
+   *
+   * O código é revelado e copiado nesta aba enquanto a loja carrega na outra. Se o fetch
+   * falhar, a loja já abriu: sobra mostrar o caminho manual, nunca travar.
+   */
+
+  document.querySelectorAll<HTMLAnchorElement>('a.raspadinha[data-cupom]').forEach((el) => {
+    const caixa = el.closest('.cupom')
+    const texto = el.querySelector('.raspadinha-codigo')
+    const acao = el.querySelector('.raspadinha-botao')
+    const revelacao = caixa?.querySelector<HTMLElement>('.revelacao')
+    const msg = revelacao?.querySelector<HTMLElement>('.revelacao-msg')
+    const cta = revelacao?.querySelector<HTMLAnchorElement>('.revelacao-cta')
+    if (!texto || !revelacao || !msg || !cta) return
+
+    let emCurso = false
+
+    el.addEventListener('click', (evento) => {
+      if (emCurso) {
+        evento.preventDefault()
+        return
+      }
+      emCurso = true
+      evento.preventDefault()
+
+      /*
+       * A loja abre AQUI, dentro do clique — não depois de um contador.
+       *
+       * Antes eram 3 segundos e um `window.open` dentro do `setInterval`. Fora do gesto do
+       * usuário, o navegador bloqueia essa abertura: era por isso que existia um botão
+       * grande de reserva embaixo. Aberta dentro do clique, ela nunca é bloqueada, o botão
+       * de reserva some do card e o comportamento fica o do site antigo — clicou, a loja
+       * abre em nova aba e o código aparece nesta.
+       */
+      window.open(el.href, '_blank', 'noopener')
+
+      void fetch(`/api/cupom/${el.dataset.cupom}`, { headers: { accept: 'application/json' } })
+        .then((r) => (r.ok ? (r.json() as Promise<{ codigo?: string }>) : null))
+        .then((dados) => {
+          if (!dados?.codigo) return // sem código não há o que revelar; a loja já abriu
+          texto.textContent = dados.codigo
+          // a classe some com o botão verde e centraliza o código na pílula
+          el.classList.add('revelado')
+          navigator.clipboard?.writeText(dados.codigo).catch(() => {})
+          if (acao) acao.remove()
+
+          revelacao.hidden = false
+          msg.textContent = 'Código copiado. Abrimos a loja em outra aba — se não abriu:'
+          cta.hidden = false
+        })
+        .catch(() => {
+          // a loja já abriu; aqui só resta oferecer o caminho manual
+          revelacao.hidden = false
+          msg.textContent = 'Não conseguimos mostrar o código agora. Pela loja:'
+          cta.hidden = false
+        })
+    })
+  })
+</script>
+
 <style>
+  /* Papéis: desconto em --rz-deal, selo em --rz-verified. O verde de ação existe só no
+     CtaAfiliado — nenhum outro elemento pode usá-lo (regra 3). */
   .cupom {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 1rem;
-    border: 1px solid #e2e2e2;
-    border-radius: 10px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
+    background: var(--rz-surface);
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+    margin-bottom: 0.85rem;
   }
   .desconto {
-    min-width: 110px;
-    text-align: center;
-    font-weight: 800;
-    color: var(--cor-primaria);
+    min-width: 112px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
   }
-  .corpo { flex: 1; }
-  .codigo {
-    font-size: 1.05rem;
+  .desconto-numero {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1.6rem;
     font-weight: 700;
-    background: #f5f5f5;
-    border: 1px dashed #bbb;
-    border-radius: 6px;
-    padding: 0.2rem 0.6rem;
+    color: var(--rz-deal);
   }
-  .condicoes { margin: 0.35rem 0 0; font-size: 0.9rem; color: #444; }
-  .selo { margin: 0.35rem 0 0; font-size: 0.82rem; color: #15803d; }
+  .desconto-sufixo {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--rz-deal);
+  }
+  .desconto-decomposicao {
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    color: var(--rz-muted);
+  }
+  .corpo { flex: 1; min-width: 220px; }
+  .ver {
+    /* inline-flex, não `block`: na listagem ele é o botão do card, e ocupando a linha
+       inteira ele virava faixa e afogava o desconto, que é o que o leitor lê primeiro */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.4rem;
+    border-radius: 10px;
+    border: 1.5px solid var(--rz-brand);
+    color: var(--rz-brand);
+    background: var(--rz-surface);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    text-decoration: none;
+    min-height: 44px;
+  }
+  /*
+   * Raspadinha, na mesma construção do site antigo: a pílula com o código ocupa 100% e
+   * alinha o texto À DIREITA; por cima dela vem o botão, que não tem fundo próprio — o
+   * verde é o `::before` (100% - 30px de largura, arredondado só na esquerda) e a ABA é o
+   * `::after`, um retângulo escuro girado -25° preso ao canto direito. É a rotação que
+   * produz o corte diagonal; borda arredondada sozinha daria uma bolha, não uma aba.
+   *
+   * No hover a aba ALARGA (1.8rem → 2.2rem), como se estivesse sendo descolada. O efeito
+   * é o do site antigo, e é o que sugere que ali embaixo tem código.
+   *
+   * As três cores saem de `--rz-action` via `color-mix`: verde do tema escurecido em dois
+   * degraus. Hex fixo aqui seria marca hardcoded em componente — o que a regra barra.
+   */
+  .raspadinha {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 17rem;
+    text-decoration: none;
+  }
+  .raspadinha-codigo {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 44px;
+    padding: 0 1.75rem 0 2.25rem;
+    border-radius: 999px;
+    background: var(--rz-borda);
+    color: var(--rz-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .raspadinha-botao {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80%;
+    min-height: 44px;
+    padding: 0 3.5rem 0 1.25rem;
+    color: var(--rz-on-action);
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+  /* o texto fica acima das duas camadas de fundo */
+  .raspadinha-botao > :global(*),
+  .raspadinha-botao { line-height: 1.1; }
+  .raspadinha-rotulo { position: relative; z-index: 3; }
+
+  .raspadinha-botao::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    width: calc(100% - 30px);
+    height: 100%;
+    border-radius: 999px 0 0 999px;
+    background: var(--rz-action);
+    transition: background 0.25s;
+  }
+  .raspadinha-botao::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 29px;
+    z-index: 2;
+    width: 1.8rem;
+    height: 113%;
+    border-radius: 999px 0 0 999px;
+    background: color-mix(in srgb, var(--rz-action) 62%, #000);
+    transform: rotate(-25deg);
+    transform-origin: right top;
+    transition: width 0.2s;
+  }
+  .raspadinha:hover .raspadinha-botao::before {
+    background: color-mix(in srgb, var(--rz-action) 85%, #000);
+  }
+  .raspadinha:hover .raspadinha-botao::after { width: 2.2rem; }
+
+  /* revelado: a pílula inteira vira verde com o código branco, centralizado */
+  .raspadinha.revelado .raspadinha-codigo {
+    justify-content: center;
+    padding: 0 1.25rem;
+    background: var(--rz-action);
+    color: var(--rz-on-action);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .raspadinha-botao::before,
+    .raspadinha-botao::after { transition: none; }
+  }
+
+  .condicoes { margin: 0.45rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
+  .selo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0.5rem 0 0;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    background: var(--rz-surface-verificado);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--rz-verified);
+  }
+  .escudo { flex: none; }
+  @media (max-width: 560px) {
+    .cupom { align-items: stretch; }
+    .desconto { flex-direction: row; align-items: baseline; gap: 0.4rem; }
+    .desconto-decomposicao { margin-top: 0; }
+  }
+
+  /* variante embutida: sem moldura própria, ocupando a largura do card que a hospeda */
+  .cupom.compacto {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    width: 100%;
+  }
+
+  /*
+   * `:not([hidden])` NÃO é estilo, é correção: `display: flex` cru vence o atributo
+   * `hidden` (que é só `display: none` da folha do navegador), e a caixa aparecia antes
+   * do clique com o botão de reserva à mostra.
+   */
+  .revelacao:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .revelacao {
+    margin: 0.6rem 0 0;
+    font-size: 0.85rem;
+    color: var(--rz-muted);
+    line-height: 1.45;
+  }
+  .revelacao-cta:not([hidden]) {
+    display: inline-flex;
+  }
+  .revelacao-cta {
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    margin-top: 0.5rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    background: var(--rz-action);
+    color: var(--rz-on-action);
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 600;
+    text-decoration: none;
+  }
 </style>

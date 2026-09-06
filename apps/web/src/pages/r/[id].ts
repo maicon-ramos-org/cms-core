@@ -56,7 +56,9 @@ async function resolveDestino(idPublico: string, tenantId: string | number): Pro
   const cupomDaOferta = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
   return {
     tipo_doc: 'oferta',
-    urlFonte: cupomDaOferta?.url_afiliado_fonte ?? null,
+    // cupom vinculado tem precedência; sem cupom (crédito, lifetime, desconto já no
+    // link) a oferta carrega o próprio destino — senão ela não monetizaria (contrato).
+    urlFonte: cupomDaOferta?.url_afiliado_fonte ?? oferta.url_afiliado_fonte ?? null,
     loja: lojaDe(oferta),
   }
 }

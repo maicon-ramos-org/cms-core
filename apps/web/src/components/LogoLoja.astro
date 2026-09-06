@@ -1,0 +1,98 @@
+---
+/**
+ * Logo de loja no carrossel "Cupons por loja".
+ *
+ * CINZA QUE VIRA COR NO HOVER: o `filter: grayscale(1)` deixa a fileira visualmente calma
+ * — 26 logos coloridos lado a lado brigam entre si e nenhum é lido. A cor volta no hover e
+ * no foco (não só no hover: quem navega por teclado também precisa da resposta).
+ *
+ * SEM LOGO, MOSTRA O NOME. Não é fallback decorativo: loja sem logo no carrossel viraria
+ * um buraco, e o nome ainda é o que a pessoa procura.
+ */
+import { urlMidia, type MidiaDTO } from '../lib/cms'
+
+interface Props {
+  nome: string
+  slug: string
+  logo?: MidiaDTO | null
+}
+
+const { nome, slug, logo = null } = Astro.props
+const src = logo?.url ? urlMidia(logo.url) : null
+---
+
+<a class="logo-loja" href={`/cupom-${slug}/`} title={`Cupons ${nome}`}>
+  {
+    src ? (
+      <img
+        src={src}
+        alt={nome}
+        width={logo?.width ?? 160}
+        height={logo?.height ?? 60}
+        loading="lazy"
+        decoding="async"
+      />
+    ) : (
+      <span class="nome">{nome}</span>
+    )
+  }
+</a>
+
+<style>
+  .logo-loja {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 84px;
+    /* respiro lateral generoso: a seta do carrossel sobrepõe a borda do primeiro e do
+       último item, e sem esta folga ela comeria o logo em vez do vazio */
+    padding: 0.9rem 1.7rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    background: var(--rz-surface);
+    text-decoration: none;
+  }
+  .logo-loja:hover { border-color: var(--rz-brand); }
+
+  .logo-loja img {
+    max-width: 100%;
+    /*
+     * ALTURA RESOLVIDA, não `auto`. A maioria dos logos é SVG só com `viewBox`, sem
+     * dimensão intrínseca: com `height: auto` num item flex a caixa resolvia em ZERO e a
+     * fileira inteira ficava de cartões vazios — os PNG apareciam, os SVG não. Com a
+     * altura vinda do contêiner, a razão do viewBox dá a largura.
+     */
+    height: 100%;
+    width: auto;
+    object-fit: contain;
+    /* opacidade junto do cinza: logo cinza puro ainda pesa demais numa fileira de 26 */
+    filter: grayscale(1);
+    opacity: 0.62;
+    transition: filter 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+  }
+  .logo-loja:hover img,
+  .logo-loja:focus-visible img {
+    filter: grayscale(0);
+    opacity: 1;
+    transform: scale(1.04);
+  }
+
+  .nome {
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--rz-muted);
+    text-align: center;
+    line-height: 1.2;
+    transition: color 0.25s ease;
+  }
+  .logo-loja:hover .nome,
+  .logo-loja:focus-visible .nome { color: var(--rz-brand); }
+
+  /* quem pediu menos movimento continua ganhando a cor — só perde o zoom e o fade */
+  @media (prefers-reduced-motion: reduce) {
+    .logo-loja img { transition: none; }
+    .logo-loja:hover img,
+    .logo-loja:focus-visible img { transform: none; }
+  }
+</style>

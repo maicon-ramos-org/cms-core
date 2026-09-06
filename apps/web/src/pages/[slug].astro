@@ -1,0 +1,446 @@
+---
+/**
+ * PRD 02/03 — post editorial em /{slug} (paridade de URL com o WordPress: os 735 posts
+ * migrados mantêm exatamente o mesmo endereço, então nenhum link externo quebra).
+ *
+ * Decisão de render: SSR + cache por tag, não `prerender`. O corpo carrega dado que
+ * muda sem o post ser editado (link de afiliado do catálogo, âncoras do auto-linker) e
+ * o acervo tem 735 páginas — rebuild a cada edição não fecha. Invalidação vem do
+ * webhook do Payload por tag (ADR-0001).
+ *
+ * Esta rota é o curinga de 1 segmento: rotas com prefixo estático (`/cupom-{loja}`)
+ * têm prioridade no Astro, então não há conflito.
+ */
+import CardPost from '../components/CardPost.astro'
+import Ferramentas from '../components/Ferramentas.astro'
+import ChipsCategorias from '../components/ChipsCategorias.astro'
+import Compartilhar from '../components/Compartilhar.astro'
+import Base from '../layouts/Base.astro'
+import {
+  caminhoCanonico,
+  getCategorias,
+  getMapaAfiliados,
+  getPageBySlug,
+  getPostBySlug,
+  getPostsRelacionados,
+  urlMidia,
+  type PostDTO,
+} from '../lib/cms'
+import { extraiSumario, lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+
+const tenant = Astro.locals.tenant
+const slug = Astro.params.slug ?? ''
+
+/**
+ * Slugs que o WordPress servia com o corpo montado pelo builder (arquivo de produtos,
+ * feed de posts, home). Cada um tem rota própria alimentada por DADO neste site, então
+ * o corpo migrado deles é render velho e não pode ser servido — só o `home`, que não
+ * tem URL própria (o WP servia na raiz), precisa ser barrado aqui: os outros já são
+ * rotas estáticas e nem chegam neste curinga.
+ */
+const ARQUIVOS_DO_BUILDER = new Set(['home', 'apps', 'ofertas', 'blog'])
+
+const post = await getPostBySlug(tenant.id, slug)
+
+/*
+ * Sem post, é página (institucional/conteúdo/contato) — e ela vai por REWRITE, não aqui.
+ * O Astro empacota CSS por rota: com os dois templates nesta rota, toda página
+ * institucional carregava o CSS do cartão de post, do compartilhar e do formulário de
+ * contato. O `?__r=1` é o que faz `/pagina/{slug}` responder — direto, ela é 404.
+ */
+if (!post) {
+  if (ARQUIVOS_DO_BUILDER.has(slug)) {
+    return new Response('Página não encontrada.', { status: 404 })
+  }
+  const page = await getPageBySlug(tenant.id, slug)
+  if (!page || page.template === 'apps') {
+    return new Response('Página não encontrada.', { status: 404 })
+  }
+  /*
+   * A query original vai JUNTO: o rewrite não a leva sozinho, e o alvo enxerga só o que
+   * for passado aqui. Sem isto, o `?letra=` do índice do glossário sumia e a página
+   * respondia sempre a primeira letra — 200 silencioso, filtro nenhum.
+   */
+  const params = new URLSearchParams(Astro.url.search)
+  params.set('__r', '1')
+  return Astro.rewrite(`/pagina/${caminhoCanonico(slug)}/?${params}`)
+}
+
+const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.id), getCategorias(tenant.id)])
+
+const categoria = post?.categoria && typeof post.categoria === 'object' ? post.categoria : null
+const autor = post?.autor && typeof post.autor === 'object' ? post.autor : null
+const avatarAutor = autor?.avatar && typeof autor.avatar === 'object' ? autor.avatar : null
+const capa = post?.capa && typeof post.capa === 'object' ? post.capa : null
+/*
+ * O original tem ~1200px e a coluna do artigo tem 944 no desktop: ali ele é o tamanho
+ * certo. Quem ganha com o `srcset` é o celular, que renderiza em ~360 e baixava a mesma
+ * imagem do desktop — o derivado de 640 (ver `regenera:tamanhos`) corta isso pela metade.
+ */
+const capaSrcset = [
+  capa?.sizes?.cartao?.url ? `${urlMidia(capa.sizes.cartao.url)} 640w` : null,
+  capa?.url ? `${urlMidia(capa.url)} ${capa.width ?? 1200}w` : null,
+]
+  .filter(Boolean)
+  .join(', ')
+const tags = Array.isArray(post?.tags)
+  ? post.tags.filter((t): t is { id: string | number; nome: string; slug: string } => typeof t === 'object' && t !== null)
+  : []
+
+if (Astro.cache.enabled) {
+  Astro.cache.set({
+    maxAge: 3600,
+    swr: 300,
+    // daqui pra baixo só existe post: página saiu por rewrite antes deste ponto
+    tags: [`tenant:${tenant.slug}`, `posts:${post.id}`, ...(categoria ? [`categorias:${categoria.id}`] : [])],
+  })
+}
+
+const relacionados = post ? await getPostsRelacionados(tenant.id, post, 4) : ([] as PostDTO[])
+
+const corpoHtml = lexicalParaHtml(post?.corpo, {
+  reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
+  resolveMidia: urlMidia,
+  hostDoTenant: tenant.canonical_host,
+})
+
+/*
+ * Índice do artigo. Sai dos títulos que o próprio conversor gerou, com os ids que ele
+ * gerou — nada de JS no cliente montando lista de âncora.
+ *
+ * Só aparece com 3+ seções: em artigo curto, índice é uma segunda lista de títulos logo
+ * antes dos títulos.
+ */
+const sumario = corpoHtml ? extraiSumario(corpoHtml) : []
+const MIN_SUMARIO = 3
+
+/*
+ * Tempo de leitura. 200 palavras por minuto é a faixa medida pra leitura em português;
+ * o número é do CORPO, não da página, então não conta menu nem rodapé.
+ */
+const palavras = post ? lexicalParaTexto(post.corpo).split(/\s+/).filter(Boolean).length : 0
+const minutos = Math.max(1, Math.round(palavras / 200))
+
+
+// title/description do Rank Math quando vieram na migração — são os que já ranqueiam
+const titulo = post?.meta?.title || post?.titulo || ''
+const descricao = post?.meta?.description || lexicalParaTexto(post?.corpo, 155)
+const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(post?.slug ?? slug)}/`
+
+// datas do WP (createdAt/updatedAt do Payload são do import — publicá-las diria que o
+// acervo inteiro nasceu no dia da migração)
+const publicado = post?.publicado_em ? new Date(post.publicado_em) : null
+const atualizado = post?.atualizado_em ? new Date(post.atualizado_em) : null
+const dataLegivel = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(d)
+
+/** Grafo com @id: BlogPosting + BreadcrumbList (E-E-A-T pede autor identificável). */
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'BlogPosting',
+      '@id': `${canonical}#post`,
+      headline: post?.titulo ?? '',
+      url: canonical,
+      mainEntityOfPage: canonical,
+      ...(descricao ? { description: descricao } : {}),
+      ...(publicado ? { datePublished: publicado.toISOString() } : {}),
+      ...(atualizado ? { dateModified: atualizado.toISOString() } : {}),
+      ...(capa?.url ? { image: urlMidia(capa.url) } : {}),
+      ...(autor
+        ? {
+            author: {
+              '@type': 'Person',
+              name: autor.nome,
+              ...(autor.sameAs?.length ? { sameAs: autor.sameAs } : {}),
+            },
+          }
+        : {}),
+      publisher: { '@type': 'Organization', name: tenant.nome, '@id': `https://${tenant.canonical_host}/#org` },
+      ...(categoria ? { articleSection: categoria.nome } : {}),
+      ...(tags.length ? { keywords: tags.map((t) => t.nome).join(', ') } : {}),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${canonical}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
+        { '@type': 'ListItem', position: 2, name: post?.titulo ?? '', item: canonical },
+      ],
+    },
+  ],
+})
+---
+
+{post && (
+<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${post.slug}.md`}>
+  <nav class="trilha" aria-label="Você está em">
+    <a href="/">Início</a>
+    {categoria && <span> › {categoria.nome}</span>}
+  </nav>
+
+  <ChipsCategorias categorias={categorias} ativa={categoria?.slug ?? null} />
+
+  <article>
+    <h1>{post?.titulo}</h1>
+
+    <p class="creditos">
+      {autor && <span>Por {autor.nome}</span>}
+      {publicado && (
+        <>
+          {autor && ' · '}
+          <time datetime={publicado.toISOString()}>{dataLegivel(publicado)}</time>
+        </>
+      )}
+      {atualizado && publicado && atualizado.getTime() - publicado.getTime() > 86_400_000 && (
+        <span class="atualizado"> · atualizado em {dataLegivel(atualizado)}</span>
+      )}
+      {minutos > 0 && <span> · {minutos} min de leitura</span>}
+    </p>
+
+    {capa?.url && (
+      <img
+        class="capa"
+        src={urlMidia(capa.url)}
+        srcset={capaSrcset}
+        sizes="(min-width: 48rem) 48rem, 100vw"
+        alt={capa.alt ?? post?.titulo ?? ''}
+        width={capa.width}
+        height={capa.height}
+        fetchpriority="high"
+      />
+    )}
+
+    {
+      sumario.length >= MIN_SUMARIO && (
+        /* `<details open>`: recolhível sem JS, e aberto por padrão porque o índice serve
+           pra decidir se vale ler — fechado, ele só ocupa espaço */
+        <details class="sumario" open>
+          <summary>Navegue por tópicos</summary>
+          <ol>
+            {sumario.map((i) => (
+              <li class={i.nivel === 3 ? 'nivel-2' : 'nivel-1'}>
+                <a href={`#${i.id}`}>{i.texto}</a>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )
+    }
+
+    {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
+
+    {/* eram `<span>`: a tag aparecia e não levava a lugar nenhum. Agora leva a /tag/{slug},
+        que é `noindex, follow` — serve pra navegar e pro rastreador seguir, não pra rankear */}
+    {tags.length > 0 && (
+      <p class="tags">
+        {tags.map((t) => (
+          <a class="tag" href={`/tag/${t.slug}/`}>{t.nome}</a>
+        ))}
+      </p>
+    )}
+
+    <Compartilhar url={canonical} titulo={post?.titulo ?? ''} />
+
+    {
+      autor && (
+        <aside class="autor">
+          {/*
+            A foto vem da MÍDIA, não do Gravatar. O site atual embute a URL do
+            secure.gravatar.com, o que é uma requisição a domínio de terceiro em toda
+            página de post — a mesma coisa que o projeto evita nas fontes. Aqui o arquivo
+            está no acervo e sai do nosso domínio.
+          */}
+          {avatarAutor?.url && (
+            <img
+              class="autor-foto"
+              src={urlMidia(avatarAutor.url)}
+              alt={autor.nome}
+              width={avatarAutor.width ?? 96}
+              height={avatarAutor.height ?? 96}
+              loading="lazy"
+              decoding="async"
+            />
+          )}
+          <div>
+            <p class="autor-nome">{autor.nome}</p>
+            {autor.bio && <p class="autor-bio">{autor.bio}</p>}
+          </div>
+        </aside>
+      )
+    }
+  </article>
+
+  {
+    relacionados.length > 0 && (
+      <section class="relacionados">
+        <h2>Leia também</h2>
+        <div class="grade">
+          {relacionados.map((p) => (
+            <CardPost post={p} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <Ferramentas
+    tipo="post"
+    dados={{
+      md: `/${post?.slug}.md`,
+      post: {
+        titulo: post?.titulo,
+        autor: autor?.nome ?? null,
+        publicado_em: publicado ? publicado.toISOString() : null,
+        atualizado_em: atualizado ? atualizado.toISOString() : null,
+        categoria: categoria?.nome ?? null,
+        tags: tags.map((t) => t.nome),
+        minutos_de_leitura: minutos,
+        url: canonical,
+      },
+      sumario: sumario.map((i) => ({ titulo: i.texto, ancora: `#${i.id}` })),
+    }}
+  />
+
+  <script is:inline type="application/ld+json" set:html={jsonLd} />
+</Base>
+)}
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+  .creditos { font-size: 0.9rem; color: var(--rz-muted); margin-top: -0.5rem; }
+  .atualizado { color: var(--rz-subtle); }
+  /*
+   * O artigo fica na MEDIDA de leitura, não na largura do container. Com o container em
+   * 1190 o texto correria a linha inteira — cerca de 140 caracteres, quase o dobro do que
+   * se lê sem perder a linha. O site atual usa 773px aqui; `--rz-medida` é isso.
+   */
+  article {
+    max-width: var(--rz-medida);
+    margin-inline: auto;
+  }
+  /*
+   * A capa ESTOURA a medida de leitura: 768 é a largura certa pro texto e estreita demais
+   * pra imagem de destaque. `calc(100% + 8rem)` com margem negativa a leva a ~896 sem sair
+   * do container, e no celular a `min()` segura em 100%. É o que o site atual faz (texto
+   * 773, capa 1000).
+   */
+  .capa {
+    width: min(100%, calc(100% + 8rem));
+    max-width: none;
+    height: auto;
+    margin: 1rem 0;
+    border-radius: 10px;
+  }
+  @media (min-width: 60rem) {
+    .capa { width: calc(100% + 8rem); margin-inline: -4rem; }
+  }
+
+  /*
+   * Índice. `<details open>` para recolher sem JS. Números por CSS (`counter`) e não no
+   * markup: a lista já é `<ol>`, e duplicar o número no texto faria o leitor de tela
+   * anunciar "1. 1. Comparativo".
+   */
+  .sumario {
+    margin: 1.5rem 0;
+    padding: 0.85rem 1.1rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+  }
+  .sumario summary {
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  .sumario ol {
+    counter-reset: item;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .sumario li { counter-increment: item; line-height: 1.4; }
+  .sumario li::before {
+    content: counter(item) '.';
+    display: inline-block;
+    min-width: 1.4rem;
+    color: var(--rz-muted);
+    font-size: 0.85rem;
+  }
+  .sumario li.nivel-2 { padding-left: 1.4rem; }
+  .sumario a {
+    color: var(--rz-ink);
+    text-decoration: none;
+    font-size: 0.92rem;
+  }
+  .sumario a:hover { color: var(--rz-brand); text-decoration: underline; }
+
+  /* âncora do índice não pode parar embaixo do cabeçalho grudento */
+  .corpo :global(h2),
+  .corpo :global(h3),
+  .corpo :global(h4) { scroll-margin-top: 5rem; }
+
+  .autor {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin-top: 2rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+  }
+  .autor-nome {
+    margin: 0;
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+  }
+  .autor-bio { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--rz-muted); }
+  .autor-foto {
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    object-fit: cover;
+  }
+
+  .relacionados .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+    gap: 1.1rem;
+      /*
+     * TRÊS por linha no desktop, não quatro. Com o container fluido até 1520px, quatro
+     * colunas davam cartão estreito numa tela larga — o oposto do que a largura extra
+     * serve. Abaixo de 62rem o `auto-fill` acima assume e a grade se vira sozinha.
+     */
+    @media (min-width: 62rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
+  .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }
+  .corpo :global(th), .corpo :global(td) { border: 1px solid var(--rz-borda); padding: 0.5rem; text-align: left; }
+  .corpo :global(th) { background: var(--rz-surface-brand); }
+  .corpo :global(blockquote) { border-left: 3px solid var(--cor-primaria); margin: 1rem 0; padding-left: 1rem; color: var(--rz-muted); }
+  .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1.5rem; }
+  /* era `#f1f1f1` fixo — cinza cravado em componente quebra em tenant de tema escuro */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0.15rem 0.7rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 999px;
+    background: var(--rz-surface-brand);
+    color: var(--rz-ink);
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+  .tag:hover { border-color: var(--rz-brand); color: var(--rz-brand); }
+  .relacionados ul { padding-left: 1.2rem; }
+</style>
