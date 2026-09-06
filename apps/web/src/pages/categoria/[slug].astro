@@ -5,6 +5,7 @@
  */
 import ChipsCategorias from '../../components/ChipsCategorias.astro'
 import CardPost from '../../components/CardPost.astro'
+import Ferramentas from '../../components/Ferramentas.astro'
 import Base from '../../layouts/Base.astro'
 import { getCategoriaBySlug, getCategorias, getPostsPaginados } from '../../lib/cms'
 
@@ -91,6 +92,8 @@ const jsonLd = JSON.stringify({
     )}
     {pagina < totalPages && <a rel="next" href={`/categoria/${categoria.slug}/?pagina=${pagina + 1}`}>Próximos →</a>}
   </nav>
+
+  <Ferramentas tipo="arquivo" />
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>

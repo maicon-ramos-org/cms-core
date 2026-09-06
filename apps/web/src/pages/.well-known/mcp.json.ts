@@ -27,10 +27,13 @@ export const GET: APIRoute = async (context) => {
       spec: 'https://github.com/webmachinelearning/webmcp',
       disponivel_em: 'document.modelContext',
       ferramentas_por_rota: {
-        '*': ['buscar_no_site'],
+        '*': ['buscar_no_site', 'markdown_desta_pagina (onde há gêmeo .md)'],
+        '/{slug} (artigo)': ['resumo_do_artigo', 'sumario_do_artigo'],
         '/ofertas/{slug}': ['resumo_da_oferta', 'ver_cupom', 'ir_para_a_loja'],
         '/cupom-{loja}': ['listar_cupons_da_loja', 'ver_cupom'],
         '/ofertas/ e /lifetimes/': ['filtrar_ofertas'],
+        '/blog/, /categoria/{slug}, /tag/{slug}': ['buscar_artigo'],
+        '/apps/': ['buscar_app'],
         '/apps/{slug}': ['requisitos_do_app'],
       },
       formularios_anotados: ['buscar_no_runzos', 'refinar_busca', 'enviar_mensagem_ao_runzos'],
@@ -40,6 +43,12 @@ export const GET: APIRoute = async (context) => {
      */
     leitura_direta: {
       markdown_de_cada_pagina: 'adicione .md ao caminho da página',
+      /*
+       * Negociação por header, como a Cloudflare padronizou: a MESMA URL devolve markdown
+       * quando `text/markdown` vem antes de `text/html` no Accept. O sufixo `.md` continua
+       * valendo — quem descobre pelo header não precisa saber da convenção.
+       */
+      markdown_por_header: 'Accept: text/markdown na URL normal da página',
       indice_de_busca: `${base}/search-index.json`,
       llms_txt: `${base}/llms.txt`,
       feed: `${base}/feed.xml`,

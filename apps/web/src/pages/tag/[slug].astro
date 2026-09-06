@@ -17,6 +17,7 @@
  * aqui o conteúdo é uma lista de links cujos destinos já servem o próprio `.md`.
  */
 import CardPost from '../../components/CardPost.astro'
+import Ferramentas from '../../components/Ferramentas.astro'
 import Base from '../../layouts/Base.astro'
 import { getPostsPaginados, getTagBySlug } from '../../lib/cms'
 
@@ -90,6 +91,8 @@ const href = (n: number): string => (n === 1 ? `/tag/${tag.slug}/` : `/tag/${tag
     {pagina > 1 && <a rel="prev" href={href(pagina - 1)}>← Anteriores</a>}
     {pagina < totalPages && <a rel="next" href={href(pagina + 1)}>Próximos →</a>}
   </nav>
+
+  <Ferramentas tipo="arquivo" />
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>

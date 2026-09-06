@@ -53,6 +53,29 @@ const precisaDeBarra = (pathname: string): boolean =>
   !EH_ARQUIVO.test(pathname) &&
   pathname !== '/healthz'
 
+/**
+ * `text/markdown` só vence se vier antes de `text/html` na ordem do header. Navegador
+ * sempre manda html primeiro; quem pede markdown explicitamente coloca ele na frente.
+ */
+const querMarkdown = (accept: string): boolean => {
+  const tipos = accept
+    .split(',')
+    .map((t) => t.split(';')[0]!.trim().toLowerCase())
+    .filter(Boolean)
+  const md = tipos.indexOf('text/markdown')
+  if (md === -1) return false
+  const html = tipos.indexOf('text/html')
+  return html === -1 || md < html
+}
+
+/** Rotas que têm gêmeo `.md`. Fora daqui, o header é ignorado e serve HTML. */
+const temGemeoMd = (p: string): boolean =>
+  /^\/(ofertas|apps)\/[^/]+\/$/.test(p) || (/^\/[^/]+\/$/.test(p) && !ROTAS_SEM_MD.has(p))
+
+const ROTAS_SEM_MD = new Set(['/', '/blog/', '/ofertas/', '/apps/', '/lifetimes/', '/busca/', '/glossario/'])
+
+const caminhoDoMd = (p: string): string => `${p.replace(/\/$/, '')}.md`
+
 export const onRequest = defineMiddleware(async (context, next) => {
   // rota de webhook não depende de tenant (autentica por token próprio)
   if (context.url.pathname === '/api/revalidate' || context.url.pathname === '/healthz') {
@@ -62,6 +85,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // /feed/ é a URL do WP; internamente a rota é feed.xml
   if (context.url.pathname === '/feed' || context.url.pathname === '/feed/') {
     return context.rewrite('/feed.xml')
+  }
+
+  /*
+   * NEGOCIAÇÃO DE MARKDOWN — `Accept: text/markdown` devolve o gêmeo `.md` da página.
+   *
+   * O site já servia o markdown, mas só pelo sufixo (`/post.md`). O agente precisa
+   * DESCOBRIR essa convenção; o header é o caminho que ele já tenta por padrão, e é o que
+   * a Cloudflare padronizou. Mesma URL, mesmo canonical, formato conforme quem pede.
+   *
+   * Só quando `text/markdown` vem ANTES de `text/html` na lista: navegador manda
+   * `text/html,...;q=0.9,*&#47;*;q=0.8` e não pode receber markdown por engano.
+   */
+  const aceita = context.request.headers.get('accept') ?? ''
+  if (querMarkdown(aceita) && temGemeoMd(context.url.pathname)) {
+    return context.rewrite(caminhoDoMd(context.url.pathname))
   }
 
   if (precisaDeBarra(context.url.pathname)) {

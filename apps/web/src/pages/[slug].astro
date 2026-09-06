@@ -12,6 +12,7 @@
  * têm prioridade no Astro, então não há conflito.
  */
 import CardPost from '../components/CardPost.astro'
+import Ferramentas from '../components/Ferramentas.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import Compartilhar from '../components/Compartilhar.astro'
 import Base from '../layouts/Base.astro'
@@ -282,6 +283,24 @@ const jsonLd = JSON.stringify({
       </section>
     )
   }
+
+  <Ferramentas
+    tipo="post"
+    dados={{
+      md: `/${post?.slug}.md`,
+      post: {
+        titulo: post?.titulo,
+        autor: autor?.nome ?? null,
+        publicado_em: publicado ? publicado.toISOString() : null,
+        atualizado_em: atualizado ? atualizado.toISOString() : null,
+        categoria: categoria?.nome ?? null,
+        tags: tags.map((t) => t.nome),
+        minutos_de_leitura: minutos,
+        url: canonical,
+      },
+      sumario: sumario.map((i) => ({ titulo: i.texto, ancora: `#${i.id}` })),
+    }}
+  />
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>

@@ -349,6 +349,7 @@ const jsonLd = JSON.stringify({
   <Ferramentas
     tipo="oferta"
     dados={{
+      md: `/ofertas/${oferta.slug}.md`,
       ofertaId: oferta.id,
       cupomId: cupomVisivel?.id ?? null,
       oferta: {
