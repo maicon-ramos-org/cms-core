@@ -12,7 +12,11 @@ import {
   PADRAO_CLARO,
   PADRAO_ESCURO,
   PAPEIS,
+  PARES_CRITICOS,
   SOMBRAS,
+  TOKEN_DO_PAPEL,
+  contraste,
+  declaracoesDoPalco,
   resolvePaleta,
   temaEscuroAtivo,
   type Paleta,
@@ -105,5 +109,86 @@ describe('sombra', () => {
     for (const nivel of ['suave', 'media', 'forte'] as const) {
       expect(alfa(SOMBRAS.escuro[nivel]), nivel).toBeGreaterThan(alfa(SOMBRAS.claro[nivel]))
     }
+  })
+})
+
+/*
+ * ---------------------------------------------------------------------------------------
+ * PRD 13 — o que sustenta a página `/design-system`.
+ *
+ * O guia mostra os dois temas lado a lado emitindo, por palco, uma declaração para cada
+ * papel. O modo de falha é silencioso e específico: papel novo entra no `PAPEIS`, ninguém
+ * lembra do mapa de tokens, e o palco escuro passa a mostrar UM papel a menos que o site
+ * — com cara de correto, porque o valor herdado é o do tema claro.
+ * ---------------------------------------------------------------------------------------
+ */
+describe('contraste (espelho da régua do CMS)', () => {
+  it('preto sobre branco é o máximo da escala', () => {
+    expect(contraste('#000000', '#ffffff')).toBeCloseTo(21, 5)
+  })
+
+  it('a mesma cor contra si mesma é o mínimo', () => {
+    expect(contraste('#6F57D3', '#6F57D3')).toBeCloseTo(1, 5)
+  })
+
+  it('a ordem dos argumentos não muda a razão', () => {
+    expect(contraste('#242424', '#ffffff')).toBe(contraste('#ffffff', '#242424'))
+  })
+
+  it('aceita a forma curta de três dígitos', () => {
+    expect(contraste('#fff', '#000')).toBeCloseTo(21, 5)
+  })
+
+  it('devolve null pro que não é hex — não zero, que passaria por reprovação', () => {
+    expect(contraste('rgb(0 0 0)', '#fff')).toBeNull()
+    expect(contraste('#12345', '#fff')).toBeNull()
+  })
+})
+
+describe('as duas paletas de referência passam na própria auditoria', () => {
+  it.each(PARES_CRITICOS)('$rotulo', (par) => {
+    for (const [nome, paleta] of [
+      ['claro', PADRAO_CLARO],
+      ['escuro', PADRAO_ESCURO],
+    ] as const) {
+      const razao = contraste(paleta[par.frente], paleta[par.fundo])
+      expect(razao, `${nome}: ${par.frente} sobre ${par.fundo}`).not.toBeNull()
+      expect(razao!, `${nome}: ${par.frente} sobre ${par.fundo}`).toBeGreaterThanOrEqual(par.minimo)
+    }
+  })
+
+  it('todo par crítico referencia papel que existe', () => {
+    for (const par of PARES_CRITICOS) {
+      expect(PAPEIS).toContain(par.frente)
+      expect(PAPEIS).toContain(par.fundo)
+    }
+  })
+})
+
+describe('mapa de papel → token CSS', () => {
+  it('cobre exatamente os papéis, sem sobra nem falta', () => {
+    expect(Object.keys(TOKEN_DO_PAPEL).sort()).toEqual([...PAPEIS].sort())
+  })
+
+  it('nenhum papel divide token com outro', () => {
+    const tokens = Object.values(TOKEN_DO_PAPEL)
+    expect(new Set(tokens).size).toBe(tokens.length)
+  })
+
+  it('todo token é uma custom property do prefixo do projeto', () => {
+    for (const token of Object.values(TOKEN_DO_PAPEL)) expect(token).toMatch(/^--rz-[a-z-]+$/)
+  })
+})
+
+describe('declaracoesDoPalco', () => {
+  const css = declaracoesDoPalco(PADRAO_ESCURO, SOMBRAS.escuro)
+
+  it('emite uma declaração por papel mais as três sombras', () => {
+    expect(css.split(';').filter((l) => l.trim() !== '')).toHaveLength(PAPEIS.length + 3)
+  })
+
+  it('leva o valor do papel, e não o nome dele', () => {
+    expect(css).toContain(`--rz-bg: ${PADRAO_ESCURO.cor_fundo};`)
+    expect(css).toContain(`--rz-sombra-forte: ${SOMBRAS.escuro.forte};`)
   })
 })
