@@ -346,6 +346,95 @@ const vars = {
         white-space: nowrap;
       }
 
+      /*
+       * A CAMADA NÃO-CROMÁTICA DO DESIGN SYSTEM (PRD 13).
+       *
+       * Cor já era sistema — 17 papéis, dado do tenant, duas paletas auditadas. Forma,
+       * espaço, elevação e movimento não eram: cada componente escolhia o seu número, e
+       * o site acumulou TREZE raios diferentes dizendo a mesma coisa.
+       *
+       * Mora no `is:global`, e não no bloco escopado acima, por um motivo mecânico: o
+       * seletor precisa alcançar `[data-tema]`, que é elemento de PÁGINA (o palco do
+       * /design-system). Regra escopada do layout não sai do layout.
+       *
+       * `:where()` zera a especificidade — token é padrão, não imposição: qualquer
+       * componente sobrescreve sem precisar de `!important`.
+       */
+      :where(:root, [data-tema]) {
+        /* FORMA — um raio por papel. Os 13 valores de hoje colapsam nestes quatro. */
+        --rz-raio-selo: 6px; /* etiqueta, badge, campo pequeno */
+        --rz-raio-botao: 10px; /* botão, campo de formulário */
+        --rz-raio-cartao: 12px; /* cartão, painel, caixa */
+        --rz-raio-pilula: 999px; /* chip, raspadinha, selo de desconto */
+
+        /* ESPAÇO — escala de 4px. Nome curto: aparece em toda regra de padding e gap. */
+        --rz-espaco-1: 0.25rem;
+        --rz-espaco-2: 0.5rem;
+        --rz-espaco-3: 0.75rem;
+        --rz-espaco-4: 1rem;
+        --rz-espaco-5: 1.5rem;
+        --rz-espaco-6: 2rem;
+        --rz-espaco-7: 3rem;
+
+        /*
+         * ELEVAÇÃO — a sombra INTEIRA, não só o alfa dela. `--rz-sombra-*` já existia e é
+         * só a cor; cada componente remontava o offset por conta, e eram oito
+         * `box-shadow` distintos dizendo "levantei um pouco". Aqui são quatro degraus — e
+         * o degrau no escuro vem de graça, porque `--rz-sombra-*` já troca de alfa por
+         * tema (a mesma sombra que separa cartão branco de fundo branco é invisível entre
+         * dois quase-pretos).
+         */
+        --rz-elevacao-1: 0 1px 2px var(--rz-sombra-suave); /* botão em repouso */
+        --rz-elevacao-2: 0 2px 10px var(--rz-sombra-suave); /* cartão levantado no hover */
+        --rz-elevacao-3: 0 12px 30px var(--rz-sombra-media); /* menu, popover */
+        --rz-elevacao-4: 0 24px 60px var(--rz-sombra-forte); /* diálogo */
+
+        /* MOVIMENTO — duas durações. Cor e borda respondem rápido; forma e sombra, não. */
+        --rz-transicao-rapida: 120ms ease;
+        --rz-transicao: 200ms ease;
+
+        /*
+         * ESTADOS. A regra é uma só: hover MISTURA O PAPEL COM `--rz-ink`.
+         *
+         * É o que conserta o defeito que o tema escuro expôs. O hover do CTA era
+         * `filter: brightness(0.94)`, que ESCURECE. No claro isso lê como "afundou,
+         * respondeu ao mouse"; no escuro, escurecer um verde já escuro sobre fundo
+         * quase preto lê como o botão apagando — e é justamente o único elemento da
+         * página que monetiza o site.
+         *
+         * `--rz-ink` é quase-preto no claro e quase-branco no escuro. Misturar com ele
+         * escurece de dia e clareia de noite: uma expressão, dois temas, nenhum `@media`
+         * e nenhum hex — o que também a mantém dentro da trava do `confere-cor-cravada`.
+         *
+         * Por estarem declarados TAMBÉM em `[data-tema]`, estes recalculam dentro de
+         * qualquer escopo que redeclare os papéis. É assim que o palco escuro do
+         * /design-system mostra o hover escuro sem duplicar uma linha de fórmula.
+         */
+        --rz-action-hover: color-mix(in srgb, var(--rz-action) 88%, var(--rz-ink));
+        --rz-action-ativo: color-mix(in srgb, var(--rz-action) 78%, var(--rz-ink));
+        --rz-brand-hover: color-mix(in srgb, var(--rz-brand) 88%, var(--rz-ink));
+        --rz-surface-hover: color-mix(in srgb, var(--rz-brand) 7%, var(--rz-surface));
+        --rz-anel-foco: 3px;
+        --rz-anel-foco-folga: 2px;
+      }
+
+      /*
+       * Menos movimento, no site INTEIRO. Antes só dois componentes respeitavam a
+       * preferência, cada um com o seu `@media` — e toda transição nova nascia
+       * desobediente. `0.01ms` em vez de `none` de propósito: o evento `transitionend`
+       * continua disparando, então script que espera por ele não trava.
+       */
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
       /* Estas regras miram elementos das PÁGINAS (h1 do post, links do corpo), que o
          style escopado deste layout não alcança — daí o is:global. As variáveis vêm por
          herança do bloco acima, então continuam sendo dado do tenant. */
@@ -365,9 +454,9 @@ const vars = {
       a { color: var(--rz-brand); }
       /* regra 2 do design: foco de teclado visível em TUDO que interage */
       :where(a, button, summary, input, select, textarea):focus-visible {
-        outline: 3px solid var(--rz-brand);
-        outline-offset: 2px;
-        border-radius: 3px;
+        outline: var(--rz-anel-foco) solid var(--rz-brand);
+        outline-offset: var(--rz-anel-foco-folga);
+        border-radius: var(--rz-raio-selo);
       }
       /* regra 1: alvo de toque >= 44px em item de lista clicável */
       main li > a { display: inline-block; padding: 0.25rem 0; min-height: 32px; }
