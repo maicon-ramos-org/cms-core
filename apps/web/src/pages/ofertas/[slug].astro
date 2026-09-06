@@ -104,6 +104,8 @@ const precoEm = oferta.preco?.preco_em ? new Date(oferta.preco.preco_em) : null
  * página baixaria 1280px pra exibir em 620.
  */
 const img = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+/* absoluta: o Google precisa BUSCAR essa imagem, e caminho relativo no schema não serve */
+const imagemUrl = img?.url ? urlMidia(img.url) : undefined
 const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
 const heroSrcset = [
   img?.sizes?.cartao?.url ? `${urlMidia(img.sizes.cartao.url)} 640w` : null,
@@ -129,22 +131,56 @@ const rotuloTipo: Record<string, string> = {
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',
   '@graph': [
+    /*
+     * PRODUCT com `offers` dentro, e não um `Offer` solto.
+     *
+     * O dado era o mesmo e o Google não aproveitava: rich result de preço exige `Product`
+     * com a propriedade `offers` — `Offer` na raiz do grafo não é elegível. A gente tinha
+     * preço, moeda, vendedor e data de conferência publicados num formato que nenhum
+     * buscador lê como produto.
+     */
     {
-      '@type': 'Offer',
-      '@id': `${canonical}#offer`,
+      '@type': 'Product',
+      '@id': `${canonical}#produto`,
       name: oferta.titulo,
       url: canonical,
-      ...(precoValido ? { price: oferta.preco!.valor, priceCurrency: moeda } : {}),
-      ...(precoEm ? { availabilityStarts: precoEm.toISOString() } : {}),
-      // seller SEM url: `lojas.url_site` foi derivado do link de afiliado na migração e
-      // costuma ser o domínio da REDE (m.do.co, anrdoezrs.net). Publicar isso seria link
-      // de afiliado cru no HTML — proibido. Volta quando o campo passar pela curadoria.
-      ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
+      ...(oferta.resumo ? { description: oferta.resumo } : {}),
+      ...(imagemUrl ? { image: imagemUrl } : {}),
+      // a marca do produto é a LOJA que o vende (Hostinger VPS → marca Hostinger)
+      ...(loja ? { brand: { '@type': 'Brand', name: loja.nome } } : {}),
       /*
-       * `discountCode` SAIU (ADR-0007): publicar o código no schema é entregá-lo pronto
-       * ao Google e à resposta de IA, que é exatamente o vazamento que a revelação por
-       * clique fecha. O nó Offer segue com preço, moeda e vendedor.
+       * `offers` só existe quando HÁ preço. O Google exige `price` + `priceCurrency` no
+       * Offer; sem eles o nó não vira rich result e ainda aparece como aviso no teste. Um
+       * Product sem offers é honesto — diz o que é, sem prometer preço que não temos.
        */
+      ...(precoValido
+        ? {
+            offers: {
+              '@type': 'Offer',
+              '@id': `${canonical}#offer`,
+              url: canonical,
+              price: oferta.preco!.valor,
+              priceCurrency: moeda,
+              /*
+               * `priceValidUntil` fica FORA de propósito: a gente sabe quando o preço foi
+               * VISTO, não até quando ele vale. Inventar validade seria a única mentira
+               * possível neste nó.
+               */
+              availability: 'https://schema.org/InStock',
+              ...(precoEm ? { availabilityStarts: precoEm.toISOString() } : {}),
+              // seller SEM url: `lojas.url_site` foi derivado do link de afiliado na
+              // migração e costuma ser o domínio da REDE (m.do.co, anrdoezrs.net).
+              // Publicar isso seria link de afiliado cru no HTML — proibido. Volta quando
+              // o campo passar pela curadoria.
+              ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
+              /*
+               * `discountCode` SAIU (ADR-0007): publicar o código no schema é entregá-lo
+               * pronto ao Google e à resposta de IA, que é exatamente o vazamento que a
+               * revelação por clique fecha.
+               */
+            },
+          }
+        : {}),
     },
     {
       '@type': 'BreadcrumbList',
