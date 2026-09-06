@@ -17,6 +17,7 @@ import Cabecalho from '../components/Cabecalho.astro'
 import Rodape from '../components/Rodape.astro'
 import { urlMidia } from '../lib/cms'
 import { PADRAO_CLARO, PADRAO_ESCURO, SOMBRAS, resolvePaleta, temaEscuroAtivo } from '../lib/tema'
+import { montaGrafo, troncoDoSite, type No } from '@runzos/schema'
 
 /**
  * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
@@ -34,9 +35,16 @@ interface Props {
   canonical?: string
   /** gêmeo em markdown da página (agent-readable) */
   markdown?: string
+  /**
+   * Nós de JSON-LD que ESTA página acrescenta ao tronco (PRD 02 RF6). O tronco
+   * (`Organization → WebSite → WebPage`) sai daqui de graça, em toda página: era ele que
+   * faltava em 149 URLs quando o diff de paridade passou a comparar schema.
+   */
+  schema?: Array<No | null | undefined>
 }
 
-const { titulo, descricao, noindex = false, canonical, markdown } = Astro.props
+const { titulo, descricao, noindex = false, canonical, markdown, schema = [] } = Astro.props
+
 const tenant = Astro.locals.tenant
 const t = tenant.tema ?? {}
 
@@ -156,6 +164,33 @@ const vars = {
   /* o que o navegador deve assumir quando o sistema pede escuro */
   esquemaEscuro: escuroAtivo ? 'dark' : 'light',
 }
+/*
+ * O grafo, em UM bloco por página. Emitir o tronco aqui e não em cada rota é a correção
+ * do defeito que o Gate D expôs: a regra vivia em oito templates e divergia nos oito — a
+ * oferta lembrava de declarar Organization, o post não.
+ *
+ * Sem `canonical` não há `@id` estável, e `@id` instável é pior que schema ausente: o
+ * consumidor passa a ver duas entidades onde havia uma. Nesse caso a página não emite.
+ */
+const grafo = canonical
+  ? montaGrafo([
+      ...troncoDoSite({
+        tenant: {
+          nome: tenant.nome,
+          canonical_host: tenant.canonical_host,
+          // o letreiro da marca, quando o tenant tem — vira `Organization.logo`
+          logo:
+            tenant.tema?.logo && typeof tenant.tema.logo === 'object'
+              ? urlMidia((tenant.tema.logo as { url?: string }).url)
+              : undefined,
+        },
+        url: canonical,
+        titulo,
+        descricao,
+      }),
+      ...schema,
+    ])
+  : null
 ---
 
 <!doctype html>
@@ -175,6 +210,12 @@ const vars = {
     */}
     {noindex && <meta name="robots" content="noindex, follow" />}
     {canonical && <link rel="canonical" href={canonical} />}
+    {/*
+      O grafo de JSON-LD (PRD 02 RF6). `is:inline` porque o Astro não deve processar o
+      conteúdo, e `set:html` porque `JSON.stringify` já produz o texto exato — interpolar
+      como filho escaparia as aspas e o bloco viraria texto inválido pro consumidor.
+    */}
+    {grafo && <script is:inline type="application/ld+json" set:html={JSON.stringify(grafo)} />}
     {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
     {/*
       Ordem importa: o navegador escolhe o ÚLTIMO que entende. `.ico` primeiro como piso,
