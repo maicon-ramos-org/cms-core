@@ -13,6 +13,31 @@ const TTL_MS = 60_000
 const isLocalhost = (host: string) =>
   host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')
 
+/**
+ * Sufixos em que o tenant vem do SUBDOMÍNIO, e não do `canonical_host`.
+ *
+ * Existe porque fora de produção o host NUNCA é o canônico: o mesmo tenant é
+ * `3d.runzos.com` em produção, `3d.dev.runzos.com` em staging e `3d.runzos.local` na
+ * máquina — e canonizar staging pra si mesmo é justamente o que o ADR-0004 proíbe. Sem
+ * esta regra, staging responde 404 em todo tenant que não seja o default.
+ *
+ * O sufixo NU (`dev.runzos.com`, sem subdomínio) cai no DEFAULT_TENANT — mesmo contrato
+ * do localhost.
+ */
+const SUFIXOS_DE_SLUG = (process.env.HOST_SUFIXOS_TENANT ?? '.runzos.local')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+
+/** `3d.dev.runzos.com` → `3d`; `dev.runzos.com` → o default; fora dos sufixos → null. */
+const slugPeloSufixo = (host: string): string | null => {
+  for (const sufixo of SUFIXOS_DE_SLUG) {
+    if (host === sufixo.replace(/^\./, '')) return process.env.DEFAULT_TENANT ?? 'runzos'
+    if (host.endsWith(sufixo)) return host.slice(0, -sufixo.length)
+  }
+  return null
+}
+
 async function resolveTenant(hostComPorta: string): Promise<TenantDTO | null> {
   const host = hostComPorta.split(':')[0] ?? ''
   const agora = Date.now()
@@ -23,9 +48,10 @@ async function resolveTenant(hostComPorta: string): Promise<TenantDTO | null> {
     tenant = isLocalhost(host)
       ? await getTenantBySlug(process.env.DEFAULT_TENANT ?? 'runzos')
       : await getTenantByHost(host)
-    // hosts de dev por tenant: {slug}.runzos.local → resolve pelo slug
-    if (!tenant && host.endsWith('.runzos.local')) {
-      tenant = await getTenantBySlug(host.replace('.runzos.local', ''))
+    // fora de produção o tenant vem do subdomínio: {slug}.runzos.local, {slug}.dev.runzos.com
+    if (!tenant) {
+      const slug = slugPeloSufixo(host)
+      if (slug) tenant = await getTenantBySlug(slug)
     }
   } catch (err) {
     console.error('[middleware] CMS indisponível ao resolver tenant:', (err as Error).message)
