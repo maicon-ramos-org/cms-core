@@ -5,8 +5,9 @@
  * que é o catálogo de cupons; aqui o foco é a empresa.
  */
 import CardOferta from '../../components/CardOferta.astro'
+import { noColecao, noMigalhas } from '@runzos/schema'
 import Base from '../../layouts/Base.astro'
-import { caminhoCanonico, getLojaComMeta, getOfertasDaLoja, urlMidia } from '../../lib/cms'
+import { caminhoDaOferta, caminhoCanonico, getLojaComMeta, getOfertasDaLoja, urlMidia } from '../../lib/cms'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -35,30 +36,35 @@ const logo =
     ? (loja.logo as { url?: string; alt?: string; width?: number; height?: number })
     : null
 
-const jsonLd = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'Organization',
-      '@id': `${canonical}#empresa`,
-      name: loja.nome,
-      // sem `url`: lojas.url_site foi derivado do link de afiliado na migração e costuma
-      // ser o domínio da REDE — publicá-lo seria link de afiliado cru (regra do projeto)
-      ...(logo?.url ? { logo: urlMidia(logo.url) } : {}),
-    },
-    {
-      '@type': 'BreadcrumbList',
-      '@id': `${canonical}#breadcrumb`,
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
-        { '@type': 'ListItem', position: 2, name: loja.nome, item: canonical },
-      ],
-    },
-  ],
-})
+/*
+ * Nós desta página; o tronco vem do Base.
+ *
+ * `CollectionPage` + `ItemList` é o par que o WordPress declarava nas 26 páginas de
+ * empresa e a réplica perdia. A página de empresa É uma coleção de ofertas — dizer isso
+ * no schema é o que a torna elegível a aparecer como lista, em vez de uma página solta.
+ */
+const nosDaPagina = [
+  {
+    '@type': 'Organization',
+    '@id': `${canonical}#empresa`,
+    name: loja.nome,
+    // sem `url`: lojas.url_site foi derivado do link de afiliado na migração e costuma
+    // ser o domínio da REDE — publicá-lo seria link de afiliado cru (regra do projeto)
+    ...(logo?.url ? { logo: urlMidia(logo.url) } : {}),
+  },
+  noMigalhas(canonical, [
+    { nome: 'Início', url: `https://${tenant.canonical_host}/` },
+    { nome: loja.nome, url: canonical },
+  ]),
+  ...noColecao(
+    canonical,
+    `Ofertas ${loja.nome}`,
+    ofertas.map((o) => ({ nome: o.titulo, url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}` })),
+  ),
+]
 ---
 
-<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+<Base titulo={titulo} descricao={descricao} canonical={canonical} schema={nosDaPagina}>
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a><span> › {loja.nome}</span>
   </nav>
@@ -110,7 +116,6 @@ const jsonLd = JSON.stringify({
     )
   }
 
-  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>

@@ -12,6 +12,7 @@
  * têm prioridade no Astro, então não há conflito.
  */
 import CardPost from '../components/CardPost.astro'
+import { noImagem, noMigalhas } from '@runzos/schema'
 import Ferramentas from '../components/Ferramentas.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import Compartilhar from '../components/Compartilhar.astro'
@@ -133,47 +134,52 @@ const publicado = post?.publicado_em ? new Date(post.publicado_em) : null
 const atualizado = post?.atualizado_em ? new Date(post.atualizado_em) : null
 const dataLegivel = (d: Date) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(d)
 
-/** Grafo com @id: BlogPosting + BreadcrumbList (E-E-A-T pede autor identificável). */
-const jsonLd = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'BlogPosting',
-      '@id': `${canonical}#post`,
-      headline: post?.titulo ?? '',
-      url: canonical,
-      mainEntityOfPage: canonical,
-      ...(descricao ? { description: descricao } : {}),
-      ...(publicado ? { datePublished: publicado.toISOString() } : {}),
-      ...(atualizado ? { dateModified: atualizado.toISOString() } : {}),
-      ...(capa?.url ? { image: urlMidia(capa.url) } : {}),
-      ...(autor
-        ? {
-            author: {
-              '@type': 'Person',
-              name: autor.nome,
-              ...(autor.sameAs?.length ? { sameAs: autor.sameAs } : {}),
-            },
-          }
-        : {}),
-      publisher: { '@type': 'Organization', name: tenant.nome, '@id': `https://${tenant.canonical_host}/#org` },
-      ...(categoria ? { articleSection: categoria.nome } : {}),
-      ...(tags.length ? { keywords: tags.map((t) => t.nome).join(', ') } : {}),
-    },
-    {
-      '@type': 'BreadcrumbList',
-      '@id': `${canonical}#breadcrumb`,
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Início', item: `https://${tenant.canonical_host}/` },
-        { '@type': 'ListItem', position: 2, name: post?.titulo ?? '', item: canonical },
-      ],
-    },
-  ],
-})
+/*
+ * Os nós DESTA página. O tronco (`Organization → WebSite → WebPage`) vem do Base, e por
+ * isso não se repete aqui — era ele que faltava em 149 URLs até o Gate D medir schema.
+ *
+ * `Person` e `ImageObject` viram nó PRÓPRIO com `@id`, e o artigo passa a referenciá-los.
+ * Antes o autor era objeto aninhado dentro do BlogPosting: funciona, mas o WordPress
+ * declarava as duas entidades no grafo (Person em 64 URLs, ImageObject em 81), e entidade
+ * com `@id` é o que permite ao consumidor ligá-la à mesma pessoa em outras páginas.
+ */
+const noAutor = autor
+  ? {
+      '@type': 'Person',
+      '@id': `https://${tenant.canonical_host}/#/autor/${autor.slug ?? autor.id}`,
+      name: autor.nome,
+      ...(autor.sameAs?.length ? { sameAs: autor.sameAs } : {}),
+    }
+  : null
+
+const nosDaPagina = [
+  {
+    '@type': 'BlogPosting',
+    '@id': `${canonical}#post`,
+    headline: post?.titulo ?? '',
+    url: canonical,
+    mainEntityOfPage: { '@id': `${canonical}#webpage` },
+    ...(descricao ? { description: descricao } : {}),
+    ...(publicado ? { datePublished: publicado.toISOString() } : {}),
+    ...(atualizado ? { dateModified: atualizado.toISOString() } : {}),
+    ...(capa?.url ? { image: { '@id': `${canonical}#primaryimage` } } : {}),
+    ...(noAutor ? { author: { '@id': noAutor['@id'] } } : {}),
+    publisher: { '@id': `https://${tenant.canonical_host}/#organization` },
+    ...(categoria ? { articleSection: categoria.nome } : {}),
+    ...(tags.length ? { keywords: tags.map((t) => t.nome).join(', ') } : {}),
+  },
+  noAutor,
+  noImagem(canonical, capa?.url ? urlMidia(capa.url) : null),
+  noMigalhas(canonical, [
+    { nome: 'Início', url: `https://${tenant.canonical_host}/` },
+    ...(categoria ? [{ nome: categoria.nome, url: `https://${tenant.canonical_host}/categoria/${categoria.slug}/` }] : []),
+    { nome: post?.titulo ?? '', url: canonical },
+  ]),
+]
 ---
 
 {post && (
-<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${post.slug}.md`}>
+<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${post.slug}.md`} schema={nosDaPagina}>
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a>
     {categoria && <span> › {categoria.nome}</span>}
@@ -302,7 +308,6 @@ const jsonLd = JSON.stringify({
     }}
   />
 
-  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 )}
 

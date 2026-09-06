@@ -7,6 +7,7 @@
  * inteiro no HTML inicial, porque crawler de IA não executa JS.
  */
 import CardOferta from '../../components/CardOferta.astro'
+import { noFaq, noImagem } from '@runzos/schema'
 import Compartilhar from '../../components/Compartilhar.astro'
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
@@ -147,9 +148,7 @@ const rotuloTipo: Record<string, string> = {
  * JSON-LD em GRAFO com @id (regra do projeto): Offer com preço/moeda REAIS do banco +
  * BreadcrumbList. Sem preço no banco não se inventa `price` — o nó Offer sai sem ele.
  */
-const jsonLd = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@graph': [
+const nosDaPagina = [
     /*
      * PRODUCT com `offers` dentro, e não um `Offer` solto.
      *
@@ -219,8 +218,15 @@ const jsonLd = JSON.stringify({
         { '@type': 'ListItem', position: loja ? 3 : 2, name: oferta.titulo, item: canonical },
       ],
     },
-  ],
-})
+  /*
+   * FAQ do lifetime como `FAQPage`. São 50 páginas de oferta onde o WordPress declarava e
+   * a réplica não — e FAQPage é dos poucos rich results que ainda ganham espaço próprio na
+   * SERP. O dado já estava na página (`dados.faq`), renderizado em `<details>`; faltava
+   * dizer ao buscador o que ele é.
+   */
+  noFaq(canonical, ltFaq.map((f) => ({ pergunta: f.q ?? '', resposta: f.a ?? '' }))),
+  noImagem(canonical, imagemUrl),
+]
 ---
 
 <Base
@@ -228,6 +234,7 @@ const jsonLd = JSON.stringify({
   descricao={descricao}
   canonical={canonical}
   markdown={`/ofertas/${oferta.slug}.md`}
+  schema={nosDaPagina}
 >
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a>
@@ -502,7 +509,6 @@ const jsonLd = JSON.stringify({
     }}
   />
 
-  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>

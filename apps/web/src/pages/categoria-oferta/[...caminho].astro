@@ -10,6 +10,7 @@
  * está indexado (decisão de atribuição — melhoria de título é deploy separado).
  */
 import CardOferta from '../../components/CardOferta.astro'
+import { noMigalhas } from '@runzos/schema'
 import Base from '../../layouts/Base.astro'
 import {
   caminhoCanonico,
@@ -52,27 +53,37 @@ const titulo = categoria.meta?.title || `${categoria.nome}: ${ofertas.length} of
 const descricao =
   categoria.meta?.description || `Ofertas de ${categoria.nome} com preço e data de conferência.`
 
-const jsonLd = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@graph': [
-    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
-    {
-      '@type': 'ItemList',
-      '@id': `${canonical}#lista`,
-      numberOfItems: ofertas.length,
-      itemListElement: ofertas.map((o, i) => ({
-        '@type': 'ListItem',
-        position: i + 1,
-        name: o.titulo,
-        // mesma correção do markup: os lifetimes moram em /apps/{slug}
-        url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}`,
-      })),
-    },
-  ],
-})
+/*
+ * Nós desta página; o tronco vem do Base. A trilha entra porque o WordPress declarava
+ * `BreadcrumbList` nas 33 categorias de oferta e a réplica não — e migalha é o que dá ao
+ * resultado da busca o caminho em vez da URL crua.
+ */
+const nosDaPagina = [
+  { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
+  {
+    '@type': 'ItemList',
+    '@id': `${canonical}#lista`,
+    numberOfItems: ofertas.length,
+    itemListElement: ofertas.map((o, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: o.titulo,
+      // mesma correção do markup: os lifetimes moram em /apps/{slug}
+      url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}`,
+    })),
+  },
+  noMigalhas(canonical, [
+    { nome: 'Início', url: `https://${tenant.canonical_host}/` },
+    { nome: 'Ofertas', url: `https://${tenant.canonical_host}/ofertas/` },
+    ...(categoria.pai && typeof categoria.pai === 'object'
+      ? [{ nome: categoria.pai.nome, url: `https://${tenant.canonical_host}/categoria-oferta/${categoria.pai.slug}/` }]
+      : []),
+    { nome: categoria.nome, url: canonical },
+  ]),
+]
 ---
 
-<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+<Base titulo={titulo} descricao={descricao} canonical={canonical} schema={nosDaPagina}>
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a> › <a href="/ofertas/">Ofertas</a>
     {pai && <> › <a href={`/categoria-oferta/${caminhoCanonico(pai.slug)}/`}>{pai.nome}</a></>}
@@ -105,7 +116,6 @@ const jsonLd = JSON.stringify({
     {ofertas.map((o, i) => <CardOferta oferta={o} prioritario={i < 4} />)}
   </div>
 
-  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>
