@@ -1,5 +1,6 @@
 /**
- * GET /api/cupom/{id} → `{ codigo }`. É o que revela o código depois do clique.
+ * GET /api/cupom/{id} → `{ codigo, verificado_em, metodo, condicoes }`. É o que revela o
+ * código depois do clique — e sempre com a data em que ele foi testado.
  *
  * POR QUE O CÓDIGO NÃO SAI NO HTML (mudança de decisão, 2026-09-01 — ver ADR-0007):
  * o site rankeia e é citado por AI Overview justamente nas buscas de cupom. Com o código
@@ -43,5 +44,19 @@ export const GET: APIRoute = async (context) => {
     return new Response(JSON.stringify({ erro: 'não encontrado' }), { status: 404, headers: semCache })
   }
 
-  return new Response(JSON.stringify({ codigo: cupom.codigo }), { status: 200, headers: semCache })
+  /*
+   * O código vem acompanhado da DATA em que foi testado. A regra do projeto — nada de
+   * desconto ou preço sem o carimbo — vale aqui também: este endpoint é a fonte do cupom
+   * pra raspadinha e pra ferramenta WebMCP, e devolver só o código faria as duas
+   * apresentarem um dado sem a prova. A data já é pública: é o que o selo estampa no HTML.
+   */
+  return new Response(
+    JSON.stringify({
+      codigo: cupom.codigo,
+      verificado_em: cupom.verificado_em ?? null,
+      metodo: cupom.metodo ?? null,
+      condicoes: cupom.condicoes ?? null,
+    }),
+    { status: 200, headers: semCache },
+  )
 }

@@ -6,6 +6,10 @@
  * primeiro que um bot ignora, enquanto um `<input>` normal fora da tela ele preenche.
  * `tabindex="-1"` e `autocomplete="off"` mantêm-no fora do caminho de quem usa teclado.
  *
+ * SEM `toolautosubmit` (PRD 11, risco 4): o atributo faria o agente SUBMETER o formulário
+ * sozinho. Mensagem enviada em nome de alguém sem essa pessoa confirmar é spam com o nome
+ * dela. O agente preenche; quem aperta o botão é gente.
+ *
  * O `t` carrega o instante do render pro endpoint medir quanto tempo passou até o envio.
  * Como a página é cacheada por tag, esse valor pode vir de um HTML de minutos atrás — por
  * isso o teste é só de tempo MÍNIMO, nunca de máximo.
@@ -32,7 +36,13 @@ const AVISOS: Record<string, string> = {
       Mensagem recebida. A gente responde no e-mail que você deixou.
     </p>
   ) : (
-    <form class="contato" method="post" action="/api/contato">
+    <form
+      class="contato"
+      method="post"
+      action="/api/contato"
+      toolname="enviar_mensagem_ao_runzos"
+      tooldescription="Preenche uma mensagem para a equipe do Runzos. Quem envia é a pessoa, não o agente."
+    >
       {erro && (
         <p class="erro" role="alert">
           {AVISOS[erro] ?? AVISOS.envio}
@@ -49,17 +59,17 @@ const AVISOS: Record<string, string> = {
 
       <p class="campo">
         <label for="nome">Nome</label>
-        <input id="nome" name="nome" type="text" required maxlength="120" autocomplete="name" />
+        <input id="nome" name="nome" type="text" required maxlength="120" autocomplete="name" toolparamdescription="Nome de quem está escrevendo" />
       </p>
 
       <p class="campo">
         <label for="email">E-mail</label>
-        <input id="email" name="email" type="email" required maxlength="200" autocomplete="email" />
+        <input id="email" name="email" type="email" required maxlength="200" autocomplete="email" toolparamdescription="E-mail para receber a resposta" />
       </p>
 
       <p class="campo">
         <label for="mensagem">Mensagem</label>
-        <textarea id="mensagem" name="mensagem" required maxlength="4000" rows="6" />
+        <textarea id="mensagem" name="mensagem" required maxlength="4000" rows="6" toolparamdescription="O que a pessoa quer dizer" />
       </p>
 
       <button type="submit">Enviar mensagem</button>

@@ -7,6 +7,7 @@
  */
 import CardOferta from '../components/CardOferta.astro'
 import CupomCard from '../components/CupomCard.astro'
+import Ferramentas from '../components/Ferramentas.astro'
 import Base from '../layouts/Base.astro'
 import {
   getCuponsDaLoja,
@@ -220,6 +221,20 @@ const jsonLd = JSON.stringify({
       </section>
     )
   }
+
+  {/* PRD 11: id e data de cada cupom; o CÓDIGO não entra aqui (ADR-0007) */}
+  <Ferramentas
+    tipo="loja"
+    dados={{
+      loja: loja.nome,
+      cupons: cupons.map((c) => ({
+        id: c.id,
+        verificado_em: c.verificado_em ?? null,
+        desconto: c.desconto_valor ?? null,
+        condicoes: c.condicoes ?? null,
+      })),
+    }}
+  />
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>

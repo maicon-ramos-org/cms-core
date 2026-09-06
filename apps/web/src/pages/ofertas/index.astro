@@ -13,6 +13,7 @@
  * `/cupom-{loja}/` lista as ofertas daquela loja, e o rel=next leva o rastreador ao fim.
  */
 import CardOferta from '../../components/CardOferta.astro'
+import Ferramentas from '../../components/Ferramentas.astro'
 import Base from '../../layouts/Base.astro'
 import { caminhoDaOferta, getOfertasPaginadas, type OfertaDTO } from '../../lib/cms'
 
@@ -93,6 +94,8 @@ const href = (n: number): string => (n === 1 ? '/ofertas/' : `/ofertas/?pagina=$
     {pagina > 1 && <a rel="prev" href={href(pagina - 1)}>← Anteriores</a>}
     {pagina < totalPages && <a rel="next" href={href(pagina + 1)}>Próximas →</a>}
   </nav>
+
+  <Ferramentas tipo="catalogo" />
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>

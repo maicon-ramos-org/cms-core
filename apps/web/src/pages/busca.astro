@@ -29,7 +29,14 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
     precisava voltar ao menu e reabrir a busca pra tentar outra palavra — o formulário é
     GET nativo, funciona sem JS e já vem preenchido com o termo atual.
   */}
-  <form class="refina" action="/busca/" method="get" role="search">
+  <form
+    class="refina"
+    action="/busca/"
+    method="get"
+    role="search"
+    toolname="refinar_busca"
+    tooldescription="Refaz a busca do Runzos com outro termo."
+  >
     <label class="sr-only" for="q">Buscar no site</label>
     <input id="q" type="search" name="q" value={termo} placeholder="Buscar oferta, cupom ou artigo" />
     <button type="submit">Buscar</button>

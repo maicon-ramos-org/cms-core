@@ -10,6 +10,7 @@ import CardOferta from '../../components/CardOferta.astro'
 import Compartilhar from '../../components/Compartilhar.astro'
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
+import Ferramentas from '../../components/Ferramentas.astro'
 import Base from '../../layouts/Base.astro'
 import { compor } from '@runzos/desconto'
 
@@ -340,6 +341,27 @@ const jsonLd = JSON.stringify({
       <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta" ref="barra" />
     )}
   </div>
+
+  {/*
+    Ferramentas WebMCP desta oferta (PRD 11). O `verificado_em` e o `preco_em` vão junto
+    porque a regra de nunca mostrar número sem carimbo vale pra ferramenta também.
+  */}
+  <Ferramentas
+    tipo="oferta"
+    dados={{
+      ofertaId: oferta.id,
+      cupomId: cupomVisivel?.id ?? null,
+      oferta: {
+        titulo: oferta.titulo,
+        loja: loja?.nome ?? null,
+        preco: precoFormatado,
+        preco_em: precoEm ? precoEm.toISOString() : null,
+        desconto_loja: oferta.desconto_loja?.valor ?? null,
+        rotulo: oferta.rotulo_oferta ?? null,
+        url: canonical,
+      },
+    }}
+  />
 
   <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
