@@ -56,9 +56,14 @@ const src = logo?.url ? urlMidia(logo.url) : null
 
   .logo-loja img {
     max-width: 100%;
-    max-height: 100%;
+    /*
+     * ALTURA RESOLVIDA, não `auto`. A maioria dos logos é SVG só com `viewBox`, sem
+     * dimensão intrínseca: com `height: auto` num item flex a caixa resolvia em ZERO e a
+     * fileira inteira ficava de cartões vazios — os PNG apareciam, os SVG não. Com a
+     * altura vinda do contêiner, a razão do viewBox dá a largura.
+     */
+    height: 100%;
     width: auto;
-    height: auto;
     object-fit: contain;
     /* opacidade junto do cinza: logo cinza puro ainda pesa demais numa fileira de 26 */
     filter: grayscale(1);
