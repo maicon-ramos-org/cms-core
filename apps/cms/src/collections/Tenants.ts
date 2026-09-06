@@ -102,6 +102,25 @@ export const Tenants: CollectionConfig = {
               'letreiro em 16px é borrão — não é a mesma imagem em tamanho menor.',
           },
         },
+        /*
+         * O CONJUNTO de ícones, não um arquivo só. `favicon` acima é o histórico; cada
+         * plataforma pede um formato próprio, e todos saem da MÍDIA do tenant — ícone em
+         * `public/` é marca cravada, e o segundo tenant tem a dele.
+         *
+         * Os cinco vieram do LOGO vetorial (o "O" de RUNZOS), não do PNG de 208px que o
+         * WordPress serve: recortado do vetor, o mesmo símbolo sai nítido em 512.
+         */
+        {
+          name: 'icones',
+          type: 'group',
+          fields: [
+            { name: 'svg', type: 'upload', relationTo: 'midia', admin: { description: 'vetor — navegador moderno, nítido em qualquer tamanho' } },
+            { name: 'ico', type: 'upload', relationTo: 'midia', admin: { description: 'favicon.ico 32px — navegador antigo' } },
+            { name: 'apple', type: 'upload', relationTo: 'midia', admin: { description: 'apple-touch-icon 180px — atalho no iOS' } },
+            { name: 'png192', type: 'upload', relationTo: 'midia', admin: { description: 'manifest 192px — Android' } },
+            { name: 'png512', type: 'upload', relationTo: 'midia', admin: { description: 'manifest 512px — splash da PWA' } },
+          ],
+        },
         { name: 'fonte_titulos', type: 'text', defaultValue: 'Lexend Deca', admin: { description: 'família self-hosted (PRD 02)' } },
         { name: 'fonte_corpo', type: 'text', defaultValue: 'Open Sans', admin: { description: 'família self-hosted (PRD 02)' } },
       ],

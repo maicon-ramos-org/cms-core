@@ -69,6 +69,14 @@ export interface TenantDTO {
     logo?: MidiaDTO | string | number | null
     /** ícone QUADRADO da aba — não é o logo em tamanho menor; ver colecoes.md */
     favicon?: MidiaDTO | string | number | null
+    /** o conjunto de ícones — um por formato que as plataformas pedem */
+    icones?: {
+      svg?: MidiaDTO | string | number | null
+      ico?: MidiaDTO | string | number | null
+      apple?: MidiaDTO | string | number | null
+      png192?: MidiaDTO | string | number | null
+      png512?: MidiaDTO | string | number | null
+    } | null
   }
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean

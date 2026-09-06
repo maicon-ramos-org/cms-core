@@ -50,6 +50,24 @@ const favicon =
     ? { url: urlMidia(midiaFavicon.url), tipo: midiaFavicon.url.endsWith('.svg') ? 'image/svg+xml' : 'image/png' }
     : null
 
+/*
+ * O CONJUNTO de ícones. Um arquivo só não serve: o Safari quer PNG de 180 pro atalho, o
+ * Android quer 192/512 pelo manifest, e navegador antigo quer .ico. O SVG cobre os
+ * modernos e escala sozinho — por isso vem primeiro na ordem.
+ *
+ * `tema.favicon` (um SVG solto) continua como reserva pra tenant que ainda não tem o
+ * conjunto: o 3d, por exemplo.
+ */
+const url = (m: unknown): string | undefined =>
+  m && typeof m === 'object' && (m as { url?: string }).url ? urlMidia((m as { url?: string }).url) : undefined
+const ic = tenant.tema?.icones ?? {}
+const icones = {
+  svg: url(ic.svg) ?? (favicon?.tipo === 'image/svg+xml' ? favicon.url : undefined),
+  ico: url(ic.ico),
+  apple: url(ic.apple),
+}
+const temManifest = Boolean(url(ic.png192) && url(ic.png512))
+
 const tokens = {
   brand: t.cor_primaria ?? '#6F57D3',
   bg: t.cor_fundo ?? '#ffffff',
@@ -89,7 +107,22 @@ const tokens = {
     {noindex && <meta name="robots" content="noindex, follow" />}
     {canonical && <link rel="canonical" href={canonical} />}
     {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
-    {favicon && <link rel="icon" type={favicon.tipo} href={favicon.url} />}
+    {/*
+      Ordem importa: o navegador escolhe o ÚLTIMO que entende. `.ico` primeiro como piso,
+      SVG depois porque é o melhor onde há suporte.
+    */}
+    {icones.ico && <link rel="icon" href={icones.ico} sizes="32x32" />}
+    {icones.svg && <link rel="icon" type="image/svg+xml" href={icones.svg} />}
+    {icones.apple && <link rel="apple-touch-icon" href={icones.apple} />}
+    {temManifest && <link rel="manifest" href="/manifest.webmanifest" />}
+    {/*
+      `theme-color` pinta a barra do navegador no celular. Duas: a superfície clara no tema
+      claro e o fundo escuro no escuro — uma cor só faria o texto do sistema sumir em um
+      dos dois. Saem do TEMA do tenant, como o resto.
+    */}
+    <meta name="theme-color" content={tenant.tema?.cor_superficie_marca ?? '#ffffff'} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141220" media="(prefers-color-scheme: dark)" />
+    <meta name="msapplication-TileColor" content={tenant.tema?.cor_primaria ?? '#ffffff'} />
     <link rel="preload" href="/fontes/open-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fontes/lexend-deca-latin.woff2" as="font" type="font/woff2" crossorigin />
     <style is:inline set:html={fontesCss}></style>
