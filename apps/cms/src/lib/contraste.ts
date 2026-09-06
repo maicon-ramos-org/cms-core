@@ -43,7 +43,15 @@ export function contraste(corA: string, corB: string): number | null {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
 
-/** Pares que o design-tokens.md v1.1 marca como críticos, com o mínimo de cada um. */
+/**
+ * Pares que o design-tokens.md v1.1 marca como críticos, com o mínimo de cada um.
+ *
+ * Os cinco últimos entraram com o tema escuro (PRD 12 RF4). Não são zelo extra: no tema
+ * claro `cor_fundo` e `cor_superficie` são os dois o mesmo branco, então "texto no fundo
+ * da página" vinha coberto de graça pelo par do cartão. No escuro os dois divergem — a
+ * página é mais escura que o cartão —, e o par que ninguém media passa a ser justamente o
+ * que pode reprovar.
+ */
 export const PARES_CRITICOS: Array<{ frente: string; fundo: string; minimo: number; rotulo: string }> = [
   { frente: 'cor_sobre_acao', fundo: 'cor_acao', minimo: 4.5, rotulo: 'texto do botão de monetização' },
   { frente: 'cor_texto', fundo: 'cor_superficie', minimo: 4.5, rotulo: 'texto do corpo' },
@@ -51,4 +59,17 @@ export const PARES_CRITICOS: Array<{ frente: string; fundo: string; minimo: numb
   { frente: 'cor_verificado', fundo: 'cor_superficie_verificado', minimo: 4.5, rotulo: 'selo de verificação' },
   { frente: 'cor_desconto', fundo: 'cor_superficie', minimo: 3.0, rotulo: 'número do desconto (texto grande)' },
   { frente: 'cor_primaria', fundo: 'cor_superficie', minimo: 4.5, rotulo: 'link e marca' },
+  { frente: 'cor_sobre_marca', fundo: 'cor_primaria', minimo: 4.5, rotulo: 'texto sobre a marca (chip ativo, CTA)' },
+  { frente: 'cor_texto', fundo: 'cor_fundo', minimo: 4.5, rotulo: 'texto do corpo no fundo da página' },
+  { frente: 'cor_apoio', fundo: 'cor_superficie', minimo: 4.5, rotulo: 'texto de apoio na superfície' },
+  { frente: 'cor_sutil', fundo: 'cor_fundo', minimo: 4.5, rotulo: 'trilha e placeholder no fundo da página' },
+  { frente: 'cor_aviso', fundo: 'cor_superficie_expirado', minimo: 4.5, rotulo: 'aviso no bloco de expirados' },
 ]
+
+/**
+ * Os dois conjuntos de valores que os papéis acima podem assumir. Um tenant tem uma paleta
+ * clara e (se ligada) uma escura; a régua é a MESMA para as duas — é isso que separa
+ * "tema escuro" de "filtro por cima do claro".
+ */
+export const GRUPOS_DE_TEMA = ['tema', 'tema_escuro'] as const
+export type GrupoDeTema = (typeof GRUPOS_DE_TEMA)[number]
