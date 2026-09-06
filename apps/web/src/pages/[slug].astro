@@ -412,7 +412,15 @@ const jsonLd = JSON.stringify({
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
     gap: 1.1rem;
-  }
+      /*
+     * TRÊS por linha no desktop, não quatro. Com o container fluido até 1520px, quatro
+     * colunas davam cartão estreito numa tela larga — o oposto do que a largura extra
+     * serve. Abaixo de 62rem o `auto-fill` acima assume e a grade se vira sozinha.
+     */
+    @media (min-width: 62rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
   .corpo :global(img) { max-width: 100%; height: auto; }
   .corpo :global(.tabela-rolavel) { overflow-x: auto; margin: 1rem 0; }
   .corpo :global(table) { border-collapse: collapse; min-width: 100%; font-size: 0.95rem; }

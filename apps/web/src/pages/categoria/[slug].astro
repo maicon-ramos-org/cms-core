@@ -117,6 +117,14 @@ const jsonLd = JSON.stringify({
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
     gap: 1.1rem;
-  }
+      /*
+     * TRÊS por linha no desktop, não quatro. Com o container fluido até 1520px, quatro
+     * colunas davam cartão estreito numa tela larga — o oposto do que a largura extra
+     * serve. Abaixo de 62rem o `auto-fill` acima assume e a grade se vira sozinha.
+     */
+    @media (min-width: 62rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
   .paginacao { display: flex; gap: 1.5rem; margin-top: 1.5rem; }
 </style>

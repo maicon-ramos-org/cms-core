@@ -140,7 +140,15 @@ const tokens = {
          * para ler. Container largo com texto estreito é o arranjo certo — por isso são
          * dois tokens, e não um.
          */
-        --rz-container: 74.5rem;
+        /*
+         * FLUIDO até 95rem (1520px). Antes era fixo em 74,5rem: numa tela de 1440 ou 1680
+         * sobrava margem vazia dos dois lados enquanto os cartões apertavam.
+         *
+         * `100vw - 5.5rem` mantém exatamente a largura de antes num viewport de 1280 (os
+         * mesmos 1192px), então nada muda onde já estava bom — só cresce onde havia espaço
+         * ocioso. O teto de 95rem é o do runzos de referência, medido: 1518px.
+         */
+        --rz-container: min(95rem, 100vw - 5.5rem);
         --rz-medida: 48rem;
         --rz-fonte-titulos: var(--fontTitulos), 'Segoe UI', Arial, sans-serif;
         --rz-fonte-corpo: var(--fontCorpo), 'Segoe UI', Arial, sans-serif;
