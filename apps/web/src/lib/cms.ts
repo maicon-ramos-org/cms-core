@@ -72,6 +72,8 @@ export interface TenantDTO {
   }
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean
+  /** liga o polyfill do WebMCP pra quem não tem suporte nativo (PRD 11 RF10) */
+  webmcp_polyfill?: boolean | null
   seo?: { title_pattern_loja?: string; gsc_property?: string; sitemap_enabled?: boolean }
 }
 

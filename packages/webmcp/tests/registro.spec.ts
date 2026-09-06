@@ -56,14 +56,18 @@ describe('suportaWebMCP', () => {
 
 describe('registraFerramentas', () => {
   it('não lança e não registra nada onde a API não existe', async () => {
-    await expect(registraFerramentas([leitura])).resolves.toEqual({ registradas: 0, suportado: false })
+    await expect(registraFerramentas([leitura])).resolves.toEqual({
+      registradas: 0,
+      suportado: false,
+      polyfill: false,
+    })
   })
 
   it('registra cada ferramenta uma vez, preservando nome e anotações', async () => {
     const mc = fingeSuporte()
     const r = await registraFerramentas([leitura, consequente])
 
-    expect(r).toEqual({ registradas: 2, suportado: true })
+    expect(r).toEqual({ registradas: 2, suportado: true, polyfill: false })
     expect(mc.registerTool).toHaveBeenCalledTimes(2)
     const nomes = mc.registerTool.mock.calls.map((c) => (c[0] as Ferramenta).name)
     expect(nomes).toEqual(['resumo_da_oferta', 'ir_para_a_loja'])
@@ -82,7 +86,7 @@ describe('registraFerramentas', () => {
 
   it('lista vazia é no-op, mesmo com suporte', async () => {
     const mc = fingeSuporte()
-    await expect(registraFerramentas([])).resolves.toEqual({ registradas: 0, suportado: true })
+    await expect(registraFerramentas([])).resolves.toEqual({ registradas: 0, suportado: true, polyfill: false })
     expect(mc.registerTool).not.toHaveBeenCalled()
   })
 })
@@ -116,5 +120,55 @@ describe('o que o execute devolve', () => {
     const registrada = mc.registerTool.mock.calls[0]![0] as Ferramenta
     const saida = (await registrada.execute({}, { signal: new AbortController().signal })) as string
     expect(saida).toContain('cupom expirado')
+  })
+})
+
+describe('polyfill sob demanda (RF10)', () => {
+  /*
+   * O polyfill pesa ~20KB e só serve a quem tem um CONSUMIDOR — extensão que leia
+   * `document.modelContext`. Sem consumidor, são 20KB pra registrar ferramenta que
+   * ninguém lê. Por isso ele nunca é estático: entra por importação dinâmica, e só
+   * quando quem chama pede.
+   */
+  it('não carrega nada quando há suporte nativo — nem se for pedido', async () => {
+    const mc = fingeSuporte()
+    let carregou = false
+    const r = await registraFerramentas([leitura], {
+      polyfill: async () => {
+        carregou = true
+      },
+    })
+    expect(carregou).toBe(false)
+    expect(r).toEqual({ registradas: 1, suportado: true, polyfill: false })
+    expect(mc.registerTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem suporte e SEM pedir polyfill: segue no-op silencioso', async () => {
+    await expect(registraFerramentas([leitura])).resolves.toEqual({
+      registradas: 0,
+      suportado: false,
+      polyfill: false,
+    })
+  })
+
+  it('sem suporte e com polyfill pedido: carrega, e então registra', async () => {
+    let mc: { registerTool: ReturnType<typeof vi.fn> } | null = null
+    const r = await registraFerramentas([leitura, consequente], {
+      // o polyfill de verdade instala `document.modelContext`; aqui o dublê faz o mesmo
+      polyfill: async () => {
+        mc = fingeSuporte()
+      },
+    })
+    expect(r).toEqual({ registradas: 2, suportado: true, polyfill: true })
+    expect(mc!.registerTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('polyfill que falha não derruba a página — só não registra', async () => {
+    const r = await registraFerramentas([leitura], {
+      polyfill: async () => {
+        throw new Error('rede fora')
+      },
+    })
+    expect(r).toEqual({ registradas: 0, suportado: false, polyfill: false })
   })
 })

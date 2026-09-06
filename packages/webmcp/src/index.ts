@@ -35,6 +35,20 @@ export interface Ferramenta {
 export interface ResultadoDoRegistro {
   registradas: number
   suportado: boolean
+  /** o polyfill precisou entrar em campo nesta página? */
+  polyfill: boolean
+}
+
+export interface OpcoesDoRegistro {
+  /**
+   * Como carregar o polyfill quando NÃO há suporte nativo. Recebe uma função em vez de um
+   * booleano porque quem decide o `import()` é o app — assim o pacote do polyfill vira um
+   * pedaço separado, baixado só por quem precisa, e o site que não quiser polyfill nem
+   * inclui a dependência no bundle.
+   *
+   * Ausente = comportamento de antes: sem suporte, no-op silencioso.
+   */
+  polyfill?: () => Promise<void>
 }
 
 interface ModelContext {
@@ -74,9 +88,28 @@ const embrulha = (f: Ferramenta): Ferramenta => ({
  * Registra a lista na página atual. Falha de UMA ferramenta não impede as outras — mesma
  * regra do import (RF8 do PRD 03): um item ruim não derruba o lote.
  */
-export async function registraFerramentas(lista: Ferramenta[]): Promise<ResultadoDoRegistro> {
-  const mc = modelContext()
-  if (!mc) return { registradas: 0, suportado: false }
+export async function registraFerramentas(
+  lista: Ferramenta[],
+  opcoes: OpcoesDoRegistro = {},
+): Promise<ResultadoDoRegistro> {
+  let mc = modelContext()
+  let polyfill = false
+
+  /*
+   * Polyfill SÓ quando não há nativo, e só se pedirem. A ordem importa: tentar o nativo
+   * primeiro é o que garante que quem já tem WebMCP no navegador não baixe 20KB à toa.
+   */
+  if (!mc && opcoes.polyfill) {
+    try {
+      await opcoes.polyfill()
+      mc = modelContext()
+      polyfill = mc !== null
+    } catch {
+      // polyfill que não carrega é uma camada a menos, nunca uma página quebrada
+    }
+  }
+
+  if (!mc) return { registradas: 0, suportado: false, polyfill: false }
 
   let registradas = 0
   for (const f of lista) {
@@ -87,5 +120,5 @@ export async function registraFerramentas(lista: Ferramenta[]): Promise<Resultad
       // segue pro próximo: ferramenta que não registra é uma a menos, não a página quebrada
     }
   }
-  return { registradas, suportado: true }
+  return { registradas, suportado: true, polyfill }
 }

@@ -135,6 +135,15 @@ export const Tenants: CollectionConfig = {
       ],
     },
     { name: 'chat_enabled', type: 'checkbox', required: true, defaultValue: false },
+    {
+      name: 'webmcp_polyfill',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description:
+          'carrega o polyfill do WebMCP em quem NÃO tem suporte nativo (~20KB, sob demanda). Desligado por padrão: sem extensão que consuma, as ferramentas registradas não são lidas por ninguém',
+      },
+    },
     { name: 'broadcast_enabled', type: 'checkbox', required: true, defaultValue: false },
     { name: 'chat_system_prompt', type: 'textarea' },
     {
