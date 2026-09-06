@@ -49,6 +49,8 @@ export interface TenantDTO {
   /** papéis do design system (design-tokens.md v1.0.0) — ver contrato colecoes.md */
   tema?: {
     cor_primaria?: string
+    /** texto POR CIMA da marca — chip ativo, CTA do cabeçalho */
+    cor_sobre_marca?: string
     cor_fundo?: string
     cor_acao?: string
     cor_sobre_acao?: string
@@ -60,6 +62,7 @@ export interface TenantDTO {
     cor_superficie?: string
     cor_superficie_marca?: string
     cor_superficie_verificado?: string
+    cor_borda?: string
     cor_borda_codigo?: string
     cor_superficie_expirado?: string
     cor_aviso?: string
@@ -78,6 +81,32 @@ export interface TenantDTO {
       png512?: MidiaDTO | string | number | null
     } | null
   }
+  /**
+   * PRD 12 — os mesmos papéis, com os valores de quando o sistema do leitor está no
+   * escuro. `ativo` é o interruptor: sem ele o site serve só o claro.
+   */
+  tema_escuro?: {
+    ativo?: boolean | null
+    cor_primaria?: string
+    cor_sobre_marca?: string
+    cor_fundo?: string
+    cor_acao?: string
+    cor_sobre_acao?: string
+    cor_desconto?: string
+    cor_verificado?: string
+    cor_texto?: string
+    cor_apoio?: string
+    cor_sutil?: string
+    cor_superficie?: string
+    cor_superficie_marca?: string
+    cor_superficie_verificado?: string
+    cor_borda?: string
+    cor_borda_codigo?: string
+    cor_superficie_expirado?: string
+    cor_aviso?: string
+    /** letreiro alternativo — só existe pra logo de tinta escura, que some no fundo escuro */
+    logo?: MidiaDTO | string | number | null
+  } | null
   programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   chat_enabled?: boolean
   /** liga o polyfill do WebMCP pra quem não tem suporte nativo (PRD 11 RF10) */

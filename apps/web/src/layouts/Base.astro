@@ -16,6 +16,7 @@ import fontesCss from '../../public/fontes/fontes.css?raw'
 import Cabecalho from '../components/Cabecalho.astro'
 import Rodape from '../components/Rodape.astro'
 import { urlMidia } from '../lib/cms'
+import { PADRAO_CLARO, PADRAO_ESCURO, SOMBRAS, resolvePaleta, temaEscuroAtivo } from '../lib/tema'
 
 /**
  * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
@@ -68,24 +69,92 @@ const icones = {
 }
 const temManifest = Boolean(url(ic.png192) && url(ic.png512))
 
-const tokens = {
-  brand: t.cor_primaria ?? '#6F57D3',
-  bg: t.cor_fundo ?? '#ffffff',
-  action: t.cor_acao ?? '#07C03B',
-  onAction: t.cor_sobre_acao ?? '#04240b',
-  deal: t.cor_desconto ?? '#AC0167',
-  verified: t.cor_verificado ?? '#0a7a2c',
-  ink: t.cor_texto ?? '#242424',
-  muted: t.cor_apoio ?? '#6b6b6b',
-  subtle: t.cor_sutil ?? '#746a90',
-  surface: t.cor_superficie ?? '#ffffff',
-  surfaceBrand: t.cor_superficie_marca ?? '#faf9ff',
-  surfaceVerified: t.cor_superficie_verificado ?? '#f4fdf7',
-  bordaCodigo: t.cor_borda_codigo ?? '#cbbff0',
-  surfaceExpirado: t.cor_superficie_expirado ?? '#f4f6f9',
-  aviso: t.cor_aviso ?? '#9a5b08',
+/*
+ * AS DUAS PALETAS (PRD 12). O escuro não é filtro sobre o claro: são dois conjuntos de
+ * valores para os mesmos papéis, os dois auditados pela trava de contraste do Payload.
+ *
+ * As duas saem SEMPRE no mesmo HTML, e é o `@media (prefers-color-scheme: dark)` lá
+ * embaixo que escolhe. Isso é o que mantém a página única por rota: o cache por tag do
+ * ADR-0001 não se divide em variantes, o rastreador recebe o mesmo documento de sempre, e
+ * não existe momento em que a tela pisca claro antes de virar escura — nada disso depende
+ * de JavaScript.
+ */
+const claro = resolvePaleta(t, PADRAO_CLARO)
+const escuroAtivo = temaEscuroAtivo(tenant)
+/*
+ * Tenant sem paleta escura curada recebe a CLARA de volta dentro do bloco escuro. Parece
+ * redundante e é de propósito: o CSS sai sempre com a mesma forma (nada de bloco que
+ * aparece e some, que é onde o Astro e o cache brigam), e um tenant sem escuro
+ * simplesmente não muda de cor quando o sistema está no escuro. Melhor claro numa tela
+ * escura do que um escuro deduzido no chute.
+ */
+const escuro = escuroAtivo ? resolvePaleta(tenant.tema_escuro, PADRAO_ESCURO) : claro
+const sombras = escuroAtivo ? SOMBRAS.escuro : SOMBRAS.claro
+
+/*
+ * A SUPERFÍCIE INVERTIDA (rodapé). No tema claro ela é a inversão literal dos papéis: o
+ * fundo vira a cor do texto e o texto vira a cor do fundo — a laje escura que separa o
+ * rodapé do resto da página.
+ *
+ * No escuro essa mesma conta se vira contra si mesma: `--rz-ink` já é quase-branco, e o
+ * rodapé viraria uma laje BRANCA no pé de uma página escura — o defeito mais visível que
+ * um tema escuro mal feito produz. Então no escuro a laje deixa de ser inversão e passa a
+ * ser elevação: a superfície de marca, que é um degrau acima do fundo.
+ *
+ * Fica resolvido AQUI, e não com um segundo `@media` dentro do rodapé, porque só este
+ * arquivo sabe se o tenant TEM tema escuro. Um media query solto no componente pintaria o
+ * rodapé de um tenant que optou por ficar só no claro.
+ */
+const inverso = escuroAtivo
+  ? { fundo: escuro.cor_superficie_marca, ink: escuro.cor_texto }
+  : { fundo: claro.cor_texto, ink: claro.cor_fundo }
+
+const fontes = {
   fontTitulos: t.fonte_titulos ?? 'Lexend Deca',
   fontCorpo: t.fonte_corpo ?? 'Open Sans',
+}
+
+/**
+ * Os nomes curtos que `define:vars` injeta. Prefixo `d` = escuro. Um mapa por paleta, com
+ * as MESMAS chaves — se um papel existir só de um lado, o token fica indefinido e a
+ * página perde a cor no tema em que ninguém olhou.
+ */
+const varsDoTema = (p: typeof claro, prefixo = '') => ({
+  [`${prefixo}brand`]: p.cor_primaria,
+  [`${prefixo}onBrand`]: p.cor_sobre_marca,
+  [`${prefixo}bg`]: p.cor_fundo,
+  [`${prefixo}action`]: p.cor_acao,
+  [`${prefixo}onAction`]: p.cor_sobre_acao,
+  [`${prefixo}deal`]: p.cor_desconto,
+  [`${prefixo}verified`]: p.cor_verificado,
+  [`${prefixo}ink`]: p.cor_texto,
+  [`${prefixo}muted`]: p.cor_apoio,
+  [`${prefixo}subtle`]: p.cor_sutil,
+  [`${prefixo}surface`]: p.cor_superficie,
+  [`${prefixo}surfaceBrand`]: p.cor_superficie_marca,
+  [`${prefixo}surfaceVerified`]: p.cor_superficie_verificado,
+  [`${prefixo}borda`]: p.cor_borda,
+  [`${prefixo}bordaCodigo`]: p.cor_borda_codigo,
+  [`${prefixo}surfaceExpirado`]: p.cor_superficie_expirado,
+  [`${prefixo}aviso`]: p.cor_aviso,
+})
+
+const vars = {
+  ...varsDoTema(claro),
+  ...varsDoTema(escuro, 'd'),
+  ...fontes,
+  sombraSuave: SOMBRAS.claro.suave,
+  sombraMedia: SOMBRAS.claro.media,
+  sombraForte: SOMBRAS.claro.forte,
+  dSombraSuave: sombras.suave,
+  dSombraMedia: sombras.media,
+  dSombraForte: sombras.forte,
+  inversoFundo: claro.cor_texto,
+  inversoInk: claro.cor_fundo,
+  dInversoFundo: inverso.fundo,
+  dInversoInk: inverso.ink,
+  /* o que o navegador deve assumir quando o sistema pede escuro */
+  esquemaEscuro: escuroAtivo ? 'dark' : 'light',
 }
 ---
 
@@ -120,35 +189,24 @@ const tokens = {
       claro e o fundo escuro no escuro — uma cor só faria o texto do sistema sumir em um
       dos dois. Saem do TEMA do tenant, como o resto.
     */}
-    <meta name="theme-color" content={tenant.tema?.cor_superficie_marca ?? '#ffffff'} media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#141220" media="(prefers-color-scheme: dark)" />
-    <meta name="msapplication-TileColor" content={tenant.tema?.cor_primaria ?? '#ffffff'} />
+    <meta name="theme-color" content={claro.cor_superficie_marca} media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content={escuro.cor_superficie_marca} media="(prefers-color-scheme: dark)" />
+    <meta name="msapplication-TileColor" content={claro.cor_primaria} />
     <link rel="preload" href="/fontes/open-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fontes/lexend-deca-latin.woff2" as="font" type="font/woff2" crossorigin />
     <style is:inline set:html={fontesCss}></style>
     <style
-      define:vars={{
-        brand: tokens.brand,
-        bg: tokens.bg,
-        action: tokens.action,
-        onAction: tokens.onAction,
-        deal: tokens.deal,
-        verified: tokens.verified,
-        ink: tokens.ink,
-        muted: tokens.muted,
-        subtle: tokens.subtle,
-        surface: tokens.surface,
-        surfaceBrand: tokens.surfaceBrand,
-        surfaceVerified: tokens.surfaceVerified,
-        bordaCodigo: tokens.bordaCodigo,
-        surfaceExpirado: tokens.surfaceExpirado,
-        aviso: tokens.aviso,
-        fontTitulos: tokens.fontTitulos,
-        fontCorpo: tokens.fontCorpo,
-      }}
+      define:vars={vars}
     >
       :root {
+        /*
+         * `color-scheme` não é enfeite: é o que faz campo de formulário, barra de rolagem,
+         * `<select>` nativo e a moldura que o navegador desenha acompanharem o tema. Sem
+         * ele o site escurece e as caixas de texto continuam brancas.
+         */
+        color-scheme: light;
         --rz-brand: var(--brand);
+        --rz-on-brand: var(--onBrand);
         --rz-bg: var(--bg);
         --rz-action: var(--action);
         --rz-on-action: var(--onAction);
@@ -163,7 +221,13 @@ const tokens = {
         --rz-borda-codigo: var(--bordaCodigo);
         --rz-surface-expirado: var(--surfaceExpirado);
         --rz-aviso: var(--aviso);
-        --rz-borda: #e7e4f0;
+        --rz-borda: var(--borda);
+        --rz-sombra-suave: var(--sombraSuave);
+        --rz-sombra-media: var(--sombraMedia);
+        --rz-sombra-forte: var(--sombraForte);
+        /* laje que contrasta com a página — hoje só o rodapé */
+        --rz-inverso: var(--inversoFundo);
+        --rz-inverso-ink: var(--inversoInk);
         /*
          * Duas larguras, medidas no site atual: o CONTAINER (grade, cabeçalho, rodapé)
          * ocupa 1190px lá e ocupava 944 aqui — era o "parece bem menor". 74,5rem dá 1192,
@@ -185,9 +249,48 @@ const tokens = {
         --rz-medida: 48rem;
         --rz-fonte-titulos: var(--fontTitulos), 'Segoe UI', Arial, sans-serif;
         --rz-fonte-corpo: var(--fontCorpo), 'Segoe UI', Arial, sans-serif;
-        /* nome antigo mantido: componentes migrados ainda o referenciam */
-        --cor-primaria: var(--brand);
-        --cor-fundo: var(--bg);
+        /*
+         * Nome antigo mantido: componentes migrados ainda o referenciam. Aponta pro TOKEN
+         * (--rz-brand) e não pro valor cru (--brand) — senão o componente que ficou no
+         * nome velho continuaria roxo-claro no tema escuro, que foi exatamente o defeito
+         * que o PRD 12 foi caçar.
+         */
+        --cor-primaria: var(--rz-brand);
+        --cor-fundo: var(--rz-bg);
+      }
+
+      /*
+       * O TEMA ESCURO. Só troca de valor: nenhuma regra de layout, nenhuma classe nova,
+       * nenhum elemento a mais no HTML. Tudo que já lê `--rz-*` escurece junto, inclusive
+       * componente que ninguém tocou — é por isso que o passo anterior deste PRD foi
+       * matar os hex cravados, e não escrever CSS escuro componente a componente.
+       */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: var(--esquemaEscuro);
+          --rz-brand: var(--dbrand);
+          --rz-on-brand: var(--donBrand);
+          --rz-bg: var(--dbg);
+          --rz-action: var(--daction);
+          --rz-on-action: var(--donAction);
+          --rz-deal: var(--ddeal);
+          --rz-verified: var(--dverified);
+          --rz-ink: var(--dink);
+          --rz-muted: var(--dmuted);
+          --rz-subtle: var(--dsubtle);
+          --rz-surface: var(--dsurface);
+          --rz-surface-brand: var(--dsurfaceBrand);
+          --rz-surface-verificado: var(--dsurfaceVerified);
+          --rz-borda-codigo: var(--dbordaCodigo);
+          --rz-surface-expirado: var(--dsurfaceExpirado);
+          --rz-aviso: var(--daviso);
+          --rz-borda: var(--dborda);
+          --rz-sombra-suave: var(--dSombraSuave);
+          --rz-sombra-media: var(--dSombraMedia);
+          --rz-sombra-forte: var(--dSombraForte);
+          --rz-inverso: var(--dInversoFundo);
+          --rz-inverso-ink: var(--dInversoInk);
+        }
       }
       header.site {
         position: sticky; /* header fixo, como no site atual (design v1.1) */

@@ -55,10 +55,15 @@ const { categorias, ativa = null } = Astro.props
     font-weight: 600;
     white-space: nowrap;
   }
-  /* ativo: marca com texto branco — o par passa 5,28 na auditoria */
+  /*
+   * Ativo: marca com o texto que o TENANT diz ir por cima dela. Era `#fff` cravado, o que
+   * dava dois defeitos de uma vez — no tema escuro a marca clareia e o branco some nela, e
+   * no tenant 3d o branco sobre laranja reprovava (2,80). Agora é papel de cor, e o par
+   * `cor_sobre_marca`/`cor_primaria` é auditado no schema.
+   */
   .chip.ativo {
     background: var(--rz-brand);
     border-color: var(--rz-brand);
-    color: #fff;
+    color: var(--rz-on-brand);
   }
 </style>
