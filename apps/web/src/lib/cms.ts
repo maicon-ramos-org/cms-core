@@ -313,6 +313,35 @@ export interface AppDados {
   instalacao?: string[]
   guia_url?: string | { url?: string; titulo?: string; t?: string; u?: string }
   faq?: Array<{ q?: string; a?: string }>
+  /** o card de oferta do hero: plano mais barato que atende o app, com a data da conferência */
+  destaque?: {
+    rotulo?: string
+    preco?: string
+    sufixo?: string
+    specs?: string
+    cta_url?: string
+    cta_texto?: string
+    badges?: string[]
+  }
+  /**
+   * A tabela ranqueada de provedores, UMA POR PORTE (`leve`/`medio`/`pesado`). A ordem é o
+   * dado: ela sai dos requisitos do app, e por isso muda entre os portes e entre as fichas.
+   */
+  planos?: Record<
+    string,
+    Array<{
+      pos: number
+      provedor: string
+      plano: string
+      chips: Array<{ t: string; tipo: string }>
+      preco: string
+      ciclo: string
+      renova: string
+      renova_tipo: string
+      oferta_url: string
+    }>
+  >
+  /** @deprecated derivado de `planos`; sobrevive porque o `.md` da ficha ainda lê daqui */
   oferta_por_provedor?: Record<string, string>
   relacionados?: Array<{ t?: string; u?: string }>
   termos_match?: string[]
