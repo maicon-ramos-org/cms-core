@@ -6,6 +6,8 @@
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import CardPost from '../components/CardPost.astro'
 import Ferramentas from '../components/Ferramentas.astro'
+import { noColecao, noMigalhas } from '@runzos/schema'
+
 import Base from '../layouts/Base.astro'
 import { getCategorias, getPostsPaginados } from '../lib/cms'
 
@@ -34,26 +36,27 @@ const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
 const titulo = pagina > 1 ? `Blog — página ${pagina}` : `Blog: ${totalDocs} artigos sobre VPS, automação e IA`
 const descricao = `Artigos com teste prático e preço conferido — VPS, n8n, automação e IA. ${totalDocs} publicações.`
 
-const jsonLd = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@graph': [
-    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
-    {
-      '@type': 'ItemList',
-      '@id': `${canonical}#lista`,
-      numberOfItems: posts.length,
-      itemListElement: posts.map((p, i) => ({
-        '@type': 'ListItem',
-        position: (pagina - 1) * POR_PAGINA + i + 1,
-        name: p.titulo,
-        url: `https://${tenant.canonical_host}/${p.slug}`,
-      })),
-    },
-  ],
-})
+/*
+ * Schema pelo `Base`, não por bloco `ld+json` próprio. O hub montava o grafo à mão desde
+ * antes de `@runzos/schema` existir, e isso custava duas coisas medidas em 2026-09-07:
+ * faltava `BreadcrumbList` (que todo outro tipo de página emite) e a página servia DOIS
+ * grafos — o tronco do Base e este —, o oposto do desenho ancorado por `@id`.
+ */
+const nosDaPagina = [
+  noMigalhas(canonical, [
+    { nome: 'Início', url: `https://${tenant.canonical_host}/` },
+    { nome: 'Blog', url: canonical },
+  ]),
+  ...noColecao(
+    canonical,
+    titulo,
+    posts.map((p) => ({ nome: p.titulo, url: `https://${tenant.canonical_host}/${p.slug}` })),
+    { inicio: (pagina - 1) * POR_PAGINA + 1, descricao },
+  ),
+]
 ---
 
-<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+<Base titulo={titulo} descricao={descricao} canonical={canonical} schema={nosDaPagina}>
   <nav class="trilha" aria-label="Você está em"><a href="/">Início</a><span> › Blog</span></nav>
 
   <h1>Blog</h1>
@@ -71,7 +74,6 @@ const jsonLd = JSON.stringify({
 
   <Ferramentas tipo="arquivo" />
 
-  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>

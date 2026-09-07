@@ -146,6 +146,28 @@ describe('nós por tipo', () => {
   it('noColecao sem itens devolve lista vazia — hub vazio não declara coleção', () => {
     expect(noColecao(URL_PAGINA, 'Ofertas', [])).toEqual([])
   })
+
+  it('noColecao continua a numeração na página 2 — posição é do acervo, não da página', () => {
+    // Sem isto, /ofertas/?pagina=2 declara o 21º item como posição 1, e o Google lê duas
+    // listas concorrentes dizendo coisas diferentes sobre a mesma coleção. Os hubs faziam
+    // essa conta à mão porque montavam o JSON-LD por fora do pacote.
+    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'V', url: 'https://runzos.com/v/' }], { inicio: 21 })
+    expect(nos[1]?.itemListElement).toEqual([
+      { '@type': 'ListItem', position: 21, name: 'V', url: 'https://runzos.com/v/' },
+    ])
+  })
+
+  it('noColecao aceita description no CollectionPage', () => {
+    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'A', url: 'https://runzos.com/a/' }], {
+      descricao: 'As ofertas conferidas',
+    })
+    expect(nos[0]?.description).toBe('As ofertas conferidas')
+  })
+
+  it('noColecao sem descricao NÃO emite a chave — campo vazio é ruído no grafo', () => {
+    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'A', url: 'https://runzos.com/a/' }])
+    expect('description' in (nos[0] ?? {})).toBe(false)
+  })
 })
 
 describe('o grafo inteiro, como uma página real monta', () => {

@@ -14,6 +14,8 @@
  */
 import CardOferta from '../../components/CardOferta.astro'
 import Ferramentas from '../../components/Ferramentas.astro'
+import { noColecao, noMigalhas } from '@runzos/schema'
+
 import Base from '../../layouts/Base.astro'
 import { caminhoDaOferta, getOfertasPaginadas, type OfertaDTO } from '../../lib/cms'
 
@@ -51,30 +53,27 @@ const titulo =
   pagina > 1 ? `Ofertas verificadas — página ${pagina}` : `Ofertas verificadas: ${totalDocs} no catálogo`
 const descricao = `Catálogo de ${totalDocs} ofertas com preço e data de conferência — cupom, crédito e lifetime.`
 
-const jsonLd = JSON.stringify({
-  '@context': 'https://schema.org',
-  '@graph': [
-    { '@type': 'CollectionPage', '@id': `${canonical}#colecao`, name: titulo, url: canonical, description: descricao },
-    {
-      '@type': 'ItemList',
-      '@id': `${canonical}#lista`,
-      numberOfItems: ofertas.length,
-      itemListElement: ofertas.map((o, i) => ({
-        '@type': 'ListItem',
-        position: (pagina - 1) * POR_PAGINA + i + 1,
-        name: o.titulo,
-        // `caminhoDaOferta` e não `/ofertas/{slug}`: os 57 deals do AppSumo moram em
-        // /apps/{slug}, e a lista antiga apontava as URLs erradas pro Google
-        url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}`,
-      })),
-    },
-  ],
-})
+/* Schema pelo `Base` — ver a nota em blog.astro: faltava `BreadcrumbList` e a página
+ * servia dois grafos. */
+const nosDaPagina = [
+  noMigalhas(canonical, [
+    { nome: 'Início', url: `https://${tenant.canonical_host}/` },
+    { nome: 'Ofertas', url: canonical },
+  ]),
+  ...noColecao(
+    canonical,
+    titulo,
+    // `caminhoDaOferta` e não `/ofertas/{slug}`: os 57 deals do AppSumo moram em
+    // /apps/{slug}, e a lista antiga apontava as URLs erradas pro Google
+    ofertas.map((o) => ({ nome: o.titulo, url: `https://${tenant.canonical_host}${caminhoDaOferta(o)}` })),
+    { inicio: (pagina - 1) * POR_PAGINA + 1, descricao },
+  ),
+]
 
 const href = (n: number): string => (n === 1 ? '/ofertas/' : `/ofertas/?pagina=${n}`)
 ---
 
-<Base titulo={titulo} descricao={descricao} canonical={canonical}>
+<Base titulo={titulo} descricao={descricao} canonical={canonical} schema={nosDaPagina}>
   <nav class="trilha" aria-label="Você está em"><a href="/">Início</a><span> › Ofertas</span></nav>
 
   <h1>Ofertas verificadas</h1>
@@ -97,7 +96,6 @@ const href = (n: number): string => (n === 1 ? '/ofertas/' : `/ofertas/?pagina=$
 
   <Ferramentas tipo="catalogo" />
 
-  <script is:inline type="application/ld+json" set:html={jsonLd} />
 </Base>
 
 <style>

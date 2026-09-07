@@ -172,7 +172,18 @@ export interface ItemLista {
  * perdia em 26 páginas de empresa. Separados por `@id` em vez de aninhados: assim o
  * `WebPage` do tronco continua sendo o nó da página, e a coleção é uma entidade à parte.
  */
-export function noColecao(url: string, nome: string, itens: ItemLista[]): No[] {
+/**
+ * @param inicio posição do PRIMEIRO item no acervo, base 1. Existe por causa da paginação:
+ *   em `/ofertas/?pagina=2` o primeiro cartão é o 21º da coleção, e declará-lo como
+ *   posição 1 põe duas listas dizendo coisas diferentes sobre o mesmo acervo.
+ * @param descricao vai no `CollectionPage`. Omitida, a chave não sai — campo vazio é ruído.
+ */
+export function noColecao(
+  url: string,
+  nome: string,
+  itens: ItemLista[],
+  { inicio = 1, descricao }: { inicio?: number; descricao?: string } = {},
+): No[] {
   if (itens.length === 0) return []
   return [
     {
@@ -180,6 +191,7 @@ export function noColecao(url: string, nome: string, itens: ItemLista[]): No[] {
       '@id': `${url}#colecao`,
       name: nome,
       url,
+      ...(descricao ? { description: descricao } : {}),
       mainEntity: { '@id': `${url}#lista` },
     },
     {
@@ -188,7 +200,7 @@ export function noColecao(url: string, nome: string, itens: ItemLista[]): No[] {
       numberOfItems: itens.length,
       itemListElement: itens.map((item, i) => ({
         '@type': 'ListItem',
-        position: i + 1,
+        position: inicio + i,
         name: item.nome,
         url: item.url,
       })),
