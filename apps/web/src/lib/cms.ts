@@ -458,6 +458,11 @@ export interface PostDTO {
   tipo_schema?: string[] | null
   /** FAQ que o WP publicava só no JSON-LD; vira FAQPage (import:faq) */
   faq?: Array<{ pergunta: string; resposta: string }> | null
+  /**
+   * Nós de JSON-LD que não se deduzem do documento — hoje `Review`, com a nota editorial
+   * que o WordPress declarava. Existia na coleção e nenhum template lia (import:review).
+   */
+  schema_extra?: unknown[] | null
   id: string | number
   titulo: string
   slug: string

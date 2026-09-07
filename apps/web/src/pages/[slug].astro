@@ -12,7 +12,7 @@
  * têm prioridade no Astro, então não há conflito.
  */
 import CardPost from '../components/CardPost.astro'
-import { noFaq, noImagem, noMigalhas } from '@runzos/schema'
+import { noFaq, noImagem, noMigalhas, type No } from '@runzos/schema'
 import Ferramentas from '../components/Ferramentas.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import Compartilhar from '../components/Compartilhar.astro'
@@ -189,6 +189,28 @@ const nosDaPagina = [
     ...(categoria ? [{ nome: categoria.nome, url: `https://${tenant.canonical_host}/categoria/${categoria.slug}/` }] : []),
     { nome: post?.titulo ?? '', url: canonical },
   ]),
+  /*
+   * `schema_extra`: nós que o WordPress declarava e que não cabem em nenhum construtor do
+   * pacote, porque não são derivados do documento — são conteúdo editorial. O caso que
+   * trouxe isto à tona é `Review`: 18 posts do acervo declaram nota (`ratingValue: 4`,
+   * `bestRating: 5`) sobre um `SoftwareApplication` com preço, categoria e sameAs de
+   * Wikidata/Crunchbase. Nada disso se deduz do post — ou vem do WP, ou some.
+   *
+   * O campo existia na coleção desde o contrato e NENHUM template lia. Campo gravado e
+   * nunca emitido é pior que campo ausente: parece coberto no `colecoes.md` e some no HTML.
+   *
+   * `montaGrafo` deduplica por `@id`, então um nó daqui que colida com um construído acima
+   * perde — a precedência é do que o código monta, e é a ordem certa: o construtor conhece
+   * o documento de hoje, o `schema_extra` é foto do WordPress.
+   */
+  ...(Array.isArray(post?.schema_extra)
+    ? // guarda em runtime, não `as`: é JSON livre vindo do banco, e nó sem `@type` não é
+      // nó — emitir mesmo assim põe lixo no grafo, que é pior que não emitir
+      post.schema_extra.filter(
+        (n): n is No =>
+          !!n && typeof n === 'object' && (typeof (n as No)['@type'] === 'string' || Array.isArray((n as No)['@type'])),
+      )
+    : []),
 ]
 ---
 
