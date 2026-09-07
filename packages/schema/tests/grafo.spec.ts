@@ -175,3 +175,19 @@ describe('o grafo inteiro, como uma página real monta', () => {
     expect(idDaPagina(URL_PAGINA)).toBe(idDaPagina(URL_PAGINA))
   })
 })
+
+describe('@type em array', () => {
+  it('aceita o conjunto que o WordPress declarava, sem achatar pra um só', () => {
+    // 126 posts do acervo declaram dois tipos; emitir um perderia o outro no Gate D
+    const g = montaGrafo([{ '@type': ['BlogPosting', 'TechArticle'], '@id': 'a' }])
+    expect(g['@graph'][0]?.['@type']).toEqual(['BlogPosting', 'TechArticle'])
+  })
+
+  it('deduplica por @id mesmo com @type em array', () => {
+    const g = montaGrafo([
+      { '@type': ['BlogPosting', 'NewsArticle'], '@id': 'x' },
+      { '@type': 'BlogPosting', '@id': 'x' },
+    ])
+    expect(g['@graph']).toHaveLength(1)
+  })
+})

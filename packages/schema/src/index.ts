@@ -24,7 +24,12 @@ export interface Tenant {
 }
 
 export interface No {
-  '@type': string
+  /**
+   * Array é JSON-LD válido e o acervo usa: o WordPress declara dois tipos em 126 posts
+   * (`BlogPosting` + `TechArticle`, por exemplo). Emitir só um perderia o outro, que é
+   * justamente a divergência que o Gate D cobra.
+   */
+  '@type': string | string[]
   '@id'?: string
   [chave: string]: unknown
 }

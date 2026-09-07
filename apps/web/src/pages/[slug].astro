@@ -154,7 +154,19 @@ const noAutor = autor
 
 const nosDaPagina = [
   {
-    '@type': 'BlogPosting',
+    /*
+     * O tipo vem do que o WordPress declarava nesta URL, não de um padrão nosso: são 438
+     * posts com NewsArticle, 82 com TechArticle e 27 com Article. Emitir BlogPosting em
+     * todos trocaria o tipo de 63% do acervo no dia da virada — e `NewsArticle` é o que o
+     * Google News pede. Array quando o WP declarava dois, que é JSON-LD válido e o que
+     * ele fazia em 126 posts.
+     */
+    '@type':
+      post?.tipo_schema && post.tipo_schema.length > 0
+        ? post.tipo_schema.length === 1
+          ? post.tipo_schema[0]
+          : post.tipo_schema
+        : 'BlogPosting',
     '@id': `${canonical}#post`,
     headline: post?.titulo ?? '',
     url: canonical,

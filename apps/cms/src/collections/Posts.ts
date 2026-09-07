@@ -31,6 +31,16 @@ export const Posts: CollectionConfig = {
     { name: 'autor', type: 'relationship', relationTo: 'autores' },
     { name: 'capa', type: 'upload', relationTo: 'midia' },
     { name: 'schema_extra', type: 'json', admin: { description: 'JSON-LD extra migrado do vault (opcional)' } },
+    {
+      name: 'tipo_schema',
+      type: 'text',
+      hasMany: true,
+      admin: {
+        description:
+          'Subtipo de Article que o WP declarava nesta URL (NewsArticle, TechArticle…). ' +
+          'Vazio = BlogPosting. Preenchido por `import:tipo-artigo` a partir do crawl de paridade.',
+      },
+    },
     { name: 'ancoras_alvo', type: 'text', hasMany: true, admin: { description: 'auto-linker (PRD 04)' } },
     {
       name: 'publicado_em',
