@@ -104,6 +104,15 @@ export const Ofertas: CollectionConfig = {
         description: 'destino do /r/o{id} quando não há cupom (crédito, lifetime, desconto já no link)',
       },
     },
+    {
+      name: 'faq',
+      type: 'array',
+      admin: { description: 'FAQ que o WP publicava no JSON-LD; vira FAQPage no site (import:faq)' },
+      fields: [
+        { name: 'pergunta', type: 'text', required: true },
+        { name: 'resposta', type: 'textarea', required: true },
+      ],
+    },
     { name: 'corpo', type: 'richText', required: true },
     {
       name: 'imagem',

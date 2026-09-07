@@ -163,6 +163,8 @@ export interface ProdutoDTO {
 }
 
 export interface OfertaDTO {
+  /** FAQ que o WP publicava só no JSON-LD; vira FAQPage (import:faq) */
+  faq?: Array<{ pergunta: string; resposta: string }> | null
   id: string | number
   titulo: string
   slug: string
@@ -454,6 +456,8 @@ export interface PostDTO {
    * Existe porque 63% do acervo mudaria de tipo na virada sem ele (ver contrato).
    */
   tipo_schema?: string[] | null
+  /** FAQ que o WP publicava só no JSON-LD; vira FAQPage (import:faq) */
+  faq?: Array<{ pergunta: string; resposta: string }> | null
   id: string | number
   titulo: string
   slug: string

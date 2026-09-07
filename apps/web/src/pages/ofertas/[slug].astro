@@ -224,7 +224,16 @@ const nosDaPagina = [
    * SERP. O dado já estava na página (`dados.faq`), renderizado em `<details>`; faltava
    * dizer ao buscador o que ele é.
    */
-  noFaq(canonical, ltFaq.map((f) => ({ pergunta: f.q ?? '', resposta: f.a ?? '' }))),
+  /*
+   * Duas fontes de FAQ, e a ordem importa: a do lifetime vem da estrutura da página
+   * (`dados.faq`, extraída da marcação asp-* do WP) e a outra do JSON-LD que o Rank Math
+   * publicava. Uma oferta pode ter as duas; `noFaq` recebe a união e descarta par
+   * incompleto, então não há risco de emitir Question sem Answer.
+   */
+  noFaq(canonical, [
+    ...ltFaq.map((f) => ({ pergunta: f.q ?? '', resposta: f.a ?? '' })),
+    ...(oferta.faq ?? []),
+  ]),
   noImagem(canonical, imagemUrl),
 ]
 ---

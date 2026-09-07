@@ -32,6 +32,15 @@ export const Posts: CollectionConfig = {
     { name: 'capa', type: 'upload', relationTo: 'midia' },
     { name: 'schema_extra', type: 'json', admin: { description: 'JSON-LD extra migrado do vault (opcional)' } },
     {
+      name: 'faq',
+      type: 'array',
+      admin: { description: 'FAQ que o WP publicava no JSON-LD; vira FAQPage no site (import:faq)' },
+      fields: [
+        { name: 'pergunta', type: 'text', required: true },
+        { name: 'resposta', type: 'textarea', required: true },
+      ],
+    },
+    {
       name: 'tipo_schema',
       type: 'text',
       hasMany: true,

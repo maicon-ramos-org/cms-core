@@ -12,7 +12,7 @@
  * têm prioridade no Astro, então não há conflito.
  */
 import CardPost from '../components/CardPost.astro'
-import { noImagem, noMigalhas } from '@runzos/schema'
+import { noFaq, noImagem, noMigalhas } from '@runzos/schema'
 import Ferramentas from '../components/Ferramentas.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import Compartilhar from '../components/Compartilhar.astro'
@@ -182,6 +182,8 @@ const nosDaPagina = [
   },
   noAutor,
   noImagem(canonical, capa?.url ? urlMidia(capa.url) : null),
+  // 114 posts do acervo publicavam FAQPage e a réplica não — ver import:faq
+  noFaq(canonical, post?.faq ?? []),
   noMigalhas(canonical, [
     { nome: 'Início', url: `https://${tenant.canonical_host}/` },
     ...(categoria ? [{ nome: categoria.nome, url: `https://${tenant.canonical_host}/categoria/${categoria.slug}/` }] : []),
