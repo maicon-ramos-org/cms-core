@@ -15,6 +15,16 @@ export const GET: APIRoute = async (context) => {
   const base = `https://${tenant.canonical_host}`
 
   const doc = {
+    /*
+     * `serverInfo` é o que a especificação do MCP Server Card (SEP-1649) pede, e a ausência
+     * dele fazia um validador externo classificar este documento como "JSON sem os campos
+     * obrigatórios" — ou seja, o arquivo existia e não contava. `name` na raiz fica por
+     * compatibilidade com quem lê o formato antigo; os dois apontam pro mesmo tenant.
+     */
+    serverInfo: {
+      name: tenant.nome,
+      version: '1.0.0',
+    },
     name: tenant.nome,
     description:
       'Cupons e ofertas de software e hospedagem, com a data em que cada preço e cada desconto foram conferidos.',

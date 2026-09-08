@@ -33,6 +33,21 @@ export const GET: APIRoute = async (context) => {
   const linhas = staging
     ? ['# ambiente de staging/preview — fora do índice', 'User-agent: *', 'Disallow: /']
     : [
+        /*
+         * CONTENT SIGNALS (contentsignals.org) — a política deste negócio em três palavras.
+         *
+         * `robots.txt` só sabe dizer "pode ler" ou "não pode ler", e a pergunta que importa
+         * aqui é outra: pode ler PRA QUÊ. Ser citado numa resposta de IA é o produto —
+         * `search` e `ai-input` são sim, sem hesitação. Virar corpus de treino não devolve
+         * nada: nem visita, nem crédito, nem comissão, e o conteúdo é pesquisa de preço com
+         * data de conferência, que custa caro pra levantar.
+         *
+         * O sinal é declaração de preferência, não trava técnica — quem ignora, ignora. Vale
+         * porque quem respeita passa a ter uma regra explícita para respeitar, em vez de
+         * inferir da nossa omissão.
+         */
+        'Content-Signal: search=yes, ai-input=yes, ai-train=no',
+        '',
         'User-agent: *',
         'Allow: /',
         '# redirect de afiliado não é conteúdo',

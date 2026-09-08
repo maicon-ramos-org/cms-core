@@ -130,6 +130,26 @@ const caminhoDoMd = (p: string): string => `${p.replace(/\/$/, '')}.md`
  * Achado a partir de um scan externo de prontidão para agentes, que mostrou a página
  * respondendo `text/markdown` em checagens onde deveria vir HTML.
  */
+/**
+ * `Link: <...>; rel="alternate"; type="text/markdown"` — RFC 8288.
+ *
+ * O site JÁ serve markdown por duas vias: o sufixo `.md` e a negociação por `Accept`. O que
+ * faltava era o agente DESCOBRIR isso sem adivinhar: hoje ele precisa saber de antemão que
+ * a convenção existe, ou tentar um header e torcer. O `Link` é o mecanismo padrão de
+ * anúncio, vem na resposta que ele já está lendo, e custa uma linha.
+ *
+ * Vai no HTML, não na resposta markdown: anunciar a alternativa a quem já está nela é ruído.
+ */
+const comAlternate = (r: Response, url: string): Response => {
+  const tipo = r.headers.get('content-type') ?? ''
+  if (!tipo.includes('text/html')) return r
+  const h = new Headers(r.headers)
+  const anterior = h.get('link')
+  const valor = `<${url}>; rel="alternate"; type="text/markdown"`
+  h.set('link', anterior ? `${anterior}, ${valor}` : valor)
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
+}
+
 const comVary = (r: Response): Response => {
   const anterior = r.headers.get('vary')
   if (anterior?.toLowerCase().includes('accept')) return r
@@ -178,5 +198,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
   context.locals.tenant = tenant
   const resposta = await next()
-  return negociavel ? comVary(resposta) : resposta
+  if (!negociavel) return resposta
+  return comAlternate(comVary(resposta), caminhoDoMd(context.url.pathname))
 })
