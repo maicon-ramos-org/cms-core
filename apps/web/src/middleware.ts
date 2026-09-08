@@ -96,9 +96,22 @@ const querMarkdown = (accept: string): boolean => {
 
 /** Rotas que têm gêmeo `.md`. Fora daqui, o header é ignorado e serve HTML. */
 const temGemeoMd = (p: string): boolean =>
-  /^\/(ofertas|apps)\/[^/]+\/$/.test(p) || (/^\/[^/]+\/$/.test(p) && !ROTAS_SEM_MD.has(p))
+  /^\/(ofertas|apps|modelos|automacoes)\/[^/]+\/$/.test(p) || (/^\/[^/]+\/$/.test(p) && !ROTAS_SEM_MD.has(p))
 
-const ROTAS_SEM_MD = new Set(['/', '/blog/', '/ofertas/', '/apps/', '/lifetimes/', '/busca/', '/glossario/'])
+// os HUBS não têm gêmeo `.md` — só as fichas. Sem `/modelos/` e `/automacoes/` aqui, o
+// segundo ramo da regra acima os trataria como página de raiz e reescreveria pra
+// `/modelos.md`, que não existe: agente pedindo markdown no hub receberia 404.
+const ROTAS_SEM_MD = new Set([
+  '/',
+  '/blog/',
+  '/ofertas/',
+  '/apps/',
+  '/modelos/',
+  '/automacoes/',
+  '/lifetimes/',
+  '/busca/',
+  '/glossario/',
+])
 
 const caminhoDoMd = (p: string): string => `${p.replace(/\/$/, '')}.md`
 

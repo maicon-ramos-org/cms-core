@@ -314,6 +314,88 @@ export async function getCuponsDaLoja(lojaId: string | number): Promise<CupomDTO
 }
 
 /** Dados do template `apps` — o JSON versionado no vault (fonte da verdade, RF5). */
+/**
+ * Ficha de MODELO (`/modelos/{slug}`) — template `modelos`.
+ *
+ * O miolo é a tabela por porte: cada tag do `ollama_tags` cruzada com VRAM e com a decisão
+ * "cabe na sua placa ou compensa alugar GPU". `gpu_nota` é o texto que introduz esse bloco.
+ *
+ * `hero_media_id` e NÃO `hero_url`: o `hero_url` que o builder grava vem com host absoluto
+ * de STAGING (`cms.dev.runzos.com`), e publicar isso prenderia a página a um host que não é
+ * o dela — o oposto do `CMS_PUBLIC_URL` vazio, que faz a mídia sair pelo mesmo host do
+ * documento. O id resolve pela nossa biblioteca e não carrega host nenhum.
+ */
+export interface ModeloDados {
+  slug?: string
+  nome?: string
+  title?: string
+  tagline?: string
+  meta_description?: string
+  editorial?: string[]
+  veredicto?: string
+  /** ficha técnica — texto livre porque a fonte publica assim ("32k nativo; 128k com YaRN") */
+  licenca?: string
+  licenca_term?: string
+  licenca_nota?: string
+  uso_comercial?: string
+  parametros?: string
+  contexto?: string
+  idiomas?: string
+  vram_min?: string
+  gpu_nota?: string
+  /** identificadores externos — viram `sameAs` no grafo */
+  hf_id?: string
+  org?: string
+  github?: string
+  dev_nome?: string
+  ollama?: string
+  ollama_cmd?: string
+  ollama_tags?: string[]
+  /** `{q, a}` aqui; `posts`/`lojas` usam `{pergunta, resposta}` — confundir quebra o FAQPage */
+  faq?: Array<{ q?: string; a?: string }>
+  fontes?: Array<{ label?: string; url?: string }>
+  hero_alt?: string
+  hero_url?: string
+  hero_media_id?: number
+  logo_media?: string | number
+  featured_media?: number
+}
+
+/**
+ * Página de AUTOMAÇÃO (`/automacoes/{slug}`) — template `automacoes`.
+ *
+ * `ofertas[]` e `relacionados[]` guardam SLUG, não id: o dado editorial nasce fora do banco
+ * e id de Payload não existe lá. Resolver por slug na hora de renderizar mantém o JSON
+ * portável e faz a página seguir o catálogo sem ser reeditada.
+ */
+export interface AutomacaoDados {
+  slug?: string
+  nome?: string
+  title?: string
+  tagline?: string
+  meta_description?: string
+  editorial?: string[]
+  analise?: string
+  veredicto?: string
+  passos?: string[]
+  picks?: Array<{ nome?: string; nota?: string } | string>
+  apps?: string[]
+  requisitos?: string
+  requisitos_texto?: string[]
+  custo_intro?: string
+  custo_mes?: string
+  vps_gb?: string
+  categorias?: string[]
+  ofertas?: Array<{ slug?: string; rotulo?: string }>
+  relacionados?: Array<{ slug?: string; tipo?: string }>
+  faq?: Array<{ q?: string; a?: string }>
+  fontes?: Array<{ label?: string; url?: string }>
+  hero_alt?: string
+  hero_url?: string
+  hero_media_id?: number
+  featured_media?: number
+}
+
 export interface AppDados {
   slug?: string
   nome?: string
@@ -369,9 +451,11 @@ export interface PageDTO {
   id: string | number
   titulo: string
   slug: string
-  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional' | 'contato' | 'indice'
+  template: 'conteudo' | 'apps' | 'calculadora' | 'institucional' | 'contato' | 'indice' | 'modelos' | 'automacoes'
   corpo?: unknown
-  dados?: AppDados | null
+  /* uma união, não `unknown`: cada template tem a sua forma, e o consumidor faz o cast
+     para a que corresponde ao `template` que ele pediu */
+  dados?: AppDados | ModeloDados | AutomacaoDados | null
   meta?: { title?: string | null; description?: string | null } | null
   updatedAt?: string
 }
@@ -413,6 +497,27 @@ export async function getPagesPorTemplate(
  * Mídia pela URL ANTIGA do WordPress. O JSON dos apps referencia o hero pelo endereço
  * do WP (`/wp-content/uploads/...`), que é justamente o que `wp_url_antiga` guarda.
  */
+/**
+ * Mídia pelo ID do Payload — o vínculo que os templates novos usam.
+ *
+ * As fichas de app referenciam o hero pela URL antiga do WordPress porque nasceram da
+ * migração. `modelos` e `automacoes` nascem no Payload e guardam o id, que é o vínculo
+ * certo: não depende de um endereço de outro servidor continuar existindo.
+ */
+export async function getMidiaPorId(
+  id: number | string,
+): Promise<{ url?: string; alt?: string; width?: number; height?: number } | null> {
+  if (!id) return null
+  try {
+    return await cmsFetch<{ url?: string; alt?: string; width?: number; height?: number }>(
+      `/api/midia/${id}?depth=0`,
+    )
+  } catch {
+    // mídia apagada não derruba a página: o hero some, o conteúdo fica
+    return null
+  }
+}
+
 export async function getMidiaPorUrlAntiga(
   url: string,
 ): Promise<{ url?: string; alt?: string; width?: number; height?: number } | null> {
@@ -502,7 +607,9 @@ export async function listarParaSitemap(
   colecao: 'posts' | 'ofertas' | 'pages' | 'lojas',
   tenantId: string | number,
   campoData: string,
-  filtros: Array<{ campo: string; operador: 'equals' | 'not_equals'; valor: string }> = [],
+  // `not_in` existe por causa das pastas próprias: `not_equals` só exclui UM template, e
+  // hoje são três que têm rota fora da raiz (apps, modelos, automacoes)
+  filtros: Array<{ campo: string; operador: 'equals' | 'not_equals' | 'not_in'; valor: string }> = [],
 ): Promise<Array<{ id: string | number; slug: string; lastmod?: string | null; wordpress_id?: string | null }>> {
   const saida: Array<{ id: string | number; slug: string; lastmod?: string | null; wordpress_id?: string | null }> = []
   let pagina = 1
