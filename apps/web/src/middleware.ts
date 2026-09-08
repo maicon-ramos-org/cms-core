@@ -102,6 +102,29 @@ const ROTAS_SEM_MD = new Set(['/', '/blog/', '/ofertas/', '/apps/', '/lifetimes/
 
 const caminhoDoMd = (p: string): string => `${p.replace(/\/$/, '')}.md`
 
+/**
+ * `Vary: Accept` nas rotas que negociam formato — e vai nas DUAS variantes, não só na
+ * markdown: um cache precisa saber que a URL varia ANTES de guardar a primeira resposta.
+ *
+ * Nosso cache de rota não estava em risco, porque a negociação passa por `rewrite` e a
+ * variante markdown é guardada sob a chave `/post.md`. O risco é de fora: a mesma URL
+ * devolve HTML ou markdown conforme o header, e sem `Vary` qualquer cache intermediário
+ * pode guardar a variante que viu primeiro e servir a todo mundo. Hoje a Cloudflare
+ * responde `DYNAMIC` no HTML e nada é guardado — mas "hoje" é uma configuração, não uma
+ * garantia, e este site é desenhado justamente para ser cacheável na borda. O dia em que
+ * alguém ligar isso, um agente pedindo markdown envenena a página para os leitores.
+ *
+ * Achado a partir de um scan externo de prontidão para agentes, que mostrou a página
+ * respondendo `text/markdown` em checagens onde deveria vir HTML.
+ */
+const comVary = (r: Response): Response => {
+  const anterior = r.headers.get('vary')
+  if (anterior?.toLowerCase().includes('accept')) return r
+  const h = new Headers(r.headers)
+  h.set('vary', anterior ? `${anterior}, Accept` : 'Accept')
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
   // rota de webhook não depende de tenant (autentica por token próprio)
   if (context.url.pathname === '/api/revalidate' || context.url.pathname === '/healthz') {
@@ -124,8 +147,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
    * `text/html,...;q=0.9,*&#47;*;q=0.8` e não pode receber markdown por engano.
    */
   const aceita = context.request.headers.get('accept') ?? ''
-  if (querMarkdown(aceita) && temGemeoMd(context.url.pathname)) {
-    return context.rewrite(caminhoDoMd(context.url.pathname))
+  const negociavel = temGemeoMd(context.url.pathname)
+  if (querMarkdown(aceita) && negociavel) {
+    const r = await context.rewrite(caminhoDoMd(context.url.pathname))
+    return comVary(r)
   }
 
   if (precisaDeBarra(context.url.pathname)) {
@@ -139,5 +164,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return new Response('Tenant não encontrado para este host.', { status: 404 })
   }
   context.locals.tenant = tenant
-  return next()
+  const resposta = await next()
+  return negociavel ? comVary(resposta) : resposta
 })
