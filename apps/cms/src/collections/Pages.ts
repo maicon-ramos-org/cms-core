@@ -55,14 +55,18 @@ export const Pages: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'conteudo',
-      options: ['conteudo', 'apps', 'calculadora', 'institucional', 'contato', 'indice'],
+      options: ['conteudo', 'apps', 'calculadora', 'institucional', 'contato', 'indice', 'modelos', 'automacoes'],
     },
     { name: 'corpo', type: 'richText', admin: { condition: (data) => data?.template === 'conteudo' || data?.template === 'institucional' } },
     {
       name: 'dados',
       type: 'json',
       admin: {
-        condition: (data) => data?.template === 'apps' || data?.template === 'calculadora',
+        condition: (data) =>
+          data?.template === 'apps' ||
+          data?.template === 'calculadora' ||
+          data?.template === 'modelos' ||
+          data?.template === 'automacoes',
         description: 'dados estruturados do template (json tipado por template — mata o base64)',
       },
     },
