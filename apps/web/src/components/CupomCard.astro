@@ -71,8 +71,23 @@ const sufixoDesconto = cupom.desconto_tipo === 'percentual' || cupom.desconto_ti
  */
 const mascara = cupom.codigo.length > 4 ? cupom.codigo.slice(-4) : '••••'
 
-/** "testado hoje às 09h14, no checkout · 94%" — o formato do artboard. */
+/**
+ * Selo de verificação — "testado hoje às 09h14, no checkout · 94%".
+ *
+ * DESLIGADO até a verificação por agente existir (PRD 07). Não é capricho de produto: o
+ * selo afirma ao leitor que alguém testou o código no checkout, num horário exato, com uma
+ * taxa de sucesso. Enquanto o processo que produziria esse dado não roda, a frase é uma
+ * alegação sem lastro — e o `metodo` do acervo importado é `manual`, que o mapeamento
+ * abaixo traduz para "no checkout" justamente porque é o padrão. Dois cupons do acervo
+ * exibiriam isso hoje.
+ *
+ * Some o selo, não o dado: `verificado_em`, `metodo` e `taxa_sucesso` continuam gravados e
+ * o histórico fica de pé. Ligar de volta é apagar esta linha.
+ */
+const SELO_LIGADO = false
+
 const selo = (() => {
+  if (!SELO_LIGADO) return null
   if (!cupom.verificado_em) return null
   const quando = new Date(cupom.verificado_em)
   const agora = new Date()
