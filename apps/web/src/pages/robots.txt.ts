@@ -71,6 +71,21 @@ export const GET: APIRoute = async (context) => {
   }
 
   return new Response(`${linhas.join('\n')}\n`, {
-    headers: { 'content-type': 'text/plain; charset=utf-8' },
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      /*
+       * TTL CURTO DE PROPÓSITO, e curto na BORDA (`s-maxage`), que é onde doeu.
+       *
+       * Sem header próprio este arquivo herdava 4 horas do CDN, e isso é errado para um
+       * arquivo de CONTROLE: o custo de servir robots.txt velho não é uma página
+       * desatualizada, é uma política que ninguém obedece pelo tempo do cache. Aconteceu
+       * duas vezes em 2026-09-07/08 — uma com o robots do WordPress sobrevivendo à virada,
+       * outra com o `Content-Signal` recém-publicado invisível por horas.
+       *
+       * A invalidação por tag do `cache.set` acima resolve o NOSSO cache e não toca no da
+       * borda; só o header alcança os dois. São ~1KB: 5 minutos de TTL não pesa em nada.
+       */
+      'cache-control': 'public, max-age=300, s-maxage=300, must-revalidate',
+    },
   })
 }
