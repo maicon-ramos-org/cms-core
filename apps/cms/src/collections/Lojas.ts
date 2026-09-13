@@ -38,7 +38,7 @@ export const Lojas: CollectionConfig = {
       name: 'programa',
       type: 'select',
       required: true,
-      options: ['hostinger', 'amazon', 'shopee', 'awin', 'impact', 'mercadolivre', 'hotmart', 'direto', 'outro'],
+      options: ['hostinger', 'cloudways', 'amazon', 'shopee', 'awin', 'impact', 'mercadolivre', 'hotmart', 'direto', 'outro'],
       admin: { description: 'qual rede/programa de afiliado paga esta loja' },
     },
     { name: 'descricao', type: 'richText' },

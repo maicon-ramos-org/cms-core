@@ -9,6 +9,7 @@
 
 export type Programa =
   | 'hostinger'
+  | 'cloudways'
   | 'amazon'
   | 'shopee'
   | 'awin'
@@ -70,6 +71,24 @@ const builders: Record<Programa, Builder> = {
   hostinger: (url, { afiliadoId, subid }) => {
     setParam(url, 'REFERRALCODE', afiliadoId)
     setParam(url, 'utm_content', subid)
+    return url
+  },
+  /*
+   * Cloudways: `id=` é o afiliado e `data1`/`data2` são os campos de subid do programa.
+   *
+   * `id` OBRIGATÓRIO, com erro — mesma regra da Amazon e pela mesma razão: sem ele o link
+   * FUNCIONA, leva o visitante à loja e não paga nada. Comissão perdida em silêncio é o
+   * pior resultado possível, porque só aparece quando o relatório do programa não fecha,
+   * semanas depois, sem nada pra correlacionar.
+   *
+   * `data2` fica livre de propósito: o contrato do redirect só define UM canal de origem, e
+   * ocupar o segundo campo agora tiraria a folga de quem for medir campanha ou teste A/B
+   * depois — que é justamente o que dois campos de subid servem pra permitir.
+   */
+  cloudways: (url, { afiliadoId, subid }) => {
+    if (!afiliadoId) throw new AfflinkError('programa cloudways exige afiliadoId (id) — configure a env do tenant')
+    setParam(url, 'id', afiliadoId)
+    setParam(url, 'data1', subid)
     return url
   },
   // Awin: só decoramos se a fonte JÁ é um deep-link awin1.com/cread.php (gerado no painel)

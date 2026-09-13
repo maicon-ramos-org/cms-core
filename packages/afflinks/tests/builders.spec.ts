@@ -36,6 +36,41 @@ describe('buildAffiliateUrl — fixtures por programa (contrato redirect-afiliad
     expect(u.searchParams.get('utm_content')).toBe('pagina')
   })
 
+  it('cloudways: id= é obrigatório, e data1 carrega o canal', () => {
+    const u = new URL(
+      buildAffiliateUrl({
+        programa: 'cloudways',
+        urlFonte: 'https://www.cloudways.com/en/',
+        afiliadoId: '2206605',
+        subid: 'chat',
+      }),
+    )
+    expect(u.searchParams.get('id')).toBe('2206605')
+    expect(u.searchParams.get('data1')).toBe('chat')
+  })
+
+  it('cloudways: sem afiliadoId é ERRO — link sem id= não paga comissão', () => {
+    // mesma regra da amazon: perder comissão em silêncio é o pior resultado possível,
+    // porque o link FUNCIONA e ninguém percebe até o relatório do programa não fechar
+    expect(() =>
+      buildAffiliateUrl({ programa: 'cloudways', urlFonte: 'https://www.cloudways.com/en/' }),
+    ).toThrow(AfflinkError)
+  })
+
+  it('cloudways: preserva params da URL fonte', () => {
+    const u = new URL(
+      buildAffiliateUrl({
+        programa: 'cloudways',
+        urlFonte: 'https://www.cloudways.com/en/pricing/?plan=do-1gb',
+        afiliadoId: '2206605',
+      }),
+    )
+    expect(u.searchParams.get('plan')).toBe('do-1gb')
+    expect(u.searchParams.get('id')).toBe('2206605')
+    // sem subid, `data1` não sai: param vazio suja o relatório do programa
+    expect(u.searchParams.has('data1')).toBe(false)
+  })
+
   it('awin: decora clickref só em deep-link awin1.com; fora dele não toca', () => {
     const decorado = new URL(
       buildAffiliateUrl({
