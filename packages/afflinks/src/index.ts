@@ -125,3 +125,5 @@ export type Ref = (typeof REFS_VALIDOS)[number]
 
 export const normalizaRef = (valor: string | null | undefined): Ref =>
   REFS_VALIDOS.includes((valor ?? '') as Ref) ? ((valor ?? '') as Ref) : 'outro'
+
+export { validaSiteStripe } from './sitestripe'

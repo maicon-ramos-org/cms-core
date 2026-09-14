@@ -38,7 +38,7 @@ export const VariantesProduto: CollectionConfig = {
 }
 export const OfertasProduto: CollectionConfig = {
   ...base('ofertas_produto', [rel('variante', 'variantes_produto'), rel('loja', 'lojas'), text('seller_normalizado'), text('external_listing_id'),
-    text('url_origem', true), { name: 'url_canonica', type: 'text', admin: { readOnly: true } },
+    text('url_origem', true), text('url_afiliado'), { name: 'url_canonica', type: 'text', admin: { readOnly: true } },
     { name: 'chave_listing', type: 'text', admin: { readOnly: true } },
     { name: 'url_redirect', type: 'text', validate: (v: string | null | undefined) => !v || /^\/r\/[cpo]\d{1,12}$/.test(v) || 'Use caminho /r/{id} existente.' },
     number('preco', true), number('frete'), select('disponibilidade', ['disponivel', 'indisponivel', 'desconhecida'], 'desconhecida'),

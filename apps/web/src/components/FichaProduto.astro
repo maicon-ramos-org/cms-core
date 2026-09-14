@@ -1,0 +1,23 @@
+---
+import type { getCatalogoProduto } from '../lib/catalogo'
+interface Props { catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>> }
+const { produto, variantes, ofertas } = Astro.props.catalogo
+---
+<main class="ficha">
+  <h1>{produto.nome}</h1>
+  <p>{produto.marca} · {produto.modelo}</p>
+  {produto.descricao && <p>{produto.descricao}</p>}
+  <p>Como associado da Amazon, eu recebo por compras qualificadas.</p>
+  {variantes.map(v => <section>
+    <h2>{v.nome}</h2>
+    {ofertas.filter(o => String(o.variante) === String(v.id)).map(o =>
+      <p><a href={`/r/f${o.id}`} rel="sponsored noopener">Ver preço na Amazon</a></p>
+    )}
+  </section>)}
+  {ofertas.length === 0 && <p>Nenhuma oferta revisada disponível para consulta.</p>}
+</main>
+<style>
+  .ficha { max-width: 70rem; margin: 0 auto; padding: 2rem 1rem; }
+  section { margin-block: 2rem; }
+  a { display: inline-block; padding: .8rem 1rem; background: var(--rz-action); color: var(--rz-on-action); border-radius: .5rem; }
+</style>

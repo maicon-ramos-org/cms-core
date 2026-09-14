@@ -1,0 +1,16 @@
+---
+import Base from '../../layouts/Base.astro'
+import FichaProduto from '../../components/FichaProduto.astro'
+import { getCatalogoProduto, schemaProduto } from '../../lib/catalogo'
+import { caminhoCanonico } from '../../lib/cms'
+export const prerender = false
+const tenant = Astro.locals.tenant
+const catalogo = await getCatalogoProduto(tenant.id, Astro.params.slug ?? '')
+if (!catalogo) return new Response('Produto não encontrado.', { status: 404 })
+const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(catalogo.produto.slug)}/`
+Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
+Astro.response.headers.set('Cache-Control', 'no-store')
+---
+<Base titulo={catalogo.produto.nome} descricao={catalogo.produto.descricao} canonical={canonical} noindex schema={[schemaProduto(catalogo, canonical)]}>
+  <FichaProduto catalogo={catalogo} />
+</Base>

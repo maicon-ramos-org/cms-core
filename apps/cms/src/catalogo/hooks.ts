@@ -1,3 +1,4 @@
+import { validaSiteStripe } from '@runzos/afflinks'
 import { sql } from '@payloadcms/db-postgres'
 import { ValidationError, type CollectionBeforeChangeHook, type CollectionAfterChangeHook, type PayloadRequest, type CollectionSlug } from 'payload'
 import { avaliaMatch, atributosFilamento, chaveVariante, idRel, identidadeListing, normaliza } from './regras'
@@ -100,6 +101,12 @@ const sameSnapshot = (a: Doc, b: Doc) => snapshotFields.every(k => (a[k] ?? null
 /** O lock acontece ANTES de reler: originalDoc pode ter sido lido antes de outro commit. */
 export const observaListing: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   let effective = { ...originalDoc, ...data }
+  if (effective.fonte === 'amazon-manual-sitestripe') {
+    try {
+      validaSiteStripe(String(effective.external_listing_id ?? ''), String(effective.url_afiliado ?? ''), process.env.AMAZON_TAG)
+      if (effective.url_origem !== `https://www.amazon.com.br/dp/${effective.external_listing_id}`) throw new Error('Origem deve ser canônica por ASIN')
+    } catch { return invalido('url_afiliado', 'SiteStripe exige ASIN correspondente e AMAZON_TAG=runzos-20.') }
+  }
   let identity: ReturnType<typeof identidadeListing>
   try { identity = identidadeListing(effective) } catch { return invalido('url_origem', 'URL deve ser HTTP(S) válida, sem credenciais.') }
   if (originalDoc?.id && originalDoc.chave_listing !== identity.chave_listing) invalido('chave_listing', 'Identidade natural é imutável.')

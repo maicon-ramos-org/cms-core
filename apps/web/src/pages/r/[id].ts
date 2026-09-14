@@ -1,3 +1,4 @@
+import { getDestinoFisico } from '../../lib/catalogo'
 /**
  * Contrato docs/contratos/redirect-afiliado.md — TODO clique de monetização passa aqui.
  * GET /r/{tipo}{id}?ref=...  →  tipo ∈ {c: cupom, p: produto, o: oferta} (IDs seriais
@@ -72,6 +73,14 @@ export const GET: APIRoute = async (context) => {
 
   if (!id) return fallback()
 
+  if (/^f\d{1,12}$/.test(id)) {
+    const location = await getDestinoFisico(tenant.id, id.slice(1))
+    if (!location) return new Response('Oferta não encontrada.', { status: 404 })
+    return new Response(null, { status: 302, headers: {
+      Location: location, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'no-referrer-when-downgrade',
+    } })
+  }
   const destino = await resolveDestino(id, tenant.id)
   if (!destino) return fallback()
 
