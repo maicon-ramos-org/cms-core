@@ -116,6 +116,7 @@ export const observaListing: CollectionBeforeChangeHook = async ({ data, origina
     where: { and: [{ tenant: { equals: idRel(effective.tenant) } }, { chave_listing: { equals: identity.chave_listing } }] }, limit: 1 })
   const current = found.docs[0]
   if (current && (!originalDoc?.id || idRel(current.id) !== idRel(originalDoc.id))) invalido('chave_listing', 'Listing já existe; use ingerirListing para reingestão.')
+  if (current && effective.fonte === 'amazon-manual-sitestripe' && hasRole(req.user, 'ingestao') && !isSuperAdmin(req.user) && current.estado !== 'draft') invalido('estado', 'Piloto de ingestão só altera listings draft.')
   if (current) effective = { ...current, ...data }
   // Rejeita publicação automática por ingestão; ativação do piloto é revisão explícita.
   if (effective.estado === 'ativa') {
