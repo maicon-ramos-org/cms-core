@@ -1,4 +1,4 @@
-import { validaSiteStripe } from '@runzos/afflinks'
+import { validaSiteStripe, validaAmazonLink } from '@runzos/afflinks'
 import { cmsFetch, type MidiaDTO } from './cms'
 type Id = string | number
 export interface ProdutoFisico { id: Id; tenant: Id; nome: string; slug: string; marca: string; modelo: string; descricao?: string; estado: string; imagem?: MidiaDTO }
@@ -10,9 +10,9 @@ async function find<T>(collection: string, tenant: Id, filters: Record<string, s
   return (await cmsFetch<{ docs: T[] }>(`/api/${collection}?${q}`)).docs
 }
 export function destinoAmazon(o: Listing): string | null {
-  if (o.fonte !== 'amazon-manual-sitestripe' || o.url_origem !== `https://www.amazon.com.br/dp/${o.external_listing_id}` ||
+  if (!['amazon-manual-sitestripe', 'amazon-manual-revisado'].includes(o.fonte) || o.url_origem !== `https://www.amazon.com.br/dp/${o.external_listing_id}` ||
     !Number.isFinite(Date.parse(o.observado_em)) || Date.parse(o.observado_em) > Date.now()) return null
-  try { return validaSiteStripe(o.external_listing_id, o.url_afiliado ?? '', process.env.AMAZON_TAG) } catch { return null }
+  try { return (o.fonte === 'amazon-manual-revisado' ? validaAmazonLink : validaSiteStripe)(o.external_listing_id, o.url_afiliado ?? '', process.env.AMAZON_TAG) } catch { return null }
 }
 export async function getCatalogoProduto(tenant: Id, slug: string) {
   const [produto] = await find<ProdutoFisico>('produtos_fisicos', tenant, {

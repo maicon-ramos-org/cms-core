@@ -1,4 +1,4 @@
-import { validaSiteStripe } from '@runzos/afflinks'
+import { validaSiteStripe, validaAmazonLink } from '@runzos/afflinks'
 import { sql } from '@payloadcms/db-postgres'
 import { ValidationError, type CollectionBeforeChangeHook, type CollectionAfterChangeHook, type PayloadRequest, type CollectionSlug } from 'payload'
 import { avaliaMatch, atributosFilamento, chaveVariante, idRel, identidadeListing, normaliza } from './regras'
@@ -101,11 +101,12 @@ const sameSnapshot = (a: Doc, b: Doc) => snapshotFields.every(k => (a[k] ?? null
 /** O lock acontece ANTES de reler: originalDoc pode ter sido lido antes de outro commit. */
 export const observaListing: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   let effective = { ...originalDoc, ...data }
-  if (effective.fonte === 'amazon-manual-sitestripe') {
+  if (['amazon-manual-sitestripe', 'amazon-manual-revisado'].includes(effective.fonte)) {
     try {
-      validaSiteStripe(String(effective.external_listing_id ?? ''), String(effective.url_afiliado ?? ''), process.env.AMAZON_TAG)
+      const validate = effective.fonte === 'amazon-manual-revisado' ? validaAmazonLink : validaSiteStripe
+      validate(String(effective.external_listing_id ?? ''), String(effective.url_afiliado ?? ''), process.env.AMAZON_TAG)
       if (effective.url_origem !== `https://www.amazon.com.br/dp/${effective.external_listing_id}`) throw new Error('Origem deve ser canônica por ASIN')
-    } catch { return invalido('url_afiliado', 'SiteStripe exige ASIN correspondente e AMAZON_TAG=runzos-20.') }
+    } catch { return invalido('url_afiliado', 'Amazon exige ASIN correspondente e tag igual a AMAZON_TAG configurada.') }
   }
   let identity: ReturnType<typeof identidadeListing>
   try { identity = identidadeListing(effective) } catch { return invalido('url_origem', 'URL deve ser HTTP(S) válida, sem credenciais.') }
@@ -116,7 +117,7 @@ export const observaListing: CollectionBeforeChangeHook = async ({ data, origina
     where: { and: [{ tenant: { equals: idRel(effective.tenant) } }, { chave_listing: { equals: identity.chave_listing } }] }, limit: 1 })
   const current = found.docs[0]
   if (current && (!originalDoc?.id || idRel(current.id) !== idRel(originalDoc.id))) invalido('chave_listing', 'Listing já existe; use ingerirListing para reingestão.')
-  if (current && effective.fonte === 'amazon-manual-sitestripe' && hasRole(req.user, 'ingestao') && !isSuperAdmin(req.user) && current.estado !== 'draft') invalido('estado', 'Piloto de ingestão só altera listings draft.')
+  if (current && ['amazon-manual-sitestripe', 'amazon-manual-revisado'].includes(current.fonte) && hasRole(req.user, 'ingestao') && !isSuperAdmin(req.user) && current.estado !== 'draft') invalido('estado', 'Piloto de ingestão só altera listings draft.')
   if (current) effective = { ...current, ...data }
   // Rejeita publicação automática por ingestão; ativação do piloto é revisão explícita.
   if (effective.estado === 'ativa') {
