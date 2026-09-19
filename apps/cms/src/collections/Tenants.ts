@@ -260,7 +260,7 @@ export const Tenants: CollectionConfig = {
           name: 'programa',
           type: 'select',
           required: true,
-          options: ['hostinger', 'amazon', 'shopee', 'awin', 'impact', 'mercadolivre', 'hotmart', 'direto', 'outro'],
+          options: ['hostinger', 'cloudways', 'amazon', 'shopee', 'awin', 'impact', 'mercadolivre', 'hotmart', 'direto', 'outro'],
         },
         {
           name: 'id_afiliado_env',
