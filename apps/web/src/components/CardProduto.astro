@@ -1,0 +1,141 @@
+---
+/**
+ * Cartão de produto — a peça da fileira de catálogo da home, irmã do `CardOferta`.
+ *
+ * É componente próprio e não um `CardOferta` adaptado porque as duas coleções afirmam
+ * coisas diferentes: `ofertas` tem desconto verificado, tipo e ciclo de preço; `produtos`
+ * tem UM preço observado à mão e a data em que foi observado. Forçar um no formato do
+ * outro é o começo de mostrar selo de "verificado" sobre número que ninguém verificou.
+ *
+ * PREÇO SÓ COM DATA — a mesma régua da página `/p/{slug}`, e pela mesma razão: não há
+ * PA-API aqui, o número veio de leitura manual, e número sem carimbo é afirmação de
+ * frescor que não se sustenta. Sem `preco_em`, o cartão não mostra preço nenhum.
+ */
+import { caminhoCanonico, urlMidia, type LojaDTO, type MidiaDTO, type ProdutoDTO } from '../lib/cms'
+
+interface Props {
+  produto: ProdutoDTO
+  /** cartão acima da dobra: carrega a imagem de imediato em vez de adiar */
+  prioritario?: boolean
+}
+
+const { produto, prioritario = false } = Astro.props
+
+const nomeLoja =
+  produto.loja && typeof produto.loja === 'object' ? (produto.loja as LojaDTO).nome : null
+
+const img: MidiaDTO | null = produto.imagem && typeof produto.imagem === 'object' ? produto.imagem : null
+/* o derivado de 640px, não o original: o cartão renderiza em ~300px (ver CardOferta) */
+const cartao = img?.sizes?.cartao
+const src = urlMidia(cartao?.url ?? img?.url)
+const largura = cartao?.width ?? img?.width ?? 1280
+const altura = cartao?.height ?? img?.height ?? 720
+
+const observadoEmBruto = produto.preco_em ? new Date(produto.preco_em) : null
+const observadoEm =
+  observadoEmBruto && !Number.isNaN(observadoEmBruto.getTime()) ? observadoEmBruto : null
+const temPreco = typeof produto.preco === 'number' && produto.preco > 0 && observadoEm !== null
+
+/* BRL fixo pelo mesmo motivo da página do produto: `produtos` não tem campo de moeda, e
+   o campo vem antes da página quando existir programa em outra. */
+const precoFormatado = temPreco
+  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.preco!)
+  : null
+const quando = observadoEm
+  ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(observadoEm)
+  : null
+---
+
+<a class="cartao" href={`/p/${caminhoCanonico(produto.slug)}/`}>
+  {
+    src && (
+      <img
+        class="capa"
+        src={src}
+        alt={img?.alt ?? ''}
+        width={largura}
+        height={altura}
+        loading={prioritario ? 'eager' : 'lazy'}
+        decoding="async"
+      />
+    )
+  }
+  <span class="corpo">
+    {nomeLoja && <span class="loja">{nomeLoja}</span>}
+    <span class="titulo">{produto.titulo}</span>
+    {
+      /* preço e carimbo saem JUNTOS ou não saem — quebrar o par aqui é o primeiro passo
+         pra exibir um sem o outro */
+      precoFormatado && (
+        <span class="rodape">
+          <span class="preco">{precoFormatado}</span>
+          <span class="quando">visto em {quando}</span>
+        </span>
+      )
+    }
+  </span>
+</a>
+
+<style>
+  .cartao {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    background: var(--rz-surface);
+    color: var(--rz-ink);
+    text-decoration: none;
+  }
+  .cartao:hover { border-color: var(--rz-brand); }
+
+  /* `contain` e não `cover`: foto de produto recortada perde justamente o produto. O
+     fundo preenche a sobra, e a proporção fixa mantém a fileira alinhada. */
+  .capa {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: var(--rz-surface-brand);
+  }
+
+  .corpo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1;
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  .loja {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rz-muted);
+  }
+  .titulo {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* desce pro rodapé do cartão pra grade alinhar com títulos de alturas diferentes */
+  .rodape {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-top: auto;
+    padding-top: 0.7rem;
+  }
+  .preco {
+    font-family: var(--rz-fonte-titulos);
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .quando { font-size: 0.75rem; color: var(--rz-muted); }
+</style>

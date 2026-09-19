@@ -1388,3 +1388,90 @@ export async function logClique(clique: CliqueInput): Promise<void> {
     console.warn('[cliques] log falhou (segue o redirect):', (err as Error).message)
   }
 }
+
+/**
+ * Quantos docs a consulta acha, sem trazer nenhum. `limit=1` e não `limit=0` — zero no
+ * Payload significa "sem limite", que traria a coleção inteira pra contar.
+ *
+ * Devolve `null` quando o CMS não respondeu. É diferente de `0` de propósito: quem usa
+ * isto pra esconder item de menu precisa distinguir "esta seção está vazia" de "não deu
+ * pra saber" — esconder navegação por causa de um timeout seria transformar uma falha de
+ * rede numa amputação do site.
+ */
+async function contaDocs(colecao: string, params: Record<string, string>): Promise<number | null> {
+  const q = new URLSearchParams({ ...params, limit: '1', depth: '0' })
+  q.set('select[id]', 'true')
+  try {
+    return (await cmsFetch<FindResult<{ id: string | number }>>(`/api/${colecao}?${q}`)).totalDocs
+  } catch (e) {
+    console.error(`[nav] contagem de ${colecao} falhou:`, (e as Error).message)
+    return null
+  }
+}
+
+/**
+ * O que cada seção da navegação tem NESTE tenant — `null` quando o CMS não respondeu.
+ *
+ * Existe porque o menu era a mesma lista fixa para todo mundo: o tenant 2 oferecia
+ * Lifetimes, Apps e Blog com zero item em cada um, e as três levavam a hub vazio. É a
+ * mesma família do defeito do `<title>` (PR #55) — a estrutura do tenant 1 assumida como
+ * universal. O cabeçalho já dizia "só entra o que EXISTE"; agora ele sabe o que existe.
+ *
+ * Cinco consultas de contagem, `depth=0` e um campo — e a página inteira em que elas
+ * rodam é cacheada por tag, então isto não é por requisição de visitante.
+ */
+export async function contagensDeNavegacao(tenantId: string | number): Promise<{
+  ofertas: number | null
+  lifetimes: number | null
+  apps: number | null
+  posts: number | null
+}> {
+  const doTenant = {
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+  }
+  const [ofertas, lifetimes, apps, posts] = await Promise.all([
+    contaDocs('ofertas', doTenant),
+    contaDocs('ofertas', { ...doTenant, 'where[and][2][tipo][equals]': 'lifetime' }),
+    contaDocs('pages', { ...doTenant, 'where[and][2][template][equals]': 'apps' }),
+    contaDocs('posts', doTenant),
+  ])
+  return { ofertas, lifetimes, apps, posts }
+}
+
+/**
+ * O catálogo de `produtos` para a vitrine da home (PRD 08).
+ *
+ * As 7 páginas `/p/{slug}` do tenant 2 subiram no PR #56 respondendo 200 e sem NENHUM
+ * caminho a partir da home: só quem já tivesse a URL chegava nelas. Elas servem
+ * `x-robots-tag: noindex, follow`, e o `follow` é exatamente o que torna esta fileira
+ * útil — o campo `indexavel` continua sendo decisão do editor, não desta listagem.
+ *
+ * Mesmo recorte de `getProdutosDaLoja`: `landing` e `indexavel`. `encerrado` tem página
+ * (a URL nunca some) mas não é vitrine — anunciar na home o que acabou é a mesma mentira
+ * que este arquivo inteiro está corrigindo.
+ */
+export async function getProdutosParaVitrine(
+  tenantId: string | number,
+  limit = 12,
+): Promise<ProdutoDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][_status][equals]': 'published',
+    'where[and][2][estado][in]': 'landing,indexavel',
+    limit: String(limit),
+    // depth 1: loja e imagem viram objeto pro cartão — o resto do doc não é preciso
+    depth: '1',
+    sort: '-updatedAt',
+  })
+  for (const campo of ['titulo', 'slug', 'preco', 'preco_em', 'loja', 'imagem', 'estado']) {
+    q.set(`select[${campo}]`, 'true')
+  }
+  try {
+    return (await cmsFetch<FindResult<ProdutoDTO>>(`/api/produtos?${q}`)).docs
+  } catch (e) {
+    // a home não some porque o catálogo tossiu — ela perde uma fileira
+    console.error('[home] getProdutosParaVitrine falhou:', (e as Error).message)
+    return []
+  }
+}
