@@ -46,6 +46,11 @@ export interface TenantDTO {
   slug: string
   nome: string
   canonical_host: string
+  /**
+   * O tema da casa na forma que cabe depois de "de" ("software e hospedagem", "impressão
+   * 3D"). Vazio é válido e significa "não emita a frase" — ver `lib/nicho.ts` e PRD 14 D4.
+   */
+  nicho?: string | null
   /** papéis do design system (design-tokens.md v1.0.0) — ver contrato colecoes.md */
   tema?: {
     cor_primaria?: string

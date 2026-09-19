@@ -169,6 +169,17 @@ export const Tenants: CollectionConfig = {
     },
     { name: 'nome', type: 'text', required: true },
     {
+      name: 'nicho',
+      type: 'text',
+      maxLength: 60,
+      admin: {
+        description:
+          'O tema da casa, em minúsculas e na forma que cabe DEPOIS de "de": "software e hospedagem", ' +
+          '"impressão 3D". Entra no <title> da home, no manifest e no .well-known/mcp.json. ' +
+          'Vazio, a frase simplesmente não sai (PRD 14 D4) — título curto é melhor que título de outro nicho.',
+      },
+    },
+    {
       name: 'canonical_host',
       type: 'text',
       required: true,

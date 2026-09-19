@@ -10,6 +10,8 @@
  */
 import type { APIRoute } from 'astro'
 
+import { deNicho } from '../../lib/nicho'
+
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
   const base = `https://${tenant.canonical_host}`
@@ -26,8 +28,7 @@ export const GET: APIRoute = async (context) => {
       version: '1.0.0',
     },
     name: tenant.nome,
-    description:
-      'Cupons e ofertas de software e hospedagem, com a data em que cada preço e cada desconto foram conferidos.',
+    description: `Cupons e ofertas${deNicho(tenant)}, com a data em que cada preço e cada desconto foram conferidos.`,
     /**
      * As ferramentas que o agente do navegador encontra ao abrir uma página. Não é uma
      * lista de endpoints: são registradas na própria página, por tipo de rota, e só

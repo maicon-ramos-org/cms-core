@@ -14,6 +14,7 @@
 import type { APIRoute } from 'astro'
 
 import { urlMidia } from '../lib/cms'
+import { deNicho } from '../lib/nicho'
 
 const url = (m: unknown): string | undefined =>
   m && typeof m === 'object' && (m as { url?: string }).url ? urlMidia((m as { url?: string }).url) : undefined
@@ -36,7 +37,7 @@ export const GET: APIRoute = async (context) => {
   const doc = {
     name: tenant.nome,
     short_name: tenant.nome,
-    description: `Cupons e ofertas de software e hospedagem, com a data em que cada preço foi conferido.`,
+    description: `Cupons e ofertas${deNicho(tenant)}, com a data em que cada preço foi conferido.`,
     start_url: '/',
     scope: '/',
     display: 'browser',
