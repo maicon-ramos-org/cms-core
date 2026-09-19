@@ -1,16 +1,380 @@
 ---
-import Base from '../../layouts/Base.astro'
+/**
+ * /p/{slug} — a vitrine do produto.
+ *
+ * DUAS COLEÇÕES, UMA URL, E DE PROPÓSITO. `/p/{slug}` é a rota que o PRD 08, o overview
+ * do 3d e o próprio campo `produtos.slug` (admin: "página /p/{slug}") prometem. O piloto
+ * físico (PRD 16) chegou depois e passou a servir `produtos_fisicos` aqui — o que deixou
+ * `produtos`, a coleção que nomeia a rota, sem página nenhuma: 404 nos 7 produtos do 3d.
+ *
+ * A ordem de resolução é catálogo físico PRIMEIRO. Não é hierarquia de importância, é
+ * compatibilidade: as URLs do piloto já estão no ar e mudar o que elas servem seria uma
+ * regressão silenciosa. Só quando nenhum produto físico responde pelo slug é que a
+ * coleção `produtos` assume — e aí a página abaixo é a que renderiza.
+ *
+ * Render: SSR (`prerender = false`). O produto muda com o catálogo (preço, cupom,
+ * estado), e NADA de dado de compra em Server Island — crawler de IA não executa JS, e
+ * é justamente ele que precisa ler preço, data e loja no HTML inicial.
+ */
+import { noImagem, noMigalhas } from '@runzos/schema'
+
+import CtaAfiliado from '../../components/CtaAfiliado.astro'
+import CupomCard from '../../components/CupomCard.astro'
 import FichaProduto from '../../components/FichaProduto.astro'
+import Base from '../../layouts/Base.astro'
 import { getCatalogoProduto, schemaProduto } from '../../lib/catalogo'
-import { caminhoCanonico } from '../../lib/cms'
+import {
+  caminhoCanonico,
+  getProdutoBySlug,
+  getProdutosDaLoja,
+  PRODUTO_MONETIZAVEL,
+  urlMidia,
+  type CupomDTO,
+  type LojaDTO,
+} from '../../lib/cms'
+
 export const prerender = false
+
 const tenant = Astro.locals.tenant
-const catalogo = await getCatalogoProduto(tenant.id, Astro.params.slug ?? '')
-if (!catalogo) return new Response('Produto não encontrado.', { status: 404 })
-const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(catalogo.produto.slug)}/`
-Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
-Astro.response.headers.set('Cache-Control', 'no-store')
+const slug = Astro.params.slug ?? ''
+
+const catalogo = await getCatalogoProduto(tenant.id, slug)
+const produto = catalogo ? null : await getProdutoBySlug(tenant.id, slug)
+if (!catalogo && !produto) return new Response('Produto não encontrado.', { status: 404 })
+
+/** Canonical ABSOLUTO no host do tenant — staging nunca canoniza pra si mesmo. */
+const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(
+  catalogo ? catalogo.produto.slug : produto!.slug,
+)}/`
+
+if (catalogo) {
+  // piloto físico: comportamento preservado byte a byte (PRD 16)
+  Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
+  Astro.response.headers.set('Cache-Control', 'no-store')
+}
+
+/* ------------------------------------------------------------------ */
+/* Daqui pra baixo: a página da coleção `produtos` (PRD 08).            */
+/* ------------------------------------------------------------------ */
+
+const loja: LojaDTO | null = produto?.loja && typeof produto.loja === 'object' ? produto.loja : null
+const cupom: CupomDTO | null = produto?.cupom && typeof produto.cupom === 'object' ? produto.cupom : null
+
+/**
+ * Mesma régua de /ofertas/{slug} e /cupom-{loja}: sem selo, sem cupom na tela. Cupom em
+ * `revisao` não foi conferido por ninguém e o /r/{id} se recusa a monetizá-lo — mostrá-lo
+ * aqui seria prometer um código que o próprio redirect nega.
+ */
+const CUPOM_VISIVEL = new Set(['publicado', 'expirando'])
+const cupomVisivel = cupom && CUPOM_VISIVEL.has(cupom.estado) ? cupom : null
+
+/**
+ * O NOINDEX VEM DO BANCO, não desta página. `produtos.indexavel` é derivado de `estado`
+ * pelo CMS e hoje é `false` nos 7 produtos do 3d de propósito: o overview manda promover
+ * a indexável só depois do portão de demanda + gate anti-thin. A rota LÊ o campo; quem
+ * decide é o editor. (É a camada do documento — a de staging, por hostname, é outra.)
+ */
+const indexavel = produto?.indexavel === true
+const encerrado = produto?.estado === 'encerrado'
+/** CTA só onde o /r/p{id} realmente monetiza — a lista é a mesma, importada do contrato. */
+const monetiza = Boolean(produto && PRODUTO_MONETIZAVEL.has(produto.estado ?? ''))
+
+if (produto) {
+  if (!indexavel) Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
+  // `?.` porque o container de teste renderiza a rota sem o runtime de cache — e é
+  // justamente essa renderização sem servidor que confere o HTML sem JS.
+  if (Astro.cache?.enabled) {
+    Astro.cache.set({
+      maxAge: 300,
+      swr: 60,
+      tags: [
+        `tenant:${tenant.slug}`,
+        `produtos:${produto.id}`,
+        ...(loja ? [`loja:${loja.slug}`] : []),
+        ...(cupom ? [`cupons:${cupom.id}`] : []),
+      ],
+    })
+  }
+}
+
+/**
+ * PREÇO SÓ COM DATA. `preco` e `preco_em` andam juntos por validação da coleção, mas a
+ * página não confia nisso de graça: sem timestamp legível, o número não sai. Não há
+ * PA-API aqui — o valor veio de observação manual, e um preço sem o "visto em" é uma
+ * afirmação de frescor que a gente não pode sustentar.
+ *
+ * Moeda fixa em BRL porque `produtos` não tem campo de moeda e o catálogo é Amazon
+ * Brasil; quando existir programa em outra moeda, o campo vem antes da página.
+ */
+const precoEmBruto = produto?.preco_em ? new Date(produto.preco_em) : null
+const precoEm = precoEmBruto && !Number.isNaN(precoEmBruto.getTime()) ? precoEmBruto : null
+const temPreco = typeof produto?.preco === 'number' && produto.preco > 0 && precoEm !== null
+const precoFormatado = temPreco
+  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto!.preco!)
+  : null
+const precoEmTexto = precoEm ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm) : null
+
+/**
+ * O rótulo do CTA sai do NOME DA LOJA (dado do banco), nunca de uma marca escrita aqui.
+ * Sem preço observado ele não promete número nenhum: "Ver preço na Amazon" é o que a
+ * pessoa vai encontrar do outro lado, e é tudo o que podemos afirmar.
+ */
+const nomeLoja = loja?.nome ?? null
+const rotuloCta = temPreco
+  ? nomeLoja
+    ? `Ver oferta na ${nomeLoja}`
+    : 'Ver oferta na loja'
+  : nomeLoja
+    ? `Ver preço na ${nomeLoja}`
+    : 'Ver preço na loja'
+
+/** Divulgação exigida pelo programa de associados — ligada pelo `programa` da loja. */
+const associadoAmazon = loja?.programa === 'amazon'
+
+const img = produto?.imagem && typeof produto.imagem === 'object' ? produto.imagem : null
+/* absoluta: o buscador precisa BUSCAR essa imagem, e caminho relativo no schema não serve */
+const imagemUrl = img?.url ? urlMidia(img.url) : undefined
+const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
+const heroSrcset = [
+  img?.sizes?.cartao?.url ? `${urlMidia(img.sizes.cartao.url)} 640w` : null,
+  img?.url ? `${urlMidia(img.url)} ${img.width ?? 1280}w` : null,
+]
+  .filter(Boolean)
+  .join(', ')
+
+/** Alternativas da mesma loja: a página não é beco sem saída, e o gate anti-thin pede. */
+const alternativas = produto && loja ? await getProdutosDaLoja(tenant.id, loja.id, produto.id) : []
+
+const tituloPagina = produto?.meta?.title || produto?.titulo || ''
+const descricao =
+  produto?.meta?.description ||
+  (temPreco
+    ? `${produto?.titulo} — preço observado em ${precoEmTexto}${nomeLoja ? ` na ${nomeLoja}` : ''}.`
+    : `${produto?.titulo}${nomeLoja ? ` na ${nomeLoja}` : ''} — consulte o preço atual na loja.`)
+
+/**
+ * JSON-LD em grafo (o tronco Organization → WebSite → WebPage vem do Base).
+ *
+ * `offers` só existe com preço observado: Offer sem `price`/`priceCurrency` não vira
+ * rich result e ainda aparece como aviso. E `availability` fica FORA de propósito —
+ * a gente observou PREÇO, não estoque; afirmar `InStock` seria inventar o dado que o
+ * piloto Amazon inteiro se recusa a inventar. `availabilityStarts` carrega o carimbo.
+ */
+const nosDaPagina = produto
+  ? [
+      {
+        '@type': 'Product',
+        '@id': `${canonical}#produto`,
+        name: produto.titulo,
+        url: canonical,
+        description: descricao,
+        ...(imagemUrl ? { image: imagemUrl } : {}),
+        ...(loja ? { brand: { '@type': 'Brand', name: loja.nome } } : {}),
+        ...(temPreco && !encerrado
+          ? {
+              offers: {
+                '@type': 'Offer',
+                '@id': `${canonical}#offer`,
+                url: canonical,
+                price: produto.preco,
+                priceCurrency: 'BRL',
+                availabilityStarts: precoEm!.toISOString(),
+                // seller SEM url: `lojas.url_site` veio derivado de link de afiliado na
+                // migração e publicá-lo seria link cru no HTML (proibido pelo contrato).
+                ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
+              },
+            }
+          : {}),
+      },
+      noMigalhas(canonical, [
+        { nome: 'Início', url: `https://${tenant.canonical_host}/` },
+        ...(loja ? [{ nome: loja.nome, url: `https://${tenant.canonical_host}/empresa/${loja.slug}/` }] : []),
+        { nome: produto.titulo, url: canonical },
+      ]),
+      noImagem(canonical, imagemUrl),
+    ]
+  : []
 ---
-<Base titulo={catalogo.produto.nome} descricao={catalogo.produto.descricao} canonical={canonical} noindex schema={[schemaProduto(catalogo, canonical)]}>
-  <FichaProduto catalogo={catalogo} />
-</Base>
+
+{
+  catalogo ? (
+    <Base
+      titulo={catalogo.produto.nome}
+      descricao={catalogo.produto.descricao}
+      canonical={canonical}
+      noindex
+      schema={[schemaProduto(catalogo, canonical)]}
+    >
+      <FichaProduto catalogo={catalogo} />
+    </Base>
+  ) : (
+    <Base
+      titulo={tituloPagina}
+      descricao={descricao}
+      canonical={canonical}
+      noindex={!indexavel}
+      markdown={`/p/${produto!.slug}.md`}
+      schema={nosDaPagina}
+    >
+      <nav class="trilha" aria-label="Você está em">
+        <a href="/">Início</a>
+        {loja && (
+          <>
+            {' › '}
+            <a href={`/empresa/${loja.slug}/`}>{loja.nome}</a>
+          </>
+        )}
+        <span> › {produto!.titulo}</span>
+      </nav>
+
+      <div class="produto">
+        <div class="topo">
+          {heroSrc && (
+            <img
+              class="hero"
+              src={heroSrc}
+              srcset={heroSrcset}
+              sizes="(min-width: 62rem) 30rem, 100vw"
+              alt={img?.alt ?? produto!.titulo}
+              width={img?.width ?? 1280}
+              height={img?.height ?? 1280}
+              fetchpriority="high"
+              decoding="async"
+            />
+          )}
+          <h1>{produto!.titulo}</h1>
+          {/* "Loja: X" e não "na X": nome de loja não concorda com preposição sozinho
+              (na Amazon, no Mercado Livre) e o rótulo vale pra qualquer programa */}
+          {loja && <p class="loja">Loja: {loja.nome}</p>}
+        </div>
+
+        <aside class="lateral" aria-label="Como comprar">
+          <div class="cartao">
+            {/*
+              Preço e carimbo saem JUNTOS ou não saem. Nada aqui depende de JS: o bloco
+              inteiro está no HTML inicial, que é o que o crawler de IA lê.
+            */}
+            {temPreco ? (
+              <p class="preco">
+                <strong>{precoFormatado}</strong>
+                <span class="quando">preço observado em {precoEmTexto}</span>
+              </p>
+            ) : (
+              <p class="sem-preco">
+                Não publicamos o preço deste produto: o valor muda na loja e nós só
+                mostramos número com a data em que foi conferido.
+              </p>
+            )}
+
+            {encerrado ? (
+              <p class="encerrado">Esta oferta foi encerrada. O produto pode continuar à venda na loja.</p>
+            ) : monetiza ? (
+              <CtaAfiliado tipo="produto" docId={produto!.id} rotulo={rotuloCta} ref="produto" />
+            ) : null}
+
+            {cupomVisivel && !encerrado && <CupomCard cupom={cupomVisivel} compacto />}
+
+            {/* divulgação do programa, visível na PÁGINA — não só no rodapé */}
+            {associadoAmazon && (
+              <p class="divulgacao">Como associado da Amazon, eu recebo por compras qualificadas.</p>
+            )}
+          </div>
+        </aside>
+
+        <div class="conteudo">
+          {temPreco && (
+            <p class="nota-preco">
+              O preço acima foi observado em {precoEmTexto} e pode ter mudado desde então —
+              confira o valor atual na loja antes de comprar.
+            </p>
+          )}
+
+          {alternativas.length > 0 && (
+            <section class="alternativas">
+              <h2>Outras opções{nomeLoja ? ` na ${nomeLoja}` : ''}</h2>
+              <ul>
+                {alternativas.map((a) => (
+                  <li>
+                    <a href={`/p/${caminhoCanonico(a.slug)}/`}>{a.titulo}</a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </div>
+    </Base>
+  )
+}
+
+<style>
+  .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
+  .trilha a { color: inherit; }
+
+  .produto { display: block; }
+  @media (min-width: 62rem) {
+    .produto {
+      display: grid;
+      grid-template-columns: minmax(0, var(--rz-medida)) 23rem;
+      justify-content: center;
+      gap: 0 2rem;
+      align-items: start;
+    }
+    .topo { grid-column: 1; grid-row: 1; }
+    .conteudo { grid-column: 1; grid-row: 2; }
+    .lateral {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      position: sticky;
+      /* o cabeçalho é sticky e tem ~65px; sem a folga o cartão fica embaixo dele */
+      top: 5.5rem;
+    }
+  }
+
+  .hero {
+    display: block;
+    width: 100%;
+    max-width: 30rem;
+    height: auto;
+    object-fit: contain;
+    border-radius: 10px;
+    background: var(--rz-surface-brand);
+    margin-bottom: 1rem;
+  }
+  h1 { margin: 0 0 0.4rem; }
+  .loja { margin: 0 0 1.25rem; color: var(--rz-muted); }
+
+  .cartao {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.25rem;
+    border: 1px solid var(--rz-borda);
+    border-radius: 12px;
+    padding: 1.25rem 1.1rem;
+    background: var(--rz-surface);
+  }
+  .cartao > :global(*) { max-width: 100%; }
+
+  /* o preço e o carimbo são UM bloco: quebrar a linha entre eles é o começo de exibir
+     um sem o outro */
+  .preco { display: flex; flex-direction: column; gap: 0.2rem; margin: 0; }
+  .preco strong { font-family: var(--rz-fonte-titulos); font-size: 2rem; line-height: 1; }
+  .preco .quando { font-size: 0.8rem; color: var(--rz-muted); }
+  .sem-preco { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--rz-muted); }
+  .encerrado {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    background: var(--rz-surface-expirado);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+  }
+  .divulgacao { margin: 0; font-size: 0.75rem; line-height: 1.5; color: var(--rz-muted); }
+
+  .nota-preco { font-size: 0.9rem; line-height: 1.5; color: var(--rz-muted); }
+  .alternativas { margin-top: 2rem; }
+  .alternativas h2 { font-size: 1.15rem; }
+  .alternativas ul { margin: 0; padding-left: 1.1rem; line-height: 1.8; }
+</style>

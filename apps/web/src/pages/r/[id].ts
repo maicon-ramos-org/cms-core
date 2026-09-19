@@ -18,6 +18,7 @@ import { classificaUserAgent } from '../../lib/agentClass'
 import {
   cmsFindOneNoTenant,
   logClique,
+  PRODUTO_MONETIZAVEL,
   type CupomDTO,
   type LojaDTO,
   type OfertaDTO,
@@ -35,7 +36,8 @@ const lojaDe = (doc: { loja?: LojaDTO | string | number }): LojaDTO | null =>
   doc.loja && typeof doc.loja === 'object' ? doc.loja : null
 
 const CUPOM_MONETIZAVEL = new Set(['publicado', 'expirando', 'expirado'])
-const PRODUTO_MONETIZAVEL = new Set(['landing', 'indexavel'])
+// PRODUTO_MONETIZAVEL mora em lib/cms: a página /p/{slug} decide mostrar o CTA pela
+// MESMA lista. Duas cópias da regra é a forma de as duas divergirem.
 
 async function resolveDestino(idPublico: string, tenantId: string | number): Promise<Destino | null> {
   const m = /^([cpo])(\d{1,12})$/.exec(idPublico)

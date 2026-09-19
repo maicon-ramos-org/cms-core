@@ -165,6 +165,24 @@ export interface ProdutoDTO {
   slug: string
   url_afiliado_fonte: string
   loja?: LojaDTO | string | number
+  imagem?: MidiaDTO | string | number | null
+  /**
+   * Preço e o INSTANTE em que ele foi observado. Andam juntos por validação da coleção
+   * (`precoComTimestamp`) porque aqui não há PA-API: o número veio de leitura manual, e
+   * número sem carimbo é afirmação que não podemos sustentar. A página respeita a mesma
+   * regra do outro lado: sem `preco_em`, nada de preço na tela.
+   */
+  preco?: number | null
+  preco_em?: string | null
+  cupom?: CupomDTO | string | number | null
+  /** máquina PRD 08: rascunho → landing (noindex) → indexavel → encerrado */
+  estado?: string | null
+  /** DERIVADO de `estado` no CMS — é ele que decide o noindex e o sitemap */
+  indexavel?: boolean | null
+  ancoras_alvo?: string[] | null
+  meta?: { title?: string | null; description?: string | null } | null
+  gate_antithin?: { alternativas?: boolean | null; faq?: boolean | null; editorial?: boolean | null } | null
+  updatedAt?: string | null
 }
 
 export interface OfertaDTO {
@@ -609,7 +627,7 @@ export async function getPostBySlug(tenantId: string | number, slug: string): Pr
  * `select` a resposta traria o corpo Lexical de 735 posts a cada geração.
  */
 export async function listarParaSitemap(
-  colecao: 'posts' | 'ofertas' | 'pages' | 'lojas',
+  colecao: 'posts' | 'ofertas' | 'pages' | 'lojas' | 'produtos',
   tenantId: string | number,
   campoData: string,
   // `not_in` existe por causa das pastas próprias: `not_equals` só exclui UM template, e
@@ -1239,6 +1257,63 @@ export async function getOfertaBySlug(tenantId: string | number, slug: string): 
     depth: '2',
   })
   return (await cmsFetch<FindResult<OfertaDTO>>(`/api/ofertas?${q}`)).docs[0] ?? null
+}
+
+/**
+ * Estados de `produtos` que TÊM página pública. `rascunho` não tem: ainda não é conteúdo.
+ * `encerrado` tem, e de propósito — a regra do PRD 08 é que a URL nunca some, ela passa a
+ * dizer que a oferta acabou (some é o que gera 404 em link já compartilhado no grupo).
+ */
+export const PRODUTO_COM_PAGINA = new Set(['landing', 'indexavel', 'encerrado'])
+
+/** O mesmo recorte do /r/p{id}: só estes dois estados monetizam (contrato do redirect). */
+export const PRODUTO_MONETIZAVEL = new Set(['landing', 'indexavel'])
+
+/**
+ * Página /p/{slug} da coleção `produtos` (PRD 08). depth 2 pra trazer loja, cupom e a
+ * imagem já como objeto — a página é SSR e o crawler precisa ver tudo no HTML inicial.
+ */
+export async function getProdutoBySlug(tenantId: string | number, slug: string): Promise<ProdutoDTO | null> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][slug][equals]': slug,
+    'where[and][2][_status][equals]': 'published',
+    limit: '1',
+    depth: '2',
+  })
+  const produto = (await cmsFetch<FindResult<ProdutoDTO>>(`/api/produtos?${q}`)).docs[0] ?? null
+  // cinto e suspensório: o filtro por tenant já foi na query, mas nada cruza tenant aqui
+  // por engano de parâmetro — a mesma régua do catálogo físico.
+  if (!produto || !PRODUTO_COM_PAGINA.has(produto.estado ?? '')) return null
+  return produto
+}
+
+/** Outros produtos vivos da mesma loja — alternativas do gate anti-thin, sem página órfã. */
+export async function getProdutosDaLoja(
+  tenantId: string | number,
+  lojaId: string | number,
+  excetoId: string | number,
+  limit = 6,
+): Promise<ProdutoDTO[]> {
+  const q = new URLSearchParams({
+    'where[and][0][tenant][equals]': String(tenantId),
+    'where[and][1][loja][equals]': String(lojaId),
+    'where[and][2][_status][equals]': 'published',
+    'where[and][3][estado][in]': 'landing,indexavel',
+    'where[and][4][id][not_equals]': String(excetoId),
+    limit: String(limit),
+    depth: '1',
+    sort: '-updatedAt',
+  })
+  try {
+    const { docs } = await cmsFetch<FindResult<ProdutoDTO>>(`/api/produtos?${q}`)
+    // o `not_equals` já foi na query; repetir aqui é o que impede a página de listar a si
+    // mesma como "outra opção" se algum dia o filtro do lado de lá mudar de comportamento
+    return docs.filter((d) => String(d.id) !== String(excetoId))
+  } catch {
+    // fileira de alternativas é enfeite: se o CMS tossir, a página do produto continua
+    return []
+  }
 }
 
 /** Outras ofertas da mesma loja — evita página órfã (checklist da skill nova-rota). */
