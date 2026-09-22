@@ -1,6 +1,7 @@
 import { ValidationError, type CollectionBeforeValidateHook, type CollectionConfig } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
+import { chaveDeOrigem } from '../fields/origem'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
 import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
@@ -27,7 +28,10 @@ const exigeTimestampDoDesconto: CollectionBeforeValidateHook = ({ data, original
 /** Páginas de oferta/empresa (ex-WooCommerce) — contrato colecoes.md. */
 export const Ofertas: CollectionConfig = {
   slug: 'ofertas',
-  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
+  indexes: [
+    { fields: ['tenant', 'slug'], unique: true },
+    { fields: ['tenant', 'origem'], unique: true },
+  ],
   admin: { useAsTitle: 'titulo', group: 'Catálogo' },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -37,7 +41,7 @@ export const Ofertas: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug'), exigeTimestampDoDesconto],
+    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), exigeTimestampDoDesconto],
     beforeChange: [draftOnlyIngestao],
     afterChange: [revalidateAfterChange('ofertas')],
     afterDelete: [revalidateAfterDelete('ofertas')],
@@ -177,5 +181,6 @@ export const Ofertas: CollectionConfig = {
     { name: 'wordpress_id', type: 'text', unique: true, index: true, admin: { description: '{post_type}:{ID} — import idempotente' } },
     { name: 'slug_wp', type: 'text', index: true },
     { name: 'ancoras_alvo', type: 'text', hasMany: true },
+    chaveDeOrigem,
   ],
 }

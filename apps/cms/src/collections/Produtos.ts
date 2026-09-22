@@ -1,6 +1,7 @@
 import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook, type CollectionBeforeChangeHook } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
+import { chaveDeOrigem } from '../fields/origem'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
 import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
@@ -47,7 +48,10 @@ const derivaIndexavel: CollectionBeforeChangeHook = ({ data }) => {
 
 export const Produtos: CollectionConfig = {
   slug: 'produtos',
-  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
+  indexes: [
+    { fields: ['tenant', 'slug'], unique: true },
+    { fields: ['tenant', 'origem'], unique: true },
+  ],
   admin: { useAsTitle: 'titulo', group: 'Catálogo', defaultColumns: ['titulo', 'loja', 'estado', 'indexavel'] },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -57,7 +61,7 @@ export const Produtos: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug'), precoComTimestamp, gateIndexavel],
+    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), precoComTimestamp, gateIndexavel],
     beforeChange: [draftOnlyIngestao, derivaIndexavel],
     afterChange: [revalidateAfterChange('produtos')],
     afterDelete: [revalidateAfterDelete('produtos')],
@@ -95,5 +99,6 @@ export const Produtos: CollectionConfig = {
     { name: 'gsc_impressoes_90d', type: 'number', min: 0, admin: { description: 'alimentado PRD 09; job de poda lê' } },
     { name: 'gsc_cliques_90d', type: 'number', min: 0 },
     { name: 'ancoras_alvo', type: 'text', hasMany: true },
+    chaveDeOrigem,
   ],
 }

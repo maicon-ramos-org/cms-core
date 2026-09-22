@@ -1,6 +1,7 @@
 import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
+import { chaveDeOrigem } from '../fields/origem'
 import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
 import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
 
@@ -32,7 +33,10 @@ const exigeCampoDoTemplate: CollectionBeforeValidateHook = ({ data, originalDoc 
 /** Pages WP: corpo livre OU template (apps re-render de data/{slug}.json, calculadora como ilha). */
 export const Pages: CollectionConfig = {
   slug: 'pages',
-  indexes: [{ fields: ['tenant', 'slug'], unique: true }],
+  indexes: [
+    { fields: ['tenant', 'slug'], unique: true },
+    { fields: ['tenant', 'origem'], unique: true },
+  ],
   admin: { useAsTitle: 'titulo', group: 'Conteúdo' },
   versions: { drafts: true, maxPerDoc: 50 },
   access: {
@@ -42,7 +46,7 @@ export const Pages: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug'), exigeCampoDoTemplate],
+    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), exigeCampoDoTemplate],
     beforeChange: [draftOnlyIngestao],
     afterChange: [revalidateAfterChange('pages')],
     afterDelete: [revalidateAfterDelete('pages')],
@@ -73,5 +77,6 @@ export const Pages: CollectionConfig = {
     { name: 'ancoras_alvo', type: 'text', hasMany: true },
     { name: 'wordpress_id', type: 'text', unique: true, index: true },
     { name: 'slug_wp', type: 'text', index: true },
+    chaveDeOrigem,
   ],
 }
