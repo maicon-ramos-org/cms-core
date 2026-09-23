@@ -35,15 +35,28 @@
  * Funciona para qualquer causa de falha, inclusive as que ainda não aconteceram: o portão
  * não sabe por que faltou, só que faltou.
  *
+ * A MIGRAÇÃO RODA DENTRO DESTE PROCESSO (2026-09-23), e não mais pelo CLI `payload
+ * migrate`. O CLI saiu duas vezes no CI sem imprimir nada e sem aplicar nada (runs
+ * 35853010224 e o `migrate:create` da #69) — o portão reprovou, como devia, mas um deploy
+ * reprovado assim é um deploy perdido por nada. A causa provável é a do `sair.ts`: sem
+ * terminal, o Node encerra quando o event loop esvazia, e o CLI não o segura. Aqui o
+ * `mantemVivo()` segura. Duas armadilhas do `migrate` do `@payloadcms/drizzle` passam a ser
+ * tratadas ANTES de acontecer, e não só pegas depois:
+ *  - o rastro de `push` (`batch = -1`) é conferido antes; com ele, o Payload abriria um
+ *    prompt e chamaria `process.exit(0)` — agora o portão reprova sem chamar o migrate;
+ *  - qualquer `process.exit` no meio do migrate vira erro (`semSaidaDoProcesso`), com o
+ *    relatório impresso, em vez de encerrar o processo sem conferir nada.
+ *
  * `pnpm --filter @runzos/cms migrate`
  */
 import './env'
 
-import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
-import { mantemVivo, sair } from './sair'
+import type { Migration, Payload } from 'payload'
+
+import { mantemVivo, SaidaInesperada, sair, semSaidaDoProcesso } from './sair'
 
 const encerra = mantemVivo()
 
@@ -60,19 +73,26 @@ const migrationsNoRepo = (): string[] =>
     .map((f) => path.basename(f).split('.')[0] as string)
     .sort()
 
-/** Nomes já gravados em `payload_migrations`, e o rastro de `push` se houver. */
-const migrationsNoBanco = async (): Promise<{ nomes: Set<string>; push: boolean }> => {
-  const { getPayload } = await import('payload')
-  const config = (await import('../payload.config')).default
-  const payload = await getPayload({ config, disableOnInit: true })
+/** Só o que precisamos do pool do adapter — o mesmo recorte do `prova-reaplicacao-enum.ts`. */
+type ClienteSQL = { query: (texto: string) => Promise<{ rows: Record<string, unknown>[] }>; release: () => void }
+
+/**
+ * Nomes já gravados em `payload_migrations`, e o rastro de `push` se houver. Banco vazio
+ * (a tabela nasce com a primeira migration) é "nada aplicado", não erro.
+ */
+const migrationsNoBanco = async (payload: Payload): Promise<{ nomes: Set<string>; push: boolean }> => {
+  const pool = (payload.db as unknown as { pool: { connect: () => Promise<ClienteSQL> } }).pool
+  const c = await pool.connect()
   try {
-    const { docs } = await payload.find({ collection: 'payload-migrations', limit: 0, pagination: false })
+    const { rows } = await c.query("select to_regclass('payload_migrations') is not null as existe")
+    if (!rows[0]?.existe) return { nomes: new Set(), push: false }
+    const { rows: linhas } = await c.query('select name, batch from payload_migrations')
     return {
-      nomes: new Set(docs.map((d) => String(d.name ?? ''))),
-      push: docs.some((d) => Number(d.batch) === -1),
+      nomes: new Set(linhas.map((l) => String(l.name ?? ''))),
+      push: linhas.some((l) => Number(l.batch) === -1),
     }
   } finally {
-    await payload.destroy()
+    c.release()
   }
 }
 
@@ -90,39 +110,85 @@ const run = async (): Promise<number> => {
     return 1
   }
 
-  // stdin fechado de propósito: é o que o container tem. Se o Payload abrir o prompt do
-  // `batch === -1`, ele cancela e sai 0 — e a conferência abaixo é quem pega.
-  const filho = spawnSync('pnpm', ['run', 'migrate:payload'], {
-    stdio: ['ignore', 'inherit', 'inherit'],
-  })
-  if (filho.error) {
-    console.error(`\nFALHA ao executar o migrate: ${filho.error.message}\n`)
-    return 1
-  }
-
-  let nomes: Set<string>
-  let push: boolean
+  const { getPayload } = await import('payload')
+  const config = (await import('../payload.config')).default
+  // a lista do `index.ts` que o `migrate:create` mantém. Se um arquivo da pasta faltar
+  // nela, ele não roda — e a conferência abaixo, que lê a PASTA, reprova. O cast é só de
+  // tipo: o `Migration` do Payload declara `up(args: unknown)`, e as geradas pedem
+  // `MigrateUpArgs`.
+  const migrations = (await import('../migrations')).migrations as unknown as Migration[]
+  let payload: Payload
   try {
-    ;({ nomes, push } = await migrationsNoBanco())
+    payload = await getPayload({ config, disableOnInit: true })
   } catch (err: unknown) {
-    // Banco fora, credencial errada, `payload_migrations` inexistente: tudo aqui é
-    // "não sei se aplicou", e não saber reprova.
-    console.error(`\nFALHA ao conferir as migrations contra o banco: ${String(err)}\n`)
+    console.error(`\nFALHA ao abrir o Payload contra o banco: ${String(err)}\n`)
     return 1
   }
 
-  const faltando = esperadas.filter((nome) => !nomes.has(nome))
+  try {
+    return await aplicaEConfere(payload, esperadas, migrations)
+  } finally {
+    await payload.destroy()
+  }
+}
 
-  if (faltando.length === 0 && filho.status === 0 && !push) {
+const aplicaEConfere = async (
+  payload: Payload,
+  esperadas: string[],
+  migrations: Migration[],
+): Promise<number> => {
+  // 1. ANTES de migrar: com rastro de `push`, o migrate do Payload abriria um prompt e
+  //    chamaria `process.exit(0)`. Não há o que perguntar — reprova aqui.
+  let antes: { nomes: Set<string>; push: boolean }
+  try {
+    antes = await migrationsNoBanco(payload)
+  } catch (err: unknown) {
+    console.error(`\nFALHA ao ler payload_migrations antes de migrar: ${String(err)}\n`)
+    return 1
+  }
+  if (antes.push) return reprova(esperadas, antes.nomes, { push: true })
+
+  // 2. migra, no mesmo processo. `process.exit` no meio vira erro com o código.
+  let erroDoMigrate: string | null = null
+  try {
+    await semSaidaDoProcesso(() => payload.db.migrate({ migrations }))
+  } catch (err: unknown) {
+    erroDoMigrate =
+      err instanceof SaidaInesperada
+        ? `o Payload tentou encerrar o processo no meio do migrate (process.exit(${String(err.codigo)}))`
+        : `o migrate lançou: ${String(err)}`
+  }
+
+  // 3. a pós-condição, que vale para qualquer causa
+  let depois: { nomes: Set<string>; push: boolean }
+  try {
+    depois = await migrationsNoBanco(payload)
+  } catch (err: unknown) {
+    // banco fora, credencial errada: tudo aqui é "não sei se aplicou", e não saber reprova
+    console.error(`\nFALHA ao conferir as migrations contra o banco: ${String(err)}`)
+    if (erroDoMigrate) console.error(`(antes disso, ${erroDoMigrate})`)
+    console.error('')
+    return 1
+  }
+  const faltando = esperadas.filter((nome) => !depois.nomes.has(nome))
+  if (faltando.length === 0 && !erroDoMigrate && !depois.push) {
     console.log(`\nok — ${esperadas.length} migrations do repo estão aplicadas no banco.`)
     return 0
   }
+  return reprova(esperadas, depois.nomes, { push: depois.push, erroDoMigrate })
+}
 
+const reprova = (
+  esperadas: string[],
+  nomes: Set<string>,
+  { push, erroDoMigrate }: { push: boolean; erroDoMigrate?: string | null },
+): number => {
+  const faltando = esperadas.filter((nome) => !nomes.has(nome))
   console.error('\n' + '─'.repeat(72))
   console.error('PORTÃO DE MIGRAÇÃO REPROVOU — o cms não deve subir com este banco.')
   console.error('─'.repeat(72))
-  console.error(`\n  payload migrate saiu com código ${filho.status}`)
-  console.error(`  migrations no repo:  ${esperadas.length}`)
+  if (erroDoMigrate) console.error(`\n  ${erroDoMigrate}`)
+  console.error(`\n  migrations no repo:  ${esperadas.length}`)
   console.error(`  aplicadas no banco:  ${esperadas.length - faltando.length}`)
 
   if (faltando.length > 0) {
@@ -131,11 +197,12 @@ const run = async (): Promise<number> => {
   }
   if (push) {
     console.error('\n  Há linha com batch = -1 em payload_migrations: este banco levou')
-    console.error('  `push` em algum momento (ADR-0006). É isso que faz o Payload abrir um')
-    console.error('  prompt interativo e SAIR 0 sem aplicar nada quando não há TTY.')
+    console.error('  `push` em algum momento (ADR-0006). Com ela, o migrate do Payload abre um')
+    console.error('  prompt e SAI 0 sem aplicar nada quando não há terminal — por isso o portão')
+    console.error('  reprova antes de chamá-lo.')
   }
-  if (faltando.length === 0 && filho.status !== 0) {
-    console.error('\n  Todas aplicadas, mas o migrate saiu != 0 — reprovando por segurança.')
+  if (faltando.length === 0 && erroDoMigrate) {
+    console.error('\n  Todas aplicadas, mas o migrate não terminou limpo — reprovando por segurança.')
   }
   console.error('')
   return 1
