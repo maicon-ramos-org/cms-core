@@ -42,7 +42,7 @@ export const Banners: CollectionConfig = {
       type: 'upload',
       relationTo: 'midia',
       required: true,
-      admin: { description: 'versão larga (970x250 no runzos). O alt sai da mídia' },
+      admin: { description: 'versão larga (ex.: 970x250). O alt sai da mídia' },
     },
     {
       name: 'imagem_mobile',

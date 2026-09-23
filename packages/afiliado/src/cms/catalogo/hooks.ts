@@ -138,7 +138,8 @@ export const observaListing: CollectionBeforeChangeHook = async ({ data, origina
     const old = await req.payload.find({ collection: 'historico_preco_oferta', req, depth: 0, overrideAccess: true,
       where: { and: [{ tenant: { equals: idRel(effective.tenant) } }, { oferta: { equals: current.id } }, { observado_em: { equals: data.observado_em } }] }, limit: 1 })
     if (old.docs[0] && !sameSnapshot(old.docs[0], observation)) invalido('observado_em', 'Mesmo timestamp com valores conflitantes.')
-    if (!old.docs[0]) await gravaHistorico(req, current.id, observation)
+    // `as number`: o id é numérico no Postgres; fora do site (sem o payload-types dele) o tipo é mais largo
+    if (!old.docs[0]) await gravaHistorico(req, current.id as number, observation)
     // PATCH inteiro stale/retry não altera estado ou metadados atuais.
     return { ...current, id: current.id }
   }
@@ -156,7 +157,7 @@ async function gravaHistorico(req: PayloadRequest, oferta: number, doc: Doc) {
 export const depoisListing: CollectionAfterChangeHook = async ({ doc, req }) => {
   const existing = await req.payload.find({ collection: 'historico_preco_oferta', req, depth: 0, overrideAccess: true,
     where: { and: [{ tenant: { equals: idRel(doc.tenant) } }, { oferta: { equals: doc.id } }, { observado_em: { equals: doc.observado_em } }] }, limit: 1 })
-  if (!existing.docs.length) await gravaHistorico(req, doc.id, doc)
+  if (!existing.docs.length) await gravaHistorico(req, doc.id as number, doc)
   return doc
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selecionaMatch, avaliaMatch, canonicalizaURL, cupomElegivel, identidadeListing } from '../src/catalogo/regras'
+import { selecionaMatch, avaliaMatch, canonicalizaURL, cupomElegivel, identidadeListing } from '../src/cms/catalogo/regras'
 
 const produto = { marca: 'TestBrand', modelo: 'PLA Basic', categoria: 'filamento' }
 const variante = { estado: 'confirmada', material: 'pla', cor: 'preto', peso_g: 1000, diametro_mm: 1.75, acabamento: 'standard', gtin: '1234567890123' }

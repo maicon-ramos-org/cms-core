@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Field } from 'payload'
 import type { Programa } from '@runzos/afflinks'
 
-import { Lojas } from '../src/collections/Lojas'
-import { programasAtivos } from '../src/afiliado-local'
+import { Lojas } from '../src/cms/collections/Lojas'
+import { programasAtivos } from '../src/cms/plugin'
 
 /**
  * `programa` existe em DOIS selects: `lojas.programa` (quem paga esta loja) e

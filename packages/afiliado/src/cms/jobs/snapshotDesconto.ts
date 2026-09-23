@@ -1,8 +1,20 @@
 import type { Payload, TaskConfig } from 'payload'
 
-import { compor } from '@runzos/desconto'
+import { compor, type CupomParaCompor, type DescontoDaLoja } from '@runzos/desconto'
 
-import type { Cupon, Oferta } from '../payload-types'
+/*
+ * O recorte de `ofertas` e `cupons` que a tarefa lê. O tipo completo sai do
+ * `payload-types.ts` do SITE, que um pacote não enxerga (PRD 17 RF1c).
+ */
+type Cupon = CupomParaCompor & { codigo?: string | null }
+interface Oferta {
+  id: number | string
+  slug?: string | null
+  tenant?: number | string | { id: number | string } | null
+  preco?: { valor?: number | null } | null
+  cupom?: number | string | Cupon | null
+  desconto_loja?: DescontoDaLoja | null
+}
 
 /**
  * Fotografia diária do desconto de cada oferta (spec-desconto-e-historico §2).

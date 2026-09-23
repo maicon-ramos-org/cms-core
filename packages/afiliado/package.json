@@ -1,0 +1,30 @@
+{
+  "name": "@runzos/afiliado",
+  "version": "0.1.0",
+  "description": "Plugin de afiliado: coleções, campos e rotas de um site de cupom e oferta (PRD 17, ADR-0011)",
+  "private": true,
+  "type": "module",
+  "exports": { "./cms": "./src/cms/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@runzos/afflinks": "workspace:*",
+    "@runzos/cms-core": "workspace:*",
+    "@runzos/desconto": "workspace:*"
+  },
+  "peerDependencies": {
+    "@payloadcms/db-postgres": "3.88.0",
+    "@payloadcms/plugin-multi-tenant": "3.88.0",
+    "payload": "3.88.0"
+  },
+  "devDependencies": {
+    "@payloadcms/db-postgres": "3.88.0",
+    "@payloadcms/plugin-multi-tenant": "3.88.0",
+    "@types/node": "22.19.9",
+    "payload": "3.88.0",
+    "typescript": "5.7.3",
+    "vitest": "4.0.18"
+  }
+}

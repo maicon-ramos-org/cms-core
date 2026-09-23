@@ -1,6 +1,6 @@
 /**
  * Gatilho MANUAL do snapshot de desconto. A lógica mora na task da jobs queue
- * (`src/jobs/snapshotDesconto.ts`), que roda sozinha todo dia às 03:10 UTC — este script
+ * (`packages/afiliado/src/cms/jobs/snapshotDesconto.ts`), que roda sozinha todo dia às 03:10 UTC — este script
  * existe pra rodar sob demanda (backfill do dia, verificação, incidente) sem duplicar
  * regra nenhuma.
  *
@@ -16,7 +16,7 @@ const encerra = mantemVivo()
 const run = async (): Promise<void> => {
   const { getPayload } = await import('payload')
   const config = (await import('../payload.config')).default
-  const { rodaSnapshotDesconto } = await import('../jobs/snapshotDesconto')
+  const { rodaSnapshotDesconto } = await import('@runzos/afiliado/cms')
 
   const payload = await getPayload({ config })
   const r = await rodaSnapshotDesconto(payload)

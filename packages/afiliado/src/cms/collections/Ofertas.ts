@@ -58,7 +58,8 @@ export const Ofertas: CollectionConfig = {
       type: 'select',
       required: true,
       options: ['cupom', 'credito', 'lifetime', 'desconto_api'],
-      admin: { description: 'taxonomia do overview Runzos' },
+      // o site troca este texto pelo dele (`ajustaCampo` do núcleo), sem mudar o campo
+      admin: { description: 'taxonomia das ofertas do site' },
     },
     {
       name: 'preco',
