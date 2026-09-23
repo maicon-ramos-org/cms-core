@@ -14,12 +14,12 @@ import {
 } from '../src/index'
 
 const tenant: Tenant = {
-  nome: 'Runzos',
-  canonical_host: 'runzos.com',
+  nome: 'Exemplo',
+  canonical_host: 'exemplo.test',
   descricao_curta: 'Cupons e ofertas com data de conferência.',
-  logo: 'https://cms.runzos.com/api/midia/file/runzos-logo.svg',
+  logo: 'https://cms.exemplo.test/api/midia/file/exemplo-logo.svg',
 }
-const URL_PAGINA = 'https://runzos.com/vps-barato/'
+const URL_PAGINA = 'https://exemplo.test/vps-barato/'
 
 describe('tronco — Organization → WebSite → WebPage', () => {
   it('emite os três nós que o WordPress tinha e a réplica perdeu', () => {
@@ -33,24 +33,24 @@ describe('tronco — Organization → WebSite → WebPage', () => {
     expect(site.publisher).toEqual({ '@id': idDaOrganizacao(tenant) })
     expect(pagina.isPartOf).toEqual({ '@id': idDoSite(tenant) })
     expect(pagina.about).toEqual({ '@id': idDaOrganizacao(tenant) })
-    expect(org['@id']).toBe('https://runzos.com/#organization')
-    expect(site['@id']).toBe('https://runzos.com/#website')
+    expect(org['@id']).toBe('https://exemplo.test/#organization')
+    expect(site['@id']).toBe('https://exemplo.test/#website')
     expect(pagina['@id']).toBe(`${URL_PAGINA}#webpage`)
   })
 
   it('a identidade sai do TENANT, nunca de constante', () => {
-    const outro: Tenant = { nome: 'Runzos 3D', canonical_host: '3d.runzos.com' }
-    const [org, site] = troncoDoSite({ tenant: outro, url: 'https://3d.runzos.com/', titulo: 'x' })
-    expect(org.name).toBe('Runzos 3D')
-    expect(org['@id']).toBe('https://3d.runzos.com/#organization')
-    expect(site['@id']).toBe('https://3d.runzos.com/#website')
+    const outro: Tenant = { nome: 'Exemplo Nicho', canonical_host: 'nicho.exemplo.test' }
+    const [org, site] = troncoDoSite({ tenant: outro, url: 'https://nicho.exemplo.test/', titulo: 'x' })
+    expect(org.name).toBe('Exemplo Nicho')
+    expect(org['@id']).toBe('https://nicho.exemplo.test/#organization')
+    expect(site['@id']).toBe('https://nicho.exemplo.test/#website')
   })
 
   it('declara a busca do site — é o que habilita sitelinks searchbox', () => {
     const [, site] = troncoDoSite({ tenant, url: URL_PAGINA, titulo: 'x' })
     expect(site.potentialAction).toMatchObject({
       '@type': 'SearchAction',
-      target: { urlTemplate: 'https://runzos.com/busca/?q={search_term_string}' },
+      target: { urlTemplate: 'https://exemplo.test/busca/?q={search_term_string}' },
     })
   })
 
@@ -137,11 +137,11 @@ describe('nós por tipo', () => {
 
   it('noMigalhas numera as posições a partir de 1', () => {
     const b = noMigalhas(URL_PAGINA, [
-      { nome: 'Início', url: 'https://runzos.com/' },
+      { nome: 'Início', url: 'https://exemplo.test/' },
       { nome: 'VPS', url: URL_PAGINA },
     ])
     expect(b?.itemListElement).toEqual([
-      { '@type': 'ListItem', position: 1, name: 'Início', item: 'https://runzos.com/' },
+      { '@type': 'ListItem', position: 1, name: 'Início', item: 'https://exemplo.test/' },
       { '@type': 'ListItem', position: 2, name: 'VPS', item: URL_PAGINA },
     ])
   })
@@ -152,8 +152,8 @@ describe('nós por tipo', () => {
 
   it('noColecao emite CollectionPage + ItemList — o par que o hub do WP tinha', () => {
     const nos = noColecao(URL_PAGINA, 'Ofertas', [
-      { nome: 'A', url: 'https://runzos.com/a/' },
-      { nome: 'B', url: 'https://runzos.com/b/' },
+      { nome: 'A', url: 'https://exemplo.test/a/' },
+      { nome: 'B', url: 'https://exemplo.test/b/' },
     ])
     expect(nos.map((n) => n['@type'])).toEqual(['CollectionPage', 'ItemList'])
     expect(nos[0]?.mainEntity).toEqual({ '@id': `${URL_PAGINA}#lista` })
@@ -168,21 +168,21 @@ describe('nós por tipo', () => {
     // Sem isto, /ofertas/?pagina=2 declara o 21º item como posição 1, e o Google lê duas
     // listas concorrentes dizendo coisas diferentes sobre a mesma coleção. Os hubs faziam
     // essa conta à mão porque montavam o JSON-LD por fora do pacote.
-    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'V', url: 'https://runzos.com/v/' }], { inicio: 21 })
+    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'V', url: 'https://exemplo.test/v/' }], { inicio: 21 })
     expect(nos[1]?.itemListElement).toEqual([
-      { '@type': 'ListItem', position: 21, name: 'V', url: 'https://runzos.com/v/' },
+      { '@type': 'ListItem', position: 21, name: 'V', url: 'https://exemplo.test/v/' },
     ])
   })
 
   it('noColecao aceita description no CollectionPage', () => {
-    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'A', url: 'https://runzos.com/a/' }], {
+    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'A', url: 'https://exemplo.test/a/' }], {
       descricao: 'As ofertas conferidas',
     })
     expect(nos[0]?.description).toBe('As ofertas conferidas')
   })
 
   it('noColecao sem descricao NÃO emite a chave — campo vazio é ruído no grafo', () => {
-    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'A', url: 'https://runzos.com/a/' }])
+    const nos = noColecao(URL_PAGINA, 'Ofertas', [{ nome: 'A', url: 'https://exemplo.test/a/' }])
     expect('description' in (nos[0] ?? {})).toBe(false)
   })
 })
@@ -191,7 +191,7 @@ describe('o grafo inteiro, como uma página real monta', () => {
   it('junta tronco, migalhas e FAQ sem @id repetido', () => {
     const g = montaGrafo([
       ...troncoDoSite({ tenant, url: URL_PAGINA, titulo: 'VPS barato' }),
-      noMigalhas(URL_PAGINA, [{ nome: 'Início', url: 'https://runzos.com/' }]),
+      noMigalhas(URL_PAGINA, [{ nome: 'Início', url: 'https://exemplo.test/' }]),
       noFaq(URL_PAGINA, [{ pergunta: 'p', resposta: 'r' }]),
     ])
     const ids = g['@graph'].map((n) => n['@id'])

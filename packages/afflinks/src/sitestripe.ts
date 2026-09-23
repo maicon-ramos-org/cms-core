@@ -1,6 +1,15 @@
-/** Validação do artefato fornecido; nunca reconstrói nem decora a URL. */
+import { TAG_AMAZON } from './amazon'
+
+/**
+ * Validação do artefato fornecido; nunca reconstrói nem decora a URL.
+ *
+ * A etiqueta é a do AMBIENTE de quem chama (`AMAZON_TAG`), conferida só no formato. Até o
+ * PRD 17 RF2 ela era comparada com uma etiqueta fixa escrita aqui — o que recusaria os links de
+ * qualquer outro site afiliado que usasse o pacote. Garantir que o ambiente tem o valor
+ * certo é do deploy (infra/README.md, "Contrato AMAZON_TAG"), não do pacote.
+ */
 export function validaSiteStripe(asin: string, original: string, tag: string | undefined): string {
-  if (tag !== 'runzos-20') throw new Error('AMAZON_TAG deve ser runzos-20')
+  if (!tag || !TAG_AMAZON.test(tag)) throw new Error('AMAZON_TAG ausente ou inválida')
   if (!/^[A-Z0-9]{10}$/.test(asin)) throw new Error('ASIN inválido')
   const u = new URL(original)
   if (original.trim() !== original || /[\r\n\t]/.test(original) || u.protocol !== 'https:' ||

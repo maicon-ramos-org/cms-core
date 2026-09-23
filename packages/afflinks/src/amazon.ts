@@ -1,6 +1,12 @@
+/**
+ * Formato da etiqueta de associado (docs/contratos/hermes-amazon.md). O VALOR vem só do
+ * ambiente (`AMAZON_TAG`) de cada site — nenhuma etiqueta mora neste pacote (PRD 17 RF2).
+ */
+export const TAG_AMAZON = /^[A-Za-z0-9][A-Za-z0-9-]{0,99}-[0-9]{2}$/
+
 /** Discovery URLs are untrusted input, never affiliate artifacts to reuse. No network. */
 export function amazonLink(input: string, tag: string | undefined, preserveVariant = false) {
-  if (!tag || !/^[A-Za-z0-9][A-Za-z0-9-]{0,99}-[0-9]{2}$/.test(tag)) throw new Error('AMAZON_TAG ausente ou inválida')
+  if (!tag || !TAG_AMAZON.test(tag)) throw new Error('AMAZON_TAG ausente ou inválida')
   const u = new URL(input)
   if (input.trim() !== input || /[\r\n\t\\]/.test(input) || /(?:^|\/)(?:\.|%2e){1,2}(?:\/|$)/i.test(input) || u.protocol !== 'https:' ||
     !['www.amazon.com.br', 'amazon.com.br'].includes(u.hostname) || u.port || u.username || u.password || u.hash) throw new Error('URL Amazon Brasil inválida')

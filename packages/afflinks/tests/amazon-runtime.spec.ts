@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { amazonLink, validaAmazonLink } from '../src/amazon'
 
 describe('reviewed Amazon URL runtime contract', () => {
-  it.each(['another-store-20', 'runzos-21'])('uses only the configured tag %s', tag => {
+  it.each(['another-store-20', 'exemplo-21'])('uses only the configured tag %s', tag => {
     const result = amazonLink('https://amazon.com.br/title/dp/B012345678/ref=foreign?tag=competitor-20&linkCode=abc&linkId=xyz&th=1&psc=1', tag, true)
     expect(result).toEqual({ asin: 'B012345678', canonical: 'https://www.amazon.com.br/dp/B012345678', affiliate: `https://www.amazon.com.br/dp/B012345678?th=1&tag=${tag}` })
     expect(validaAmazonLink(result.asin, result.affiliate, tag)).toBe(result.affiliate)

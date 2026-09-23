@@ -7,11 +7,11 @@ describe('buildAffiliateUrl — fixtures por programa (contrato redirect-afiliad
     const url = buildAffiliateUrl({
       programa: 'amazon',
       urlFonte: 'https://www.amazon.com.br/dp/B0EXEMPLO?th=1',
-      afiliadoId: 'runzos-20',
+      afiliadoId: 'exemplo-20',
       subid: 'grupo-wa',
     })
     const u = new URL(url)
-    expect(u.searchParams.get('tag')).toBe('runzos-20')
+    expect(u.searchParams.get('tag')).toBe('exemplo-20')
     expect(u.searchParams.get('ascsubtag')).toBe('grupo-wa')
     expect(u.searchParams.get('th')).toBe('1')
     expect(u.hostname).toBe('www.amazon.com.br')
@@ -28,11 +28,11 @@ describe('buildAffiliateUrl — fixtures por programa (contrato redirect-afiliad
       buildAffiliateUrl({
         programa: 'hostinger',
         urlFonte: 'https://www.hostinger.com.br/',
-        afiliadoId: 'RUNZOS',
+        afiliadoId: 'EXEMPLO',
         subid: 'pagina',
       }),
     )
-    expect(u.searchParams.get('REFERRALCODE')).toBe('RUNZOS')
+    expect(u.searchParams.get('REFERRALCODE')).toBe('EXEMPLO')
     expect(u.searchParams.get('utm_content')).toBe('pagina')
   })
 
