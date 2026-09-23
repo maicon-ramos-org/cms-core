@@ -1,6 +1,8 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
+import { nomeBaseUnico } from '../hooks/nome-base-unico'
+import { ogSemTransparencia } from '../hooks/og-sem-transparencia'
 
 export const Midia: CollectionConfig = {
   slug: 'midia',
@@ -10,6 +12,12 @@ export const Midia: CollectionConfig = {
     delete: superAdminOnly,
     read: () => true, // arquivos são públicos (servidos nas páginas)
     update: podeEscreverConteudo,
+  },
+  hooks: {
+    // dois registros não dividem o nome-base: os derivados herdam esse nome (PRD 18 RF5)
+    beforeOperation: [nomeBaseUnico],
+    // `og` de imagem transparente com fundo branco, não preto (PRD 18 RF5)
+    beforeChange: [ogSemTransparencia],
   },
   upload: {
     staticDir: 'media',
