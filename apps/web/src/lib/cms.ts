@@ -28,17 +28,27 @@ export const urlMidia = (url?: string | null): string | undefined => {
   return /^https?:\/\//i.test(url) ? url : `${CMS_PUBLIC_URL().replace(/\/$/, '')}${url}`
 }
 
+/** Um derivado de `midia.imageSizes`, como a REST devolve. `url` vazia = não foi gerado. */
+export interface DerivadoDTO {
+  url?: string | null
+  width?: number | null
+  height?: number | null
+  mimeType?: string | null
+}
+
 /**
- * Imagem do Payload. `sizes.cartao` é o derivado de 640px gerado por `regenera:tamanhos`;
- * pode não existir (upload antigo ainda não reprocessado), e por isso quem consome sempre
- * cai no original.
+ * Imagem do Payload, com os três derivados do PRD 18 RF4 (tabela em colecoes.md):
+ * `cartao` (640, AVIF, proporção da original), `capa` (1600×900 AVIF, hero do post) e
+ * `og` (1200×630 JPEG, compartilhamento). Qualquer um pode não existir — upload antigo
+ * ainda não reprocessado pelo `regenera:tamanhos` —, e por isso quem consome sempre tem
+ * um caminho sem ele.
  */
 export interface MidiaDTO {
   url?: string
   alt?: string
   width?: number
   height?: number
-  sizes?: { cartao?: { url?: string | null; width?: number | null; height?: number | null } | null } | null
+  sizes?: { cartao?: DerivadoDTO | null; capa?: DerivadoDTO | null; og?: DerivadoDTO | null } | null
 }
 
 export interface TenantDTO {

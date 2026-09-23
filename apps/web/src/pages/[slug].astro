@@ -12,7 +12,7 @@
  * têm prioridade no Astro, então não há conflito.
  */
 import CardPost from '../components/CardPost.astro'
-import { noFaq, noImagem, noMigalhas, type No } from '@runzos/schema'
+import { noFaq, noMigalhas, type No } from '@runzos/schema'
 import Ferramentas from '../components/Ferramentas.astro'
 import ChipsCategorias from '../components/ChipsCategorias.astro'
 import Compartilhar from '../components/Compartilhar.astro'
@@ -77,18 +77,43 @@ const capa = post?.capa && typeof post.capa === 'object' ? post.capa : null
  * O original tem ~1200px e a coluna do artigo tem 944 no desktop: ali ele é o tamanho
  * certo. Quem ganha com o `srcset` é o celular, que renderiza em ~360 e baixava a mesma
  * imagem do desktop — o derivado de 640 (ver `regenera:tamanhos`) corta isso pela metade.
+ *
+ * COM o derivado `capa` (PRD 18 RF4: 1600×900, AVIF q55, recorte 16:9 pelo centro), ele
+ * toma o lugar da original como candidato largo e como `src`, e o `<img>` declara
+ * 1600×900. SEM ele — o acervo só ganha a `capa` quando o RF5 rodar — o hero sai
+ * exatamente como antes: original + cartão, com as medidas da original.
+ *
+ * A ARMADILHA DA PROPORÇÃO: o `cartao` mantém a proporção da ORIGINAL (640×336 numa capa
+ * de 1200×630, 640×427 numa de 1280×853) e a `capa` é 16:9 recortada. Com os dois no
+ * mesmo `srcset`, o celular pode receber um candidato de proporção diferente da declarada
+ * em `width`/`height`: a altura reservada não bate com o arquivo que chega (a página pula)
+ * e o enquadramento muda entre celular e desktop. A classe `capa-169` fixa a CAIXA em
+ * 16:9 com `object-fit: cover`: qualquer candidato é recortado pelo centro, que é o mesmo
+ * recorte que a `capa` já tem — nenhum aparece distorcido e a altura reservada é sempre a
+ * certa. Preferido a um `srcset` só com 16:9 porque esse tiraria o cartão, e o celular
+ * voltaria a baixar 1600px para mostrar 360.
  */
+const capa169 = capa?.sizes?.capa?.url ? capa.sizes.capa : null
 const capaSrcset = [
   capa?.sizes?.cartao?.url ? `${urlMidia(capa.sizes.cartao.url)} 640w` : null,
-  capa?.url ? `${urlMidia(capa.url)} ${capa.width ?? 1200}w` : null,
+  capa169?.url
+    ? `${urlMidia(capa169.url)} ${capa169.width ?? 1600}w`
+    : capa?.url
+      ? `${urlMidia(capa.url)} ${capa.width ?? 1200}w`
+      : null,
 ]
   .filter(Boolean)
   .join(', ')
+const hero = capa169?.url
+  ? { src: urlMidia(capa169.url), largura: capa169.width ?? 1600, altura: capa169.height ?? 900 }
+  : { src: urlMidia(capa?.url), largura: capa?.width, altura: capa?.height }
 const tags = Array.isArray(post?.tags)
   ? post.tags.filter((t): t is { id: string | number; nome: string; slug: string } => typeof t === 'object' && t !== null)
   : []
 
-if (Astro.cache.enabled) {
+// `?.` porque o container de teste renderiza a rota sem o runtime de cache (mesmo padrão
+// de `p/[slug].astro` e da home) — é essa renderização sem servidor que confere o HTML
+if (Astro.cache?.enabled) {
   Astro.cache.set({
     maxAge: 3600,
     swr: 300,
@@ -181,7 +206,8 @@ const nosDaPagina = [
     ...(tags.length ? { keywords: tags.map((t) => t.nome).join(', ') } : {}),
   },
   noAutor,
-  noImagem(canonical, capa?.url ? urlMidia(capa.url) : null),
+  // o nó `#primaryimage` sai do `Base` (prop `imagem`): lá ele escolhe a `capa` 16:9 que o
+  // Google Discover pede, com medidas e URL absoluta
   // 114 posts do acervo publicavam FAQPage e a réplica não — ver import:faq
   noFaq(canonical, post?.faq ?? []),
   noMigalhas(canonical, [
@@ -215,7 +241,15 @@ const nosDaPagina = [
 ---
 
 {post && (
-<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${post.slug}.md`} schema={nosDaPagina}>
+<Base
+  titulo={titulo}
+  descricao={descricao}
+  canonical={canonical}
+  markdown={`/${post.slug}.md`}
+  schema={nosDaPagina}
+  imagem={capa}
+  tipoOg="article"
+>
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a>
     {categoria && <span> › {categoria.nome}</span>}
@@ -242,13 +276,13 @@ const nosDaPagina = [
 
     {capa?.url && (
       <img
-        class="capa"
-        src={urlMidia(capa.url)}
+        class:list={['capa', { 'capa-169': Boolean(capa169) }]}
+        src={hero.src}
         srcset={capaSrcset}
         sizes="(min-width: 48rem) 48rem, 100vw"
         alt={capa.alt ?? post?.titulo ?? ''}
-        width={capa.width}
-        height={capa.height}
+        width={hero.largura}
+        height={hero.altura}
         fetchpriority="high"
       />
     )}
@@ -376,6 +410,12 @@ const nosDaPagina = [
   }
   @media (min-width: 60rem) {
     .capa { width: calc(100% + 8rem); margin-inline: -4rem; }
+  }
+  /* hero com o derivado `capa`: caixa sempre 16:9, qualquer que seja o candidato do
+     `srcset` — ver `capa169` no frontmatter */
+  .capa-169 {
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
   }
 
   /*

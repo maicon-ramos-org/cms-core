@@ -15,9 +15,9 @@
 import fontesCss from '../../public/fontes/fontes.css?raw'
 import Cabecalho from '../components/Cabecalho.astro'
 import Rodape from '../components/Rodape.astro'
-import { urlMidia } from '../lib/cms'
+import { urlMidia, type MidiaDTO } from '../lib/cms'
 import { PADRAO_CLARO, PADRAO_ESCURO, SOMBRAS, resolvePaleta, temaEscuroAtivo } from '../lib/tema'
-import { montaGrafo, troncoDoSite, type No } from '@runzos/schema'
+import { montaGrafo, noImagem, troncoDoSite, type No } from '@runzos/schema'
 
 /**
  * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
@@ -41,9 +41,19 @@ interface Props {
    * faltava em 149 URLs quando o diff de paridade passou a comparar schema.
    */
   schema?: Array<No | null | undefined>
+  /**
+   * A mídia que representa a página (PRD 18 RF4). Recebe a MÍDIA, não uma URL: quem
+   * escolhe o arquivo é este layout, e cada consumidor recebe o derivado feito pra ele —
+   * o `og` (JPEG 1,91:1) pras redes sociais, a `capa` (16:9) pro schema.org, que é por
+   * onde o Google Discover lê a imagem grande. Assim nenhuma página consegue mandar um
+   * AVIF para o `og:image`, nem uma imagem fora da regra do Discover para o schema.
+   */
+  imagem?: MidiaDTO | null
+  /** `og:type`: `article` no post; o resto do site é `website` */
+  tipoOg?: 'website' | 'article'
 }
 
-const { titulo, descricao, noindex = false, canonical, markdown, schema = [] } = Astro.props
+const { titulo, descricao, noindex = false, canonical, markdown, schema = [], imagem, tipoOg = 'website' } = Astro.props
 
 const tenant = Astro.locals.tenant
 const t = tenant.tema ?? {}
@@ -76,6 +86,59 @@ const icones = {
   apple: url(ic.apple),
 }
 const temManifest = Boolean(url(ic.png192) && url(ic.png512))
+
+/*
+ * A imagem de compartilhamento (`og:image` + cartão grande do X), PRD 18 RF4.
+ *
+ * Sai SÓ do derivado `og` (1200×630, JPEG). Rede social não lê AVIF — e a original e a
+ * `capa` são AVIF —, então nenhuma das duas serve nem como reserva: sem `sizes.og`, a
+ * página não emite etiqueta nenhuma. O `mimeType` é conferido e não presumido: se o
+ * derivado um dia mudar de formato na coleção, a etiqueta some em vez de apontar para
+ * um arquivo que o Facebook, o LinkedIn e o X não renderizam.
+ *
+ * A URL tem que ser ABSOLUTA (o protocolo Open Graph exige). Em produção o
+ * `CMS_PUBLIC_URL` é vazio de propósito e o `urlMidia` devolve caminho relativo, que a
+ * mídia resolve pelo host do site; aqui o caminho é resolvido contra o host CANÔNICO do
+ * tenant — o mesmo do `<link rel="canonical">`, então staging nunca vira a imagem
+ * "oficial" de um post.
+ */
+const absoluta = (caminho: string) => new URL(caminho, `https://${tenant.canonical_host}/`).href
+const derivadoOg = imagem?.sizes?.og
+const caminhoOg = derivadoOg?.mimeType === 'image/jpeg' ? urlMidia(derivadoOg.url) : undefined
+const imagemOg =
+  derivadoOg && caminhoOg
+    ? {
+        url: absoluta(caminhoOg),
+        largura: derivadoOg.width,
+        altura: derivadoOg.height,
+        tipo: derivadoOg.mimeType,
+        alt: imagem?.alt,
+      }
+    : null
+
+/*
+ * A imagem principal no schema.org (`primaryImageOfPage` + o nó `#primaryimage`).
+ *
+ * O Google Discover só usa imagem GRANDE: pelo menos 1200px de largura, mais de 300 mil
+ * pixels, proporção 16:9, liberada por `max-image-preview:large` e indicada pelo
+ * `og:image` OU pelo schema.org (developers.google.com/search/docs/appearance/
+ * google-discover, versão de 2026-03-09). O `og` acima tem 1200×630 — 1,91:1, a medida
+ * das redes sociais, e NÃO 16:9. Quem cumpre a regra é a `capa` 1600×900, então ela é a
+ * imagem do schema. AVIF é formato aceito pela busca do Google (google-images).
+ *
+ * Sem a `capa` (acervo antes do RF5), a original entra com as medidas dela: é o que a
+ * página já declarava, agora com largura e altura e com URL absoluta — em produção o
+ * `urlMidia` devolve caminho relativo, e schema.org pede URL absoluta.
+ */
+const derivadoCapa = imagem?.sizes?.capa
+const caminhoPrincipal = urlMidia(derivadoCapa?.url ?? imagem?.url)
+const imagemPrincipal = caminhoPrincipal
+  ? {
+      url: absoluta(caminhoPrincipal),
+      largura: derivadoCapa?.url ? derivadoCapa.width : imagem?.width,
+      altura: derivadoCapa?.url ? derivadoCapa.height : imagem?.height,
+    }
+  : null
 
 /*
  * AS DUAS PALETAS (PRD 12). O escuro não é filtro sobre o claro: são dois conjuntos de
@@ -187,7 +250,12 @@ const grafo = canonical
         url: canonical,
         titulo,
         descricao,
+        imagem: imagemPrincipal?.url,
       }),
+      // antes do `schema` da página: `montaGrafo` deduplica por `@id` e o primeiro vence
+      imagemPrincipal
+        ? noImagem(canonical, imagemPrincipal.url, { largura: imagemPrincipal.largura, altura: imagemPrincipal.altura })
+        : null,
       ...schema,
     ])
   : null
@@ -208,8 +276,40 @@ const grafo = canonical
 
       Isto NÃO é o noindex de staging: aquele é por HOST e sai do proxy/robots.txt.
     */}
-    {noindex && <meta name="robots" content="noindex, follow" />}
+    {/*
+      Fora do `noindex`, a permissão de prévia: `max-image-preview:large` é CONDIÇÃO do
+      Google Discover (sem ela o card sai com miniatura pequena), e `max-snippet:-1` /
+      `max-video-preview:-1` liberam trecho e vídeo sem limite — o padrão que o Rank Math
+      emitia. Não é noindex: o smoke do deploy só reprova `robots` que contenha noindex.
+    */}
+    <meta
+      name="robots"
+      content={noindex ? 'noindex, follow' : 'max-image-preview:large, max-snippet:-1, max-video-preview:-1'}
+    />
     {canonical && <link rel="canonical" href={canonical} />}
+    {/*
+      Compartilhamento (Open Graph). Título, descrição e URL são os MESMOS da página — o
+      `<title>`, a `description` e o canonical —, pra que o cartão no WhatsApp, LinkedIn e
+      X diga o que o buscador diz. O X lê `og:*` quando não há `twitter:*` próprio, então
+      só o tipo de cartão é dele. A imagem sai só do derivado `og` (JPEG) — ver `imagemOg`.
+    */}
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content={tenant.nome} />
+    <meta property="og:type" content={tipoOg} />
+    <meta property="og:title" content={titulo} />
+    {descricao && <meta property="og:description" content={descricao} />}
+    {canonical && <meta property="og:url" content={canonical} />}
+    {imagemOg && (
+      <>
+        <meta property="og:image" content={imagemOg.url} />
+        {imagemOg.largura && <meta property="og:image:width" content={String(imagemOg.largura)} />}
+        {imagemOg.altura && <meta property="og:image:height" content={String(imagemOg.altura)} />}
+        {imagemOg.tipo && <meta property="og:image:type" content={imagemOg.tipo} />}
+        {imagemOg.alt && <meta property="og:image:alt" content={imagemOg.alt} />}
+      </>
+    )}
+    <meta name="twitter:card" content={imagemOg ? 'summary_large_image' : 'summary'} />
+    {imagemOg && <meta name="twitter:image" content={imagemOg.url} />}
     {/*
       O grafo de JSON-LD (PRD 02 RF6). `is:inline` porque o Astro não deve processar o
       conteúdo, e `set:html` porque `JSON.stringify` já produz o texto exato — interpolar

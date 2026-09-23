@@ -118,6 +118,23 @@ describe('nós por tipo', () => {
     })
   })
 
+  it('noImagem leva largura e altura quando existem — é por elas que o Discover mede a imagem', () => {
+    // Google Discover: imagem grande = pelo menos 1200px de largura, mais de 300 mil
+    // pixels e 16:9. Sem as medidas no nó, o buscador tem que baixar o arquivo pra saber.
+    expect(noImagem(URL_PAGINA, 'https://cdn/x.avif', { largura: 1600, altura: 900 })).toMatchObject({
+      width: 1600,
+      height: 900,
+    })
+    const semMedida = noImagem(URL_PAGINA, 'https://cdn/x.avif', { largura: null, altura: undefined })
+    expect(semMedida).not.toHaveProperty('width')
+    expect(semMedida).not.toHaveProperty('height')
+  })
+
+  it('tronco declara primaryImageOfPage apontando pro mesmo nó da imagem', () => {
+    const [, , pagina] = troncoDoSite({ tenant, url: URL_PAGINA, titulo: 'VPS', imagem: 'https://cdn/x.avif' })
+    expect(pagina.primaryImageOfPage).toEqual({ '@id': noImagem(URL_PAGINA, 'https://cdn/x.avif')?.['@id'] })
+  })
+
   it('noMigalhas numera as posições a partir de 1', () => {
     const b = noMigalhas(URL_PAGINA, [
       { nome: 'Início', url: 'https://runzos.com/' },

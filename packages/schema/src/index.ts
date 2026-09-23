@@ -114,9 +114,22 @@ export function troncoDoSite(p: Pagina): [No, No, No] {
 }
 
 /** `ImageObject` próprio: é o que dá ao buscador o metadado da imagem, não só a URL. */
-export function noImagem(url: string, imagem?: string | null): No | null {
+export function noImagem(
+  url: string,
+  imagem?: string | null,
+  medidas: { largura?: number | null; altura?: number | null } = {},
+): No | null {
   if (!imagem) return null
-  return { '@type': 'ImageObject', '@id': `${url}#primaryimage`, url: imagem, contentUrl: imagem }
+  return {
+    '@type': 'ImageObject',
+    '@id': `${url}#primaryimage`,
+    url: imagem,
+    contentUrl: imagem,
+    // o Discover exige imagem grande (≥1200px de largura, >300 mil pixels, 16:9): com as
+    // medidas no nó o buscador sabe disso sem baixar o arquivo
+    ...seTiver(medidas.largura, 'width'),
+    ...seTiver(medidas.altura, 'height'),
+  }
 }
 
 export interface ItemMigalha {

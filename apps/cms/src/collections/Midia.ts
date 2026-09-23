@@ -15,9 +15,12 @@ export const Midia: CollectionConfig = {
     staticDir: 'media',
     mimeTypes: ['image/*', 'application/pdf'],
     /*
-     * Um derivado só, do tamanho do cartão da vitrine. O original migrado do WP tem
-     * 1280px de largura e o cartão renderiza em ~300px: a home servia 836KB de imagem
-     * onde ~200KB bastam. 640 = 2x do cartão, que cobre tela retina sem virar upscale.
+     * Três derivados, cada um com UM uso (PRD 18 RF4, ADR-0012; tabela em colecoes.md):
+     * `cartao` pra vitrine, `capa` pro hero do post, `og` pra rede social.
+     *
+     * `cartao`: o original migrado do WP tem 1280px de largura e o cartão renderiza em
+     * ~300px: a home servia 836KB de imagem onde ~200KB bastam. 640 = 2x do cartão, que
+     * cobre tela retina sem virar upscale.
      *
      * NÃO existe um tamanho "grande": no corpo do artigo a imagem ocupa a largura toda
      * e o original é o tamanho certo. Tamanho que ninguém pede é byte em disco e coluna
@@ -38,6 +41,50 @@ export const Midia: CollectionConfig = {
          * vira 4KB). Quem já era avif fica igual, então não há troca ruim aqui.
          */
         formatOptions: { format: 'avif', options: {} },
+      },
+      {
+        /*
+         * O hero do post: 1600×900, recorte 16:9 pelo centro. 1600 cobre a capa no
+         * desktop (~896px de largura) em tela retina. Portado do `toAvif()` do Alma
+         * (`packages/core/src/cli/rehost-images.ts`), que mediu 60–90% de redução em
+         * capas geradas por IA com AVIF q55.
+         *
+         * `withoutEnlargement: false` É DE PROPÓSITO, e é o que faz o derivado existir.
+         * Medido no acervo em 2026-09-23: 778 das 782 capas de post têm menos de
+         * 1600×900 (372 são 1280×720, 180 são 1200×630). Com o campo indefinido (padrão
+         * do Payload 3.88), `getImageResizeAction` devolve `'omit'` quando a original é
+         * menor nos DOIS eixos: a `capa` simplesmente não seria gerada para 99,5% dos
+         * posts. E `true` também não serve: com `cover`, o sharp deixa de recortar para
+         * 16:9 — medido no sharp 0.34.2, 1200×630 continua 1200×630 e 1536×1024 vira
+         * 1536×900 —, que é o motivo de o próprio `toAvif()` do Alma ampliar. Ampliar
+         * 1280→1600 (25% por eixo) sai barato em AVIF: na capa usada na prova do RF4,
+         * 19,9KB na `capa` 1600×900 contra 14,1KB da original 1280×720.
+         */
+        name: 'capa',
+        width: 1600,
+        height: 900,
+        fit: 'cover',
+        position: 'centre',
+        withoutEnlargement: false,
+        formatOptions: { format: 'avif', options: { quality: 55 } },
+      },
+      {
+        /*
+         * A imagem de compartilhamento (`og:image` / `twitter:image`): 1200×630 é a
+         * medida que Facebook, LinkedIn e o cartão grande do X pedem. JPEG e não AVIF
+         * porque rede social NÃO lê AVIF — e por isso também não há "fallback" da
+         * `capa` no `og:image`: sem este derivado, a página não emite a etiqueta.
+         *
+         * Amplia pelo mesmo motivo da `capa`: 28 das 782 capas de post seriam omitidas
+         * com o padrão do Payload (as menores que 1200×630 nos dois eixos).
+         */
+        name: 'og',
+        width: 1200,
+        height: 630,
+        fit: 'cover',
+        position: 'centre',
+        withoutEnlargement: false,
+        formatOptions: { format: 'jpeg', options: { quality: 80 } },
       },
     ],
   },
