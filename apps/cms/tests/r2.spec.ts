@@ -6,9 +6,11 @@
  * RF2: o endereço da imagem é `${R2_PUBLIC_BASE}/{chave}`, e a chave é o mesmo nome de
  * arquivo que a cópia do RF3 usou.
  */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import { configR2, urlPublica } from '../src/lib/r2'
+import { configR2, configR2DaExecucao, urlPublica } from '../src/lib/r2'
 
 const completo = {
   R2_ACCOUNT_ID: 'conta',
@@ -57,5 +59,46 @@ describe('urlPublica — o endereço da imagem (RF2)', () => {
 
   it('nome com espaço ou acento sai codificado, como o navegador pede', () => {
     expect(urlPublica('https://media.exemplo.test', 'foto nova ção.png')).toBe('https://media.exemplo.test/foto%20nova%20%C3%A7%C3%A3o.png')
+  })
+})
+
+describe('configR2DaExecucao — o build do Next não é execução', () => {
+  /*
+   * O `next build` carrega o payload.config para coletar os dados de `/admin/[[...segments]]`,
+   * e dentro do build da imagem Docker não existe R2_* nenhuma — elas moram só no .env da
+   * VPS e chegam em EXECUÇÃO, pelo compose. Foi o que quebrou o build da imagem depois da #73.
+   * Falhar fechado continua valendo onde importa: servidor subindo, `pnpm migrate`, scripts.
+   */
+  const BUILD = { NEXT_PHASE: 'phase-production-build' }
+
+  it('no build do Next, sem as variáveis, não lança — devolve uma config que não aponta para nada real', () => {
+    const r = configR2DaExecucao(BUILD)
+    expect(r.publicBase).toBe('https://build.invalid')
+    expect(r.endpoint).toBe('https://build.invalid')
+  })
+
+  it('fora do build, sem as variáveis, lança com o nome das cinco — o CMS não sobe', () => {
+    expect(() => configR2DaExecucao({})).toThrow(
+      'faltam variáveis do bucket: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE',
+    )
+  })
+
+  it('o servidor do Next (next start) é execução: sem as variáveis, lança', () => {
+    expect(() => configR2DaExecucao({ NEXT_PHASE: 'phase-production-server' })).toThrow(/faltam variáveis do bucket/)
+  })
+
+  it('no build COM as variáveis, usa as de verdade (a exceção não mascara config presente)', () => {
+    expect(configR2DaExecucao({ ...BUILD, ...completo }).publicBase).toBe('https://media.exemplo.test')
+  })
+})
+
+describe('payload.config — a trava que o build da imagem pediu', () => {
+  it('carrega o bucket por configR2DaExecucao, nunca pela estrita direto', () => {
+    // a #73 chamou `configR2(process.env)` no topo do payload.config: o `next build` da
+    // imagem (sem R2_*) quebrou. O CI não pegava — ele exporta as R2_* do MinIO e não roda
+    // o `next build` do cms. Esta asserção é a trava barata.
+    const fonte = readFileSync(new URL('../src/payload.config.ts', import.meta.url), 'utf8')
+    expect(fonte).toMatch(/configR2DaExecucao\(process\.env\)/)
+    expect(fonte).not.toMatch(/\bconfigR2\(process\.env\)/)
   })
 })

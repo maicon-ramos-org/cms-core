@@ -54,3 +54,27 @@ export function configR2(env: Record<string, string | undefined>): ConfigR2 {
  */
 export const urlPublica = (publicBase: string, filename: string, prefix?: string | null): string =>
   `${publicBase}/${[prefix, filename].filter(Boolean).map((s) => encodeURIComponent(s!)).join('/')}`
+
+/**
+ * A config do bucket para quem EXECUTA — servidor, `pnpm migrate`, scripts —, com uma única
+ * exceção: a fase de build do Next. O `next build` carrega o payload.config para coletar os
+ * dados de `/admin/[[...segments]]`, e dentro do build da imagem Docker não há `R2_*`
+ * nenhuma: elas moram só no .env da VPS e chegam em execução, pelo compose. Foi o que quebrou
+ * o build da imagem logo depois da #73 (PRD 18 RF1).
+ *
+ * Nessa fase, e só com as variáveis ausentes, devolve uma config que não aponta para nada
+ * real (`build.invalid`): o build não fala com o bucket. Valor fictício não entra no Dockerfile
+ * nem no ambiente da imagem, onde mascararia a falta real em produção.
+ */
+export function configR2DaExecucao(env: Record<string, string | undefined>): ConfigR2 {
+  const buildDoNext = env.NEXT_PHASE === 'phase-production-build'
+  if (buildDoNext && VARIAVEIS_R2.some((v) => !env[v]?.trim())) {
+    return {
+      bucket: 'build',
+      endpoint: 'https://build.invalid',
+      credentials: { accessKeyId: 'build', secretAccessKey: 'build' },
+      publicBase: 'https://build.invalid',
+    }
+  }
+  return configR2(env)
+}
