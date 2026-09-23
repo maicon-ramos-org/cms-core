@@ -899,7 +899,7 @@ export async function itensParaBusca(
     { nome: 'pages', campo: 'titulo', comStatus: true },
     { nome: 'lojas', campo: 'nome', comStatus: false },
   ]
-  const saida: Array<{
+  type Item = {
     colecao: string
     id: string | number
     slug: string
@@ -907,9 +907,16 @@ export async function itensParaBusca(
     wordpress_id?: string | null
     /** ficha de app é `pages` mas mora em /apps/{slug} — sem isto a busca leva a 404 */
     template?: string | null
-  }> = []
-  await Promise.all(
+  }
+  /*
+   * Em paralelo, mas cada coleção enche a PRÓPRIA lista e o resultado sai na ordem de
+   * `colecoes`. Com uma lista comum, a ordem do índice virava a ordem em que o CMS
+   * respondia: os blocos trocavam de lugar a cada reinício do site, e o arquivo mudava
+   * sem ninguém ter mexido em nada (ver tests/busca.spec.ts).
+   */
+  const porColecao = await Promise.all(
     colecoes.map(async ({ nome: colecao, campo, comStatus }) => {
+      const saida: Item[] = []
       let pagina = 1
       let totalPages = 1
       do {
@@ -940,9 +947,10 @@ export async function itensParaBusca(
         }
         pagina += 1
       } while (pagina <= totalPages)
+      return saida
     }),
   )
-  return saida
+  return porColecao.flat()
 }
 
 export async function maiorDescontoLifetime(tenantId: string | number): Promise<number | null> {
