@@ -16,6 +16,8 @@ import { relative, resolve, sep } from 'node:path'
 
 import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
+import { endpointR2 } from './r2'
+
 /** O mínimo do cliente S3 que a cópia usa — é o que deixa testar sem rede. */
 export interface BucketS3 {
   send(comando: HeadObjectCommand | PutObjectCommand): Promise<unknown>
@@ -56,7 +58,7 @@ const OBRIGATORIAS = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY
 export function clienteR2(env: Record<string, string | undefined>): { s3: S3Client; bucket: string; endpoint: string } {
   const faltando = OBRIGATORIAS.filter((v) => !env[v]?.trim())
   if (faltando.length) throw new Error(`faltam variáveis do bucket: ${faltando.join(', ')}`)
-  const endpoint = env.R2_ENDPOINT?.trim() || `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+  const endpoint = endpointR2(env)
   const s3 = new S3Client({
     endpoint,
     region: 'auto',
