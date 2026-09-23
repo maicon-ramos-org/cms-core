@@ -37,6 +37,7 @@ import { Autores, Categorias, Tags } from './collections/Taxonomias'
 import { Tenants } from './collections/Tenants'
 import { Users } from './collections/Users'
 import { editorFeatures } from './editor'
+import { copiaProfunda } from './copia'
 import { aplicaOrdem, type Ordem } from './ordem'
 import { configR2DaExecucao, urlPublica } from './r2'
 
@@ -64,6 +65,11 @@ export interface OpcoesCmsCore {
   ordem?: Ordem
   /** Tarefas agendadas do site (Payload Jobs). */
   jobs?: Config['jobs']
+  /**
+   * Onde ficam (e onde o `migrate:create` escreve) as migrações do site. Sem ela, a padrão do
+   * Payload: `src/migrations` a partir da pasta em que o processo roda.
+   */
+  pastaDeMigracoes?: string
 }
 
 /** As coleções do núcleo, com o que o site acrescenta a `tenants` e a `pages`. */
@@ -138,11 +144,19 @@ export function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
       // o schema vem de migration versionada — nunca de push, que além de não-determinístico
       // trava em prompt quando não há TTY.
       push: process.env.PAYLOAD_DB_PUSH === '1',
+      ...(opcoes.pastaDeMigracoes ? { migrationDir: opcoes.pastaDeMigracoes } : {}),
     }),
     sharp,
     ...(opcoes.jobs ? { jobs: opcoes.jobs } : {}),
     plugins: [
       ...(opcoes.plugins ?? []),
+      /*
+       * Cópia de cada coleção, depois dos plugins do site e antes dos do núcleo. As coleções
+       * (do núcleo e de um plugin) são objetos de módulo, e o multi-tenant e a sanitização do
+       * Payload mexem nelas no lugar: sem a cópia, montar a config uma segunda vez no mesmo
+       * processo duplicava o campo `tenant` (PRD 17 RF1d).
+       */
+      (config) => ({ ...config, collections: (config.collections ?? []).map((c) => copiaProfunda(c)) }),
       // depois dos plugins do site (vale para o que eles acrescentaram) e antes dos do núcleo
       aplicaOrdem(opcoes.ordem),
       /*
