@@ -47,6 +47,8 @@ const derivaIndexavel: CollectionBeforeChangeHook = ({ data }) => {
 }
 
 export const Produtos: CollectionConfig = {
+  // ganha o grupo `meta` do plugin de SEO (a fábrica do núcleo lê esta marca — PRD 17 RF1)
+  custom: { seo: true },
   slug: 'produtos',
   indexes: [
     { fields: ['tenant', 'slug'], unique: true },

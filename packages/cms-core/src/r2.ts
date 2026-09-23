@@ -10,7 +10,7 @@ export interface ConfigR2 {
   bucket: string
   endpoint: string
   credentials: { accessKeyId: string; secretAccessKey: string }
-  /** a origem pública das imagens, sem barra no fim (`https://media.runzos.com`) */
+  /** a origem pública das imagens, sem barra no fim (`https://media.exemplo.com`) */
   publicBase: string
 }
 

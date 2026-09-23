@@ -32,6 +32,8 @@ const exigeCampoDoTemplate: CollectionBeforeValidateHook = ({ data, originalDoc 
 
 /** Pages WP: corpo livre OU template (apps re-render de data/{slug}.json, calculadora como ilha). */
 export const Pages: CollectionConfig = {
+  // ganha o grupo `meta` do plugin de SEO (a fábrica do núcleo lê esta marca — PRD 17 RF1)
+  custom: { seo: true },
   slug: 'pages',
   indexes: [
     { fields: ['tenant', 'slug'], unique: true },

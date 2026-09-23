@@ -8,6 +8,8 @@ const urlValida = (value: string | null | undefined): true | string =>
   !value || /^https?:\/\/.+/.test(value) || 'URL deve ser absoluta (https://...)'
 
 export const Lojas: CollectionConfig = {
+  // ganha o grupo `meta` do plugin de SEO (a fábrica do núcleo lê esta marca — PRD 17 RF1)
+  custom: { seo: true },
   slug: 'lojas',
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'nome', group: 'Catálogo' },

@@ -16,6 +16,8 @@ const base = {
 export const Categorias: CollectionConfig = {
   ...base,
   slug: 'categorias',
+  // ganha o grupo `meta` do plugin de SEO (a fábrica do núcleo lê esta marca — PRD 17 RF1)
+  custom: { seo: true },
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'nome', group: 'Conteúdo' },
   hooks: { beforeValidate: [uniquePorTenant('slug')] },

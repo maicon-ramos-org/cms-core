@@ -54,6 +54,8 @@ const validaSinonimo: CollectionBeforeValidateHook = async ({ data, originalDoc,
 }
 
 export const CategoriasOferta: CollectionConfig = {
+  // ganha o grupo `meta` do plugin de SEO (a fábrica do núcleo lê esta marca — PRD 17 RF1)
+  custom: { seo: true },
   slug: 'categorias_oferta',
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: {

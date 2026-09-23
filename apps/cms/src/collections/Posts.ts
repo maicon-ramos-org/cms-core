@@ -6,6 +6,8 @@ import { draftOnlyIngestao, uniquePorTenant, validaSlugKebab } from '../hooks/va
 
 /** Migração WP (PRD 03) — paridade de URL /{slug}. */
 export const Posts: CollectionConfig = {
+  // ganha o grupo `meta` do plugin de SEO (a fábrica do núcleo lê esta marca — PRD 17 RF1)
+  custom: { seo: true },
   slug: 'posts',
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   admin: { useAsTitle: 'titulo', group: 'Conteúdo' },

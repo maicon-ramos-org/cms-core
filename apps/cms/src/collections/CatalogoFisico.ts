@@ -11,6 +11,9 @@ const rel = (name: string, relationTo: CollectionSlug, required = true): Field =
 const select = (name: string, options: string[], defaultValue?: string): Field => ({ name, type: 'select', options, required: true, defaultValue })
 const access = { read: authenticated, create: podeEscreverConteudo, update: podeEscreverConteudo, delete: nunca }
 const base = (slug: CollectionSlug, fields: Field[]): CollectionConfig => ({
+  // o campo de tenant é declarado aqui, não pelo plugin — a fábrica do núcleo lê esta marca
+  // e passa `customTenantField` ao multi-tenant (PRD 17 RF1)
+  custom: { tenantCampoProprio: true },
   slug, fields: [{ ...tenantField({ name: 'tenant', tenantsArrayFieldName: 'tenants',
     tenantsArrayTenantFieldName: 'tenant', tenantsCollectionSlug: 'tenants', unique: false }), required: true }, ...fields], access, admin: { group: 'Catálogo físico' },
   // Impede que um delete posterior invalide relações/auditoria, inclusive Local API.

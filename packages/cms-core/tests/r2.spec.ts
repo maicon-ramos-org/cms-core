@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-import { configR2, configR2DaExecucao, urlPublica } from '../src/lib/r2'
+import { configR2, configR2DaExecucao, urlPublica } from '../src/r2'
 
 const completo = {
   R2_ACCOUNT_ID: 'conta',
@@ -92,12 +92,13 @@ describe('configR2DaExecucao — o build do Next não é execução', () => {
   })
 })
 
-describe('payload.config — a trava que o build da imagem pediu', () => {
+describe('fábrica — a trava que o build da imagem pediu', () => {
   it('carrega o bucket por configR2DaExecucao, nunca pela estrita direto', () => {
     // a #73 chamou `configR2(process.env)` no topo do payload.config: o `next build` da
     // imagem (sem R2_*) quebrou. O CI não pegava — ele exporta as R2_* do MinIO e não roda
-    // o `next build` do cms. Esta asserção é a trava barata.
-    const fonte = readFileSync(new URL('../src/payload.config.ts', import.meta.url), 'utf8')
+    // o `next build` do cms. Esta asserção é a trava barata. Desde o PRD 17 RF1 quem monta a
+    // config é a fábrica do núcleo.
+    const fonte = readFileSync(new URL('../src/fabrica.ts', import.meta.url), 'utf8')
     expect(fonte).toMatch(/configR2DaExecucao\(process\.env\)/)
     expect(fonte).not.toMatch(/\bconfigR2\(process\.env\)/)
   })
