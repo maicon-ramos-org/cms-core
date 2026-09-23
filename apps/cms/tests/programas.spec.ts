@@ -3,7 +3,7 @@ import type { Field } from 'payload'
 import type { Programa } from '@runzos/afflinks'
 
 import { Lojas } from '../src/collections/Lojas'
-import { Tenants } from '../src/collections/Tenants'
+import { programasAtivos } from '../src/afiliado-local'
 
 /**
  * `programa` existe em DOIS selects: `lojas.programa` (quem paga esta loja) e
@@ -26,7 +26,8 @@ const opcoesDe = (campos: Field[], caminho: string[]): string[] => {
 
 describe('enum `programa` — lojas e tenants não podem divergir', () => {
   const daLoja = opcoesDe(Lojas.fields, ['programa'])
-  const doTenant = opcoesDe(Tenants.fields, ['programas_ativos', 'programa'])
+  // `programas_ativos` chega a `tenants` pelo plugin do afiliado (PRD 17 RF1b)
+  const doTenant = opcoesDe([programasAtivos], ['programas_ativos', 'programa'])
 
   it('as duas listas são idênticas, na mesma ordem', () => {
     // mesma ordem de propósito: é a ordem do enum do Postgres, e os dois `ALTER TYPE`

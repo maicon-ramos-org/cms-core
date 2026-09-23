@@ -2,8 +2,8 @@ import type { Access, PayloadRequest } from 'payload'
 
 /**
  * Papéis (contrato: PRD 01 RF3):
- * - super-admin: Maicon — tudo, todos os tenants
- * - agente:      Hermes (redator/estrategista/severino) e claude-code-build — CRUD no(s) tenant(s)
+ * - super-admin: o dono da instância — tudo, todos os tenants
+ * - agente:      os agentes de conteúdo e de build — CRUD no(s) tenant(s)
  * - editor:      humano editando via admin
  * - ingestao:    ingestao-worker — SÓ cria draft (hook draftOnlyIngestao)
  * - sistema:     processos server-side (web logando cliques/queries) — escrita em coleções de log
@@ -12,10 +12,14 @@ export type Papel = 'super-admin' | 'agente' | 'editor' | 'ingestao' | 'sistema'
 
 type UserLike = { roles?: Papel[] | string[] | null } | null | undefined
 
-export const hasRole = (user: UserLike, role: Papel): boolean =>
-  Boolean(user?.roles?.includes(role))
+/**
+ * `user: unknown` e não `UserLike`: o tipo de `req.user` vem do `payload-types.ts` DO SITE.
+ * Compilado sozinho, o pacote do núcleo não o tem (é o `UntypedUser` do Payload).
+ */
+export const hasRole = (user: unknown, role: Papel): boolean =>
+  Boolean((user as UserLike)?.roles?.includes(role as never))
 
-export const isSuperAdmin = (user: UserLike): boolean => hasRole(user, 'super-admin')
+export const isSuperAdmin = (user: unknown): boolean => hasRole(user, 'super-admin')
 
 export const authenticated: Access = ({ req }) => Boolean(req.user)
 

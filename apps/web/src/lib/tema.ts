@@ -6,7 +6,7 @@
  * papel fica em UM lugar — quando um tenant novo sobe com o tema meio preenchido, é aqui
  * que se lê o que ele vai receber.
  *
- * Os padrões espelham `apps/cms/src/collections/Tenants.ts`. A duplicação é deliberada e
+ * Os padrões espelham `packages/cms-core/src/collections/Tenants.ts`. A duplicação é deliberada e
  * tem limite claro: o site NUNCA pode depender do CMS estar de pé pra saber pintar a
  * página, e um tenant recém-criado com campo vazio não pode servir texto sem cor. O teste
  * `tema.spec.ts` guarda o único risco real dessa cópia, que é ela divergir em algum papel.
@@ -129,7 +129,7 @@ export const SOMBRAS = {
  * ---------------------------------------------------------------------------------------
  * Contraste WCAG — ESPELHO DE LEITURA, não a régua (PRD 13 RF6).
  *
- * Quem barra cor reprovada é o `beforeValidate` do Payload (`apps/cms/src/lib/contraste.ts`),
+ * Quem barra cor reprovada é o `beforeValidate` do Payload (`packages/cms-core/src/lib/contraste.ts`),
  * que devolve 400 com o `path` do campo. Aqui a mesma conta existe só para a página
  * `/design-system` PODER MOSTRAR a razão de cada par — um número exibido ao lado da
  * amostra vale mais que a promessa de que alguém auditou.
@@ -188,7 +188,7 @@ export interface ParCritico {
 
 /**
  * Os 11 pares que o design-tokens.md v1.1 marca como críticos. Espelho da lista de
- * `apps/cms/src/lib/contraste.ts` — se um par entrar lá e não aqui, a página deixa de
+ * `packages/cms-core/src/lib/contraste.ts` — se um par entrar lá e não aqui, a página deixa de
  * mostrar, mas o CMS continua barrando. É a direção segura de divergir.
  */
 export const PARES_CRITICOS: ParCritico[] = [

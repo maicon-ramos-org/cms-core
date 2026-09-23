@@ -1,7 +1,7 @@
 import { tenantField } from '@payloadcms/plugin-multi-tenant/fields'
 import type { CollectionConfig, CollectionSlug, Field } from 'payload'
-import { authenticated, nunca, podeEscreverConteudo } from '../access/roles'
-import { validaSlugKebab } from '../hooks/validations'
+import { authenticated, nunca, podeEscreverConteudo } from '@runzos/cms-core'
+import { validaSlugKebab } from '@runzos/cms-core'
 import { appendOnly, depoisListing, historicoInterno, observaListing, semDelete, validaElegibilidade, validaProduto, validaRedirect, validaRelacoes, validaVariante, validaVinculo } from '../catalogo/hooks'
 
 const text = (name: string, required = false): Field => ({ name, type: 'text', required })

@@ -2,10 +2,12 @@
  * A fábrica da config do Payload (PRD 17 RF1, ADR-0011).
  *
  * O núcleo decide o que é igual em todo site — banco, editor, idioma, mídia no bucket,
- * multi-tenant e SEO —, e o site entrega o que é dele: as coleções, os plugins e as
- * tarefas agendadas. Nesta primeira etapa (RF1a) todas as coleções ainda vêm do site; elas
- * passam para o núcleo e para o plugin de afiliado nas etapas seguintes, sem que a config
- * final mude — a prova é o `payload-types.ts` do site e o `migrate:create` sem diferença.
+ * multi-tenant, SEO e as coleções de conteúdo que todo site tem (`tenants`, `users`,
+ * `midia`, `posts`, `pages`, taxonomias, `mensagens`, `queries_log` e as do auto-linker).
+ * O site entrega o que é dele: as próprias coleções, plugins, campos de `tenants`, templates
+ * de página, tarefas agendadas e a ORDEM final de tudo isso (`ordem.ts`). Cada etapa do
+ * PRD 17 RF1 muda onde o código mora sem mudar a config final — a prova é o
+ * `payload-types.ts` do site e o `migrate:create` sem diferença.
  *
  * Duas listas que o `payload.config` mantinha à mão agora são DEDUZIDAS das coleções, porque
  * com núcleo, plugin e site entregando coleções cada um pelo seu lado, lista à mão vira
@@ -22,10 +24,20 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
 import { en } from '@payloadcms/translations/languages/en'
 import { pt } from '@payloadcms/translations/languages/pt'
-import { buildConfig, type CollectionConfig, type Config, type Plugin, type SanitizedConfig } from 'payload'
+import { buildConfig, type CollectionConfig, type Config, type Field, type Plugin, type SanitizedConfig } from 'payload'
 import sharp from 'sharp'
 
+import { LinkRules, LinksGerados } from './collections/AutoLinker'
+import { QueriesLog } from './collections/Logs'
+import { Mensagens } from './collections/Mensagens'
+import { Midia } from './collections/Midia'
+import { paginas, type TemplateDePagina } from './collections/Pages'
+import { Posts } from './collections/Posts'
+import { Autores, Categorias, Tags } from './collections/Taxonomias'
+import { Tenants } from './collections/Tenants'
+import { Users } from './collections/Users'
 import { editorFeatures } from './editor'
+import { aplicaOrdem, type Ordem } from './ordem'
 import { configR2DaExecucao, urlPublica } from './r2'
 
 /** As duas coleções que NÃO são de um tenant: o próprio cadastro e quem administra. */
@@ -37,12 +49,39 @@ export interface OpcoesCmsCore {
    * `payload.config.ts`): de lá saem o `payload-types.ts` e o mapa de componentes do admin.
    */
   raiz: string
-  /** As coleções do site, na ordem em que aparecem no admin e no `payload-types.ts`. */
-  colecoes: CollectionConfig[]
+  /** As coleções do site. Entram depois das do núcleo; a posição final é a `ordem.colecoes`. */
+  colecoes?: CollectionConfig[]
   /** Plugins do site. Rodam ANTES dos do núcleo, que precisam enxergar tudo o que eles acrescentam. */
   plugins?: Plugin[]
+  /** Campos de topo que o site acrescenta a `tenants` (os do núcleo vêm primeiro). */
+  camposDoTenant?: Field[]
+  /** Templates de `pages` além dos do núcleo (`conteudo`, `institucional`, `contato`, `indice`). */
+  templatesDePagina?: TemplateDePagina[]
+  /**
+   * A ordem final de coleções, campos e opções que chegam intercalados entre núcleo, plugins
+   * e site. Sem ela, fica a ordem de chegada: núcleo, plugins, site.
+   */
+  ordem?: Ordem
   /** Tarefas agendadas do site (Payload Jobs). */
   jobs?: Config['jobs']
+}
+
+/** As coleções do núcleo, com o que o site acrescenta a `tenants` e a `pages`. */
+function colecoesDoNucleo(opcoes: OpcoesCmsCore): CollectionConfig[] {
+  return [
+    { ...Tenants, fields: [...Tenants.fields, ...(opcoes.camposDoTenant ?? [])] },
+    Users,
+    Posts,
+    paginas(opcoes.templatesDePagina),
+    Mensagens,
+    Midia,
+    Categorias,
+    Tags,
+    Autores,
+    LinkRules,
+    LinksGerados,
+    QueriesLog,
+  ]
 }
 
 /**
@@ -87,7 +126,7 @@ export function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
       user: 'users',
       importMap: { baseDir: path.resolve(opcoes.raiz) },
     },
-    collections: opcoes.colecoes,
+    collections: [...colecoesDoNucleo(opcoes), ...(opcoes.colecoes ?? [])],
     // Lista de features em `editor.ts` — os scripts de migração precisam usar a MESMA.
     editor: lexicalEditor({ features: editorFeatures }),
     i18n: { fallbackLanguage: 'pt', supportedLanguages: { pt, en } },
@@ -104,6 +143,8 @@ export function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
     ...(opcoes.jobs ? { jobs: opcoes.jobs } : {}),
     plugins: [
       ...(opcoes.plugins ?? []),
+      // depois dos plugins do site (vale para o que eles acrescentaram) e antes dos do núcleo
+      aplicaOrdem(opcoes.ordem),
       /*
        * PRD 18 RF1/RF2. `disablePayloadAccessControl`: o Payload deixa de servir o arquivo
        * (`/api/midia/file/…`), e a URL de cada imagem e de cada derivado passa a ser a do

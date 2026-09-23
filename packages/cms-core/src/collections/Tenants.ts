@@ -185,7 +185,8 @@ export const Tenants: CollectionConfig = {
       required: true,
       unique: true,
       index: true,
-      admin: { description: 'runzos.com, 3d.runzos.com — migração de domínio = trocar aqui + 301' },
+      // o site troca este texto pelo dele (`ajustaCampo`), sem mudar o campo
+      admin: { description: 'exemplo.com, loja.exemplo.com — migração de domínio = trocar aqui + 301' },
     },
     {
       name: 'tema',
@@ -203,7 +204,7 @@ export const Tenants: CollectionConfig = {
           relationTo: 'midia',
           admin: {
             description:
-              'ícone QUADRADO da aba. Separado do logo porque o logo é letreiro (1324x215 no runzos) e ' +
+              'ícone QUADRADO da aba. Separado do logo porque o logo costuma ser letreiro (largo e baixo) e ' +
               'letreiro em 16px é borrão — não é a mesma imagem em tamanho menor.',
           },
         },
@@ -212,8 +213,8 @@ export const Tenants: CollectionConfig = {
          * plataforma pede um formato próprio, e todos saem da MÍDIA do tenant — ícone em
          * `public/` é marca cravada, e o segundo tenant tem a dele.
          *
-         * Os cinco vieram do LOGO vetorial (o "O" de RUNZOS), não do PNG de 208px que o
-         * WordPress serve: recortado do vetor, o mesmo símbolo sai nítido em 512.
+         * Recorte os cinco do LOGO vetorial, não de um PNG pequeno: recortado do vetor, o mesmo
+         * símbolo sai nítido em 512.
          */
         {
           name: 'icones',
@@ -263,35 +264,6 @@ export const Tenants: CollectionConfig = {
       ],
     },
     {
-      name: 'programas_ativos',
-      type: 'array',
-      admin: { description: 'IDs/tags de afiliado NUNCA no banco — aqui vai o NOME da env var' },
-      fields: [
-        {
-          name: 'programa',
-          type: 'select',
-          required: true,
-          options: ['hostinger', 'cloudways', 'amazon', 'shopee', 'awin', 'impact', 'mercadolivre', 'hotmart', 'direto', 'outro'],
-        },
-        {
-          name: 'id_afiliado_env',
-          type: 'text',
-          required: true,
-          admin: { description: 'ex.: AFF_AMAZON_TAG — o valor mora no .env do web/bot' },
-        },
-      ],
-    },
-    {
-      name: 'canais',
-      type: 'group',
-      fields: [
-        { name: 'whatsapp_group_id', type: 'text' },
-        { name: 'telegram_channel_id', type: 'text' },
-        { name: 'telegram_ingest_chat_ids', type: 'text', hasMany: true },
-      ],
-    },
-    { name: 'chat_enabled', type: 'checkbox', required: true, defaultValue: false },
-    {
       name: 'webmcp_polyfill',
       type: 'checkbox',
       defaultValue: false,
@@ -300,8 +272,6 @@ export const Tenants: CollectionConfig = {
           'carrega o polyfill do WebMCP em quem NÃO tem suporte nativo (~20KB, sob demanda). Desligado por padrão: sem extensão que consuma, as ferramentas registradas não são lidas por ninguém',
       },
     },
-    { name: 'broadcast_enabled', type: 'checkbox', required: true, defaultValue: false },
-    { name: 'chat_system_prompt', type: 'textarea' },
     {
       name: 'autolinker',
       type: 'group',
@@ -312,23 +282,9 @@ export const Tenants: CollectionConfig = {
       ],
     },
     {
-      name: 'ingestao',
-      type: 'group',
-      fields: [
-        { name: 'corroboracao_min', type: 'number', defaultValue: 2, min: 1 },
-        { name: 'teto_publicacao_dia', type: 'number', min: 0 },
-      ],
-    },
-    {
       name: 'seo',
       type: 'group',
       fields: [
-        {
-          name: 'title_pattern_loja',
-          type: 'text',
-          required: true,
-          defaultValue: '{n} Cupons {loja} Testados em {mes} {ano}',
-        },
         { name: 'gsc_property', type: 'text' },
         { name: 'sitemap_enabled', type: 'checkbox', defaultValue: true },
       ],

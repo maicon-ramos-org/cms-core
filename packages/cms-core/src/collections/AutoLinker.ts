@@ -16,7 +16,8 @@ export const LinkRules: CollectionConfig = {
     {
       name: 'destino',
       type: 'relationship',
-      relationTo: ['posts', 'lojas', 'ofertas', 'produtos', 'pages'],
+      // o plugin de afiliado acrescenta lojas, ofertas e produtos (`acrescentaDestinosDoAutoLinker`)
+      relationTo: ['posts', 'pages'],
       required: true,
     },
     {
@@ -47,7 +48,8 @@ export const LinksGerados: CollectionConfig = {
     {
       name: 'destino',
       type: 'relationship',
-      relationTo: ['posts', 'lojas', 'ofertas', 'produtos', 'pages'],
+      // o plugin de afiliado acrescenta lojas, ofertas e produtos (`acrescentaDestinosDoAutoLinker`)
+      relationTo: ['posts', 'pages'],
       required: true,
     },
     { name: 'ancora', type: 'text', required: true },

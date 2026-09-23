@@ -1,8 +1,11 @@
 import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
-import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, efetivo, uniqueCupomPorLoja } from '../hooks/validations'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
+import { draftOnlyIngestao, efetivo } from '@runzos/cms-core'
+
+import { uniqueCupomPorLoja } from '../hooks/cupons'
+import { tagsDaLoja } from '../hooks/tags-loja'
 
 /** beforeValidate: trim + uppercase (contrato colecoes.md). */
 const normalizaCodigo: CollectionBeforeValidateHook = ({ data }) => {
@@ -57,8 +60,8 @@ export const Cupons: CollectionConfig = {
   hooks: {
     beforeValidate: [normalizaCodigo, derivaFontesCount, uniqueCupomPorLoja, exigeSeloAoPublicar],
     beforeChange: [draftOnlyIngestao],
-    afterChange: [revalidateAfterChange('cupons')],
-    afterDelete: [revalidateAfterDelete('cupons')],
+    afterChange: [revalidateAfterChange('cupons', { tagsExtras: tagsDaLoja })],
+    afterDelete: [revalidateAfterDelete('cupons', { tagsExtras: tagsDaLoja })],
   },
   fields: [
     { name: 'loja', type: 'relationship', relationTo: 'lojas', required: true, index: true },

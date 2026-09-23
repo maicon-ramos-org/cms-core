@@ -1,9 +1,10 @@
 import { ValidationError, type CollectionBeforeValidateHook, type CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
-import { chaveDeOrigem } from '../fields/origem'
-import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
+import { chaveDeOrigem } from '@runzos/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { tagsDaLoja } from '../hooks/tags-loja'
 
 /**
  * Desconto sem timestamp não existe (mesma regra de `produtos.preco` + `preco_em`):
@@ -45,8 +46,8 @@ export const Ofertas: CollectionConfig = {
   hooks: {
     beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), exigeTimestampDoDesconto],
     beforeChange: [draftOnlyIngestao],
-    afterChange: [revalidateAfterChange('ofertas')],
-    afterDelete: [revalidateAfterDelete('ofertas')],
+    afterChange: [revalidateAfterChange('ofertas', { tagsExtras: tagsDaLoja })],
+    afterDelete: [revalidateAfterDelete('ofertas', { tagsExtras: tagsDaLoja })],
   },
   fields: [
     { name: 'loja', type: 'relationship', relationTo: 'lojas', required: true, index: true },

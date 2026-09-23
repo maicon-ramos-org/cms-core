@@ -1,9 +1,10 @@
 import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook, type CollectionBeforeChangeHook } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
-import { chaveDeOrigem } from '../fields/origem'
-import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '../hooks/validations'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
+import { chaveDeOrigem } from '@runzos/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { tagsDaLoja } from '../hooks/tags-loja'
 
 /** "preco + preco_em ✔ juntos — NUNCA preço sem timestamp" (contrato). */
 const precoComTimestamp: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
@@ -65,8 +66,8 @@ export const Produtos: CollectionConfig = {
   hooks: {
     beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), precoComTimestamp, gateIndexavel],
     beforeChange: [draftOnlyIngestao, derivaIndexavel],
-    afterChange: [revalidateAfterChange('produtos')],
-    afterDelete: [revalidateAfterDelete('produtos')],
+    afterChange: [revalidateAfterChange('produtos', { tagsExtras: tagsDaLoja })],
+    afterDelete: [revalidateAfterDelete('produtos', { tagsExtras: tagsDaLoja })],
   },
   fields: [
     { name: 'titulo', type: 'text', required: true },

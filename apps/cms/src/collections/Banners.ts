@@ -1,7 +1,8 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo } from '../access/roles'
-import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
+import { authenticated, podeEscreverConteudo } from '@runzos/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
+import { tagsDaLoja } from '../hooks/tags-loja'
 
 /**
  * Banner promocional (contrato colecoes.md). Existe porque a home do WordPress tem um, e
@@ -26,8 +27,8 @@ export const Banners: CollectionConfig = {
     delete: podeEscreverConteudo,
   },
   hooks: {
-    afterChange: [revalidateAfterChange('banners')],
-    afterDelete: [revalidateAfterDelete('banners')],
+    afterChange: [revalidateAfterChange('banners', { tagsExtras: tagsDaLoja })],
+    afterDelete: [revalidateAfterDelete('banners', { tagsExtras: tagsDaLoja })],
   },
   fields: [
     {

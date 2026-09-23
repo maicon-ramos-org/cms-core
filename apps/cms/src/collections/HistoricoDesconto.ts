@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated, sistemaOnly, superAdminOnly } from '../access/roles'
+import { authenticated, sistemaOnly, superAdminOnly } from '@runzos/cms-core'
 
 /**
  * Série diária do desconto por oferta (spec-desconto-e-historico §2).

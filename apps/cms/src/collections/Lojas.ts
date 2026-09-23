@@ -1,8 +1,9 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
-import { revalidateAfterChange, revalidateAfterDelete } from '../hooks/revalidate'
-import { uniquePorTenant, validaSlugKebab } from '../hooks/validations'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
+import { uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { tagsDaLoja } from '../hooks/tags-loja'
 
 const urlValida = (value: string | null | undefined): true | string =>
   !value || /^https?:\/\/.+/.test(value) || 'URL deve ser absoluta (https://...)'
@@ -21,8 +22,8 @@ export const Lojas: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [uniquePorTenant('slug')],
-    afterChange: [revalidateAfterChange('lojas')],
-    afterDelete: [revalidateAfterDelete('lojas')],
+    afterChange: [revalidateAfterChange('lojas', { tagsExtras: tagsDaLoja })],
+    afterDelete: [revalidateAfterDelete('lojas', { tagsExtras: tagsDaLoja })],
   },
   fields: [
     { name: 'nome', type: 'text', required: true },

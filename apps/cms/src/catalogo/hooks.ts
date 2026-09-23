@@ -2,7 +2,7 @@ import { validaSiteStripe, validaAmazonLink } from '@runzos/afflinks'
 import { sql } from '@payloadcms/db-postgres'
 import { ValidationError, type CollectionBeforeChangeHook, type CollectionAfterChangeHook, type PayloadRequest, type CollectionSlug } from 'payload'
 import { avaliaMatch, atributosFilamento, chaveVariante, idRel, identidadeListing, normaliza } from './regras'
-import { hasRole, isSuperAdmin } from '../access/roles'
+import { hasRole, isSuperAdmin } from '@runzos/cms-core'
 
 type Doc = Record<string, any>
 export const invalido = (path: string, message: string): never => {
