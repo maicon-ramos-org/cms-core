@@ -537,27 +537,19 @@ export async function getPagesPorTemplate(
  * migração. `modelos` e `automacoes` nascem no Payload e guardam o id, que é o vínculo
  * certo: não depende de um endereço de outro servidor continuar existindo.
  */
-export async function getMidiaPorId(
-  id: number | string,
-): Promise<{ url?: string; alt?: string; width?: number; height?: number } | null> {
+export async function getMidiaPorId(id: number | string): Promise<MidiaDTO | null> {
   if (!id) return null
   try {
-    return await cmsFetch<{ url?: string; alt?: string; width?: number; height?: number }>(
-      `/api/midia/${id}?depth=0`,
-    )
+    return await cmsFetch<MidiaDTO>(`/api/midia/${id}?depth=0`)
   } catch {
     // mídia apagada não derruba a página: o hero some, o conteúdo fica
     return null
   }
 }
 
-export async function getMidiaPorUrlAntiga(
-  url: string,
-): Promise<{ url?: string; alt?: string; width?: number; height?: number } | null> {
+export async function getMidiaPorUrlAntiga(url: string): Promise<MidiaDTO | null> {
   const q = new URLSearchParams({ 'where[wp_url_antiga][equals]': url, limit: '1', depth: '0' })
-  const r = await cmsFetch<FindResult<{ url?: string; alt?: string; width?: number; height?: number }>>(
-    `/api/midia?${q}`,
-  )
+  const r = await cmsFetch<FindResult<MidiaDTO>>(`/api/midia?${q}`)
   return r.docs[0] ?? null
 }
 

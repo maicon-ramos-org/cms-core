@@ -7,7 +7,7 @@
  * inteiro no HTML inicial, porque crawler de IA não executa JS.
  */
 import CardOferta from '../../components/CardOferta.astro'
-import { noFaq, noImagem } from '@runzos/schema'
+import { noFaq } from '@runzos/schema'
 import Compartilhar from '../../components/Compartilhar.astro'
 import CtaAfiliado from '../../components/CtaAfiliado.astro'
 import CupomCard from '../../components/CupomCard.astro'
@@ -38,7 +38,9 @@ const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' 
 const CUPOM_VISIVEL = new Set(['publicado', 'expirando'])
 const cupomVisivel = cupom && CUPOM_VISIVEL.has(cupom.estado) ? cupom : null
 
-if (Astro.cache.enabled) {
+// `?.` porque o container de teste renderiza a rota sem o runtime de cache (mesmo padrão
+// do post, de `p/[slug].astro` e da home)
+if (Astro.cache?.enabled) {
   Astro.cache.set({
     maxAge: 300,
     swr: 60,
@@ -124,6 +126,9 @@ const precoEm = oferta.preco?.preco_em ? new Date(oferta.preco.preco_em) : null
  * página baixaria 1280px pra exibir em 620.
  */
 const img = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+// `img` também vai ao `Base` (prop `imagem`): de lá saem o `og:image` (derivado `og`) e o
+// `#primaryimage` com a `capa` 16:9, a regra do Google Discover (PRD 18 RF4, ampliação).
+// O `image` do Produto continua sendo a original: é a foto do produto, sem recorte.
 /* absoluta: o Google precisa BUSCAR essa imagem, e caminho relativo no schema não serve */
 const imagemUrl = img?.url ? urlMidia(img.url) : undefined
 const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
@@ -234,7 +239,6 @@ const nosDaPagina = [
     ...ltFaq.map((f) => ({ pergunta: f.q ?? '', resposta: f.a ?? '' })),
     ...(oferta.faq ?? []),
   ]),
-  noImagem(canonical, imagemUrl),
 ]
 ---
 
@@ -244,6 +248,7 @@ const nosDaPagina = [
   canonical={canonical}
   markdown={`/ofertas/${oferta.slug}.md`}
   schema={nosDaPagina}
+  imagem={img}
 >
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a>
