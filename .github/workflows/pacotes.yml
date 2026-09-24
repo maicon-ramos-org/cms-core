@@ -44,6 +44,10 @@ jobs:
           [ "$declarada" = "$versao" ] || { echo "::error::a tag diz $versao e o package.json diz $declarada"; exit 1; }
           grep -q "^## $versao" "$pasta/CHANGELOG.md" || { echo "::error::$pasta/CHANGELOG.md não tem a seção $versao"; exit 1; }
           echo "pasta=$pasta" >> "$GITHUB_OUTPUT"
+          # pré-lançamento (0.2.0-next.1) sai na dist-tag `next` e o `latest` fica na última
+          # estável; a versão estável sai sem --tag, como sempre (scripts/dist-tag.mjs)
+          dist_tag=$(node scripts/dist-tag.mjs "$versao")
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
 
       # o pacote só sai se o CI desta revisão passou — o CI completo, com Postgres, MinIO e o
       # site de referência de pé, e não uma cópia dele sem a infraestrutura
@@ -67,6 +71,7 @@ jobs:
           subject-path: ${{ steps.tgz.outputs.arquivo }}
 
       - name: publica
-        run: npm publish "${{ steps.tgz.outputs.arquivo }}"
+        run: npm publish "${{ steps.tgz.outputs.arquivo }}" ${DIST_TAG:+--tag "$DIST_TAG"}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIST_TAG: ${{ steps.pacote.outputs.dist_tag }}
