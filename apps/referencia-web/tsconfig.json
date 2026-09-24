@@ -1,0 +1,11 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  // os .astro do tema e do plugin são o site inteiro: o `astro check` tem que conferi-los
+  "include": [
+    ".astro/types.d.ts",
+    "src/**/*",
+    "../../packages/editorial/src/**/*",
+    "../../packages/afiliado/src/web/**/*"
+  ],
+  "exclude": ["dist"]
+}

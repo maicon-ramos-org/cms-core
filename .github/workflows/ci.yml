@@ -1,0 +1,104 @@
+name: ci
+
+# O repositório é público enquanto está em construção: Actions não conta minutos. Mesmo
+# assim, PR em rascunho não roda (quem executa roda `pnpm check` local), e push novo num PR
+# cancela o CI anterior.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['**/*.md']
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DATABASE_URL: postgresql://ci:ci@127.0.0.1:5433/ci
+  PAYLOAD_SECRET: ci-secret
+  PAYLOAD_DB_PUSH: '0'
+  REVALIDATE_TOKEN: ci-token
+  IP_HASH_SALT: ci-salt
+  # o bucket é um MinIO no próprio job: nenhum teste alcança bucket de verdade
+  MINIO_ENDPOINT: http://127.0.0.1:9000
+  MINIO_USUARIO: ci-minio
+  MINIO_SENHA: ci-minio-senha
+  R2_ACCOUNT_ID: ci
+  R2_ACCESS_KEY_ID: ci-minio
+  R2_SECRET_ACCESS_KEY: ci-minio-senha
+  R2_BUCKET: midia-ci
+  R2_ENDPOINT: http://127.0.0.1:9000
+  R2_PUBLIC_BASE: http://127.0.0.1:9000/midia-ci
+
+jobs:
+  # os pacotes: travas, tipos e testes (os de integração batem no Postgres e no MinIO)
+  check:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci }
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: sobe o MinIO
+        run: bash .github/sobe-minio.sh
+      - run: pnpm check
+
+  # o site de referência: só o núcleo e o plugin, subindo de verdade (ADR-0011 §4)
+  referencia:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci }
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      ADMIN_PASSWORD: ci-admin
+      SEED_API_KEY: ci-chave
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: sobe o MinIO
+        run: bash .github/sobe-minio.sh
+      - name: migração pelo portão, em banco vazio
+        working-directory: apps/referencia-cms
+        run: pnpm migrate
+      # coleção mudou no núcleo ou no plugin sem migração na referência: reprova aqui
+      - name: schema sem migração pendente
+        working-directory: apps/referencia-cms
+        run: pnpm confere:schema < /dev/null
+      - name: semente (duas vezes — a segunda não cria nada)
+        working-directory: apps/referencia-cms
+        run: pnpm seed && pnpm seed
+      - name: build do CMS e do site
+        run: |
+          pnpm --filter @maicon-ramos-org/referencia-cms build
+          pnpm --filter @maicon-ramos-org/referencia-web build
+      - name: sobe os dois e roda a fumaça
+        run: |
+          (cd apps/referencia-cms && PORT=3000 pnpm start > ../../cms.log 2>&1 &)
+          (cd apps/referencia-web && CMS_URL=http://127.0.0.1:3000 CMS_API_KEY="$SEED_API_KEY" PORT=4321 HOST=127.0.0.1 node dist/server/entry.mjs > ../../web.log 2>&1 &)
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/access > /dev/null \
+              && curl -sf -H 'Host: exemplo.referencia.local' http://127.0.0.1:4321/healthz > /dev/null && break
+            sleep 2
+          done
+          node scripts/fumaca-referencia.mjs --base=http://127.0.0.1:4321 || { tail -40 cms.log web.log; exit 1; }

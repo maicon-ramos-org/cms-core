@@ -1,0 +1,27 @@
+{
+  "name": "@maicon-ramos-org/referencia-web",
+  "version": "0.0.0",
+  "description": "Site do site de referência do núcleo: só o tema editorial e o plugin de afiliado, sem página própria. Nunca é publicado (PRD 17 RF9).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "start": "node ./dist/server/entry.mjs",
+    "typecheck": "astro check",
+    "test": "echo 'o site de referência é provado subindo de verdade no CI (trabalho referencia)'"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.4",
+    "@maicon-ramos-org/afiliado": "workspace:*",
+    "@maicon-ramos-org/editorial": "workspace:*",
+    "astro": "^7.2.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "5.7.3"
+  },
+  "plataforma": {
+    "semTestes": "o site de referência não tem regra própria: é provado subindo de verdade no CI, com as rotas do tema e do plugin respondendo"
+  }
+}

@@ -41,7 +41,7 @@ const MARCAS = [
 const PROGRAMAS = /\b(hostinger|cloudways|amazon|awin|impact|shopee|mercado\s?livre|hotmart)\b/gi
 const SO_NO_PLUGIN = ['packages/cms-core/', 'packages/editorial/']
 
-const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo'])
+const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo', '.next'])
 
 function arquivos(dir) {
   const saida = []

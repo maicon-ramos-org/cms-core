@@ -1,0 +1,56 @@
+{
+  "name": "@maicon-ramos-org/referencia-cms",
+  "version": "0.0.0",
+  "description": "CMS do site de referência do núcleo: só o núcleo e o plugin de afiliado, com dado de exemplo. Nunca é publicado (PRD 17 RF9, ADR-0011 §4).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" next build",
+    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
+    "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
+    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
+    "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "migrate": "cross-env NODE_OPTIONS=--no-deprecation tsx src/scripts/migra.ts",
+    "migrate:create": "cross-env NODE_OPTIONS=--no-deprecation payload migrate:create",
+    "seed": "cross-env NODE_OPTIONS=--no-deprecation tsx src/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'o site de referência é provado subindo de verdade no CI (trabalho referencia)'",
+    "confere:schema": "cross-env NODE_OPTIONS=--no-deprecation tsx src/scripts/confere-schema.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1138.0",
+    "@maicon-ramos-org/afiliado": "workspace:*",
+    "@maicon-ramos-org/cms-core": "workspace:*",
+    "@payloadcms/db-postgres": "3.88.0",
+    "@payloadcms/next": "3.88.0",
+    "@payloadcms/plugin-multi-tenant": "3.88.0",
+    "@payloadcms/plugin-seo": "3.88.0",
+    "@payloadcms/richtext-lexical": "3.88.0",
+    "@payloadcms/storage-s3": "3.88.0",
+    "@payloadcms/translations": "3.88.0",
+    "@payloadcms/ui": "3.88.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "16.4.7",
+    "graphql": "^16.8.1",
+    "next": "16.3.0",
+    "payload": "3.88.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "sharp": "0.34.2"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "22.19.9",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "^30.0.1",
+    "tsx": "4.22.4",
+    "typescript": "5.7.3",
+    "vite-tsconfig-paths": "6.0.5",
+    "vitest": "4.0.18"
+  },
+  "plataforma": {
+    "semTestes": "o site de referência não tem regra própria: é provado subindo de verdade no CI (migração, semente, build e as rotas do tema e do plugin respondendo)"
+  }
+}
