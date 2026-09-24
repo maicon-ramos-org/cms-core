@@ -17,10 +17,20 @@ export { revalidateAfterChange, revalidateAfterDelete, slugDeRelacao, type Opcoe
 export { chaveDeOrigem } from './fields/origem'
 export * from './lib/nome-midia'
 export * from './lib/contraste'
-// para os scripts de um site (PRD 17 RF5): ciclo de vida, pool, portão de migração e mídia
+// para os scripts de um site (PRD 17 RF5): ciclo de vida, pool, portão de migração, semente e mídia
 export { mantemVivo, SaidaInesperada, sair, semSaidaDoProcesso } from './scripts/sair'
 export { emPool } from './scripts/pool'
 export { portaoDeMigracao, type OpcoesDoPortao } from './scripts/portao'
+export {
+  aplicaSemente,
+  semeia,
+  upsert,
+  type ContextoDoConteudo,
+  type ResultadoDaSemente,
+  type Semente,
+  type TenantDaSemente,
+  type UsuarioDaSemente,
+} from './scripts/semeia'
 export {
   chavesDaMidia,
   clienteR2,
