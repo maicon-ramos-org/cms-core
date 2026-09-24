@@ -13,8 +13,12 @@
  * o marcador é o único jeito de distinguir rewrite de visita — daí ele, e não uma
  * comparação de caminho.
  */
-import PaginaConteudo from '../../components/PaginaConteudo.astro'
-import { getMapaAfiliados, getPageBySlug, getPostsParaIndice } from '../../lib/cms'
+import config from 'virtual:editorial/config'
+import extensoes from 'virtual:editorial/extensoes'
+
+import PaginaConteudo from '../../componentes/PaginaConteudo.astro'
+import { linksDoCorpo } from '../../extensoes'
+import { getPageBySlug, getPostsParaIndice } from '../../lib/cms'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -23,12 +27,9 @@ if (Astro.url.searchParams.get('__r') !== '1') {
   return new Response('Página não encontrada.', { status: 404 })
 }
 
-const [page, mapaAfiliados] = await Promise.all([
-  getPageBySlug(tenant.id, slug),
-  getMapaAfiliados(tenant.id),
-])
+const [page, links] = await Promise.all([getPageBySlug(tenant.id, slug), linksDoCorpo(extensoes, tenant)])
 
-if (!page || page.template === 'apps') {
+if (!page || new Set(config.templatesForaDaRaiz ?? []).has(page.template)) {
   return new Response('Página não encontrada.', { status: 404 })
 }
 
@@ -40,4 +41,4 @@ if (Astro.cache.enabled) {
 }
 ---
 
-<PaginaConteudo page={page} mapaAfiliados={mapaAfiliados} indice={indice} />
+<PaginaConteudo page={page} links={links} indice={indice} />

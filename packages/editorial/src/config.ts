@@ -28,4 +28,14 @@ export interface ConfigDoEditorial {
    * um com o motivo, que sai como comentário no arquivo. `/api/` o tema já fecha.
    */
   robotsBloqueia?: Array<{ caminho: string; motivo: string }>
+  /**
+   * Slugs de página do CMS que NÃO saem em `/{slug}`: o site velho os servia montados (a
+   * home, o arquivo do blog, um catálogo), e aqui cada um tem rota própria — o corpo
+   * migrado é render velho.
+   */
+  slugsSemPagina?: string[]
+  /** Templates de página que moram numa pasta própria (`/apps/{slug}`): em `/{slug}`, 404. */
+  templatesForaDaRaiz?: string[]
+  /** Como o formulário de contato se apresenta a um agente (atributos WebMCP do `<form>`). */
+  contato?: { ferramenta: string; descricaoDaFerramenta: string }
 }

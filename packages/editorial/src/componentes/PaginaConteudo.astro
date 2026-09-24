@@ -6,26 +6,27 @@
  * Fica em componente porque divide a URL `/{slug}` com os posts: a rota tenta post
  * primeiro e cai aqui quando o slug é de página.
  */
-import Base from '@runzos/editorial/componentes/Base.astro'
+import type { LinksDoCorpo } from '../extensoes'
+import Base from './Base.astro'
 import FormularioContato from './FormularioContato.astro'
 import IndiceDePosts from './IndiceDePosts.astro'
 import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'
-import { lexicalParaHtml, lexicalParaTexto } from '@runzos/editorial/lib/lexical'
-import { ehLinkDeAfiliado } from '../lib/links-de-afiliado'
+import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
 
 interface Props {
   page: PageDTO
-  mapaAfiliados: Map<string, string>
+  /** como tratar os links do corpo — o que as extensões do tema disseram (`linksDoCorpo`) */
+  links: LinksDoCorpo
   /** só no template `indice`: os posts que a rota buscou */
   indice?: Array<{ titulo: string; slug: string }>
 }
 
-const { page, mapaAfiliados, indice = [] } = Astro.props
+const { page, links, indice = [] } = Astro.props
 const tenant = Astro.locals.tenant
 
 const corpoHtml = lexicalParaHtml(page.corpo, {
-  reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
-  ehLinkDeAfiliado,
+  reescreveAfiliado: links.reescreve,
+  ehLinkDeAfiliado: links.ehRastreio,
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })
@@ -98,7 +99,7 @@ const jsonLd = JSON.stringify({
        * a propria pagina com o proprio slug.
        */
       page.template === 'indice' && (
-        <IndiceDePosts posts={indice} letra={Astro.url.searchParams.get('letra') ?? ''} />
+        <IndiceDePosts posts={indice} letra={Astro.url.searchParams.get('letra') ?? ''} caminho={`/${page.slug}/`} />
       )
     }
 

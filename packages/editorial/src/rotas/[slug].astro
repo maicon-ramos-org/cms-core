@@ -8,39 +8,41 @@
  * o acervo tem 735 páginas — rebuild a cada edição não fecha. Invalidação vem do
  * webhook do Payload por tag (ADR-0001).
  *
- * Esta rota é o curinga de 1 segmento: rotas com prefixo estático (`/cupom-{loja}`)
- * têm prioridade no Astro, então não há conflito.
+ * Esta rota é o curinga de 1 segmento: rotas com prefixo estático (`/cupom-{loja}` de um
+ * plugin, por exemplo) têm prioridade no Astro — injetadas ou não —, então não há conflito.
  */
-import CardPost from '@runzos/editorial/componentes/CardPost.astro'
 import { noFaq, noMigalhas, type No } from '@runzos/schema'
-import Ferramentas from '../components/Ferramentas.astro'
-import ChipsCategorias from '@runzos/editorial/componentes/ChipsCategorias.astro'
-import Compartilhar from '../components/Compartilhar.astro'
-import Base from '@runzos/editorial/componentes/Base.astro'
+import config from 'virtual:editorial/config'
+import extensoes from 'virtual:editorial/extensoes'
+import Ferramentas from 'virtual:editorial/Ferramentas'
+
+import Base from '../componentes/Base.astro'
+import CardPost from '../componentes/CardPost.astro'
+import ChipsCategorias from '../componentes/ChipsCategorias.astro'
+import Compartilhar from '../componentes/Compartilhar.astro'
+import { linksDoCorpo } from '../extensoes'
 import {
   caminhoCanonico,
   getCategorias,
-  getMapaAfiliados,
   getPageBySlug,
   getPostBySlug,
   getPostsRelacionados,
   urlMidia,
   type PostDTO,
 } from '../lib/cms'
-import { extraiSumario, lexicalParaHtml, lexicalParaTexto } from '@runzos/editorial/lib/lexical'
-import { ehLinkDeAfiliado } from '../lib/links-de-afiliado'
+import { extraiSumario, lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
 
 /**
- * Slugs que o WordPress servia com o corpo montado pelo builder (arquivo de produtos,
- * feed de posts, home). Cada um tem rota própria alimentada por DADO neste site, então
- * o corpo migrado deles é render velho e não pode ser servido — só o `home`, que não
- * tem URL própria (o WP servia na raiz), precisa ser barrado aqui: os outros já são
- * rotas estáticas e nem chegam neste curinga.
+ * Slugs que o site velho servia com o corpo montado pelo builder (arquivo de produtos,
+ * feed de posts, home). Cada um tem rota própria alimentada por DADO, então o corpo
+ * migrado deles é render velho e não pode ser servido — o site os lista em
+ * `config.slugsSemPagina`. Os que já são rotas estáticas nem chegam neste curinga.
  */
-const ARQUIVOS_DO_BUILDER = new Set(['home', 'apps', 'ofertas', 'blog'])
+const ARQUIVOS_DO_BUILDER = new Set(config.slugsSemPagina ?? [])
+const FORA_DA_RAIZ = new Set(config.templatesForaDaRaiz ?? [])
 
 const post = await getPostBySlug(tenant.id, slug)
 
@@ -55,7 +57,7 @@ if (!post) {
     return new Response('Página não encontrada.', { status: 404 })
   }
   const page = await getPageBySlug(tenant.id, slug)
-  if (!page || page.template === 'apps') {
+  if (!page || FORA_DA_RAIZ.has(page.template)) {
     return new Response('Página não encontrada.', { status: 404 })
   }
   /*
@@ -68,7 +70,7 @@ if (!post) {
   return Astro.rewrite(`/pagina/${caminhoCanonico(slug)}/?${params}`)
 }
 
-const [mapaAfiliados, categorias] = await Promise.all([getMapaAfiliados(tenant.id), getCategorias(tenant.id)])
+const [links, categorias] = await Promise.all([linksDoCorpo(extensoes, tenant), getCategorias(tenant.id)])
 
 const categoria = post?.categoria && typeof post.categoria === 'object' ? post.categoria : null
 const autor = post?.autor && typeof post.autor === 'object' ? post.autor : null
@@ -126,8 +128,8 @@ if (Astro.cache?.enabled) {
 const relacionados = post ? await getPostsRelacionados(tenant.id, post, 4) : ([] as PostDTO[])
 
 const corpoHtml = lexicalParaHtml(post?.corpo, {
-  reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
-  ehLinkDeAfiliado,
+  reescreveAfiliado: links.reescreve,
+  ehLinkDeAfiliado: links.ehRastreio,
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })

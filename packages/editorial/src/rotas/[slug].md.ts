@@ -4,11 +4,14 @@
  */
 import type { APIRoute } from 'astro'
 
+import config from 'virtual:editorial/config'
+
 import { getPageBySlug, getPostBySlug, getPostsRelacionados } from '../lib/cms'
-import { lexicalParaTexto } from '@runzos/editorial/lib/lexical'
+import { lexicalParaTexto } from '../lib/lexical'
 
 /** Mesma regra da página HTML: arquivo do builder tem rota própria, não sai daqui. */
-const ARQUIVOS_DO_BUILDER = new Set(['home', 'apps', 'ofertas', 'blog'])
+const ARQUIVOS_DO_BUILDER = new Set(config.slugsSemPagina ?? [])
+const FORA_DA_RAIZ = new Set(config.templatesForaDaRaiz ?? [])
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
@@ -18,7 +21,7 @@ export const GET: APIRoute = async (context) => {
   if (!post) {
     // páginas institucionais/de conteúdo dividem a URL com os posts
     const page = ARQUIVOS_DO_BUILDER.has(slug) ? null : await getPageBySlug(tenant.id, slug)
-    if (!page || page.template === 'apps') return new Response('Página não encontrada.', { status: 404 })
+    if (!page || FORA_DA_RAIZ.has(page.template)) return new Response('Página não encontrada.', { status: 404 })
     const texto = lexicalParaTexto(page.corpo)
     const corpoMd = [
       `# ${page.titulo}`,

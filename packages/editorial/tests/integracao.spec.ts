@@ -77,6 +77,7 @@ describe('temaAstro, erros do site', () => {
       (integracao.hooks['astro:config:setup'] as (p: unknown) => void)({
         config: { root: raiz, srcDir: new URL('./src/', raiz) },
         injectRoute: () => {},
+        addMiddleware: () => {},
         updateConfig: () => {},
         logger: { info: () => {} },
       })
@@ -84,6 +85,27 @@ describe('temaAstro, erros do site', () => {
 
   it('componente que o tema não tem é erro (erro de digitação não some calado)', () => {
     expect(setup({ componentes: { Cabecalho: './x.astro' } as never })).toThrow('componente "Cabecalho" não existe neste tema (existem: Cab)')
+  })
+
+  it('extensão com caminho do site que não existe é erro', () => {
+    expect(setup({ extensoes: ['./src/nao-existe.ts'] })).toThrow('a extensão ./src/nao-existe.ts não existe')
+  })
+
+  it('as extensões chegam às rotas, na ordem, por virtual:<tema>/extensoes', () => {
+    let plugin: { resolveId: (id: string) => string; load: (id: string) => string } | undefined
+    const integracao = temaAstro(tema as never, { extensoes: ['./astro.config.mjs', 'pacote-de-exemplo/extensao'] })
+    const raiz = new URL('./fixtures/site-padrao/', import.meta.url)
+    ;(integracao.hooks['astro:config:setup'] as (p: unknown) => void)({
+      config: { root: raiz, srcDir: new URL('./src/', raiz) },
+      injectRoute: () => {},
+      addMiddleware: () => {},
+      updateConfig: (c: { vite: { plugins: Array<typeof plugin> } }) => (plugin = c.vite.plugins[0]),
+      logger: { info: () => {} },
+    })
+    const codigo = plugin!.load(plugin!.resolveId('virtual:tema-teste/extensoes'))
+    expect(codigo).toContain(`import * as e0 from ${JSON.stringify(fileURLToPath(new URL('./astro.config.mjs', raiz)))}`)
+    expect(codigo).toContain('import * as e1 from "pacote-de-exemplo/extensao"')
+    expect(codigo).toContain('export default [e0, e1]')
   })
 
   it('arquivo de componente que não existe é erro', () => {

@@ -24,3 +24,7 @@ declare module 'virtual:editorial/Ferramentas' {
   const Componente: typeof import('./componentes/Ferramentas.astro').default
   export default Componente
 }
+declare module 'virtual:editorial/extensoes' {
+  const extensoes: import('./extensoes').ExtensaoDoEditorial[]
+  export default extensoes
+}

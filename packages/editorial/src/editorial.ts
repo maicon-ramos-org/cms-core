@@ -39,6 +39,10 @@ const ROTAS = [
   ['/api/contato', './rotas/api/contato.ts'],
   ['/api/revalidate', './rotas/api/revalidate.ts'],
   ['/api/uso-agente', './rotas/api/uso-agente.ts'],
+  // o curinga de um segmento: post, ou página por rewrite para `/pagina/{slug}`
+  ['/[slug]', './rotas/[slug].astro'],
+  ['/[slug].md', './rotas/[slug].md.ts'],
+  ['/pagina/[slug]', './rotas/pagina/[slug].astro'],
 ].map(([pattern, arquivo]) => ({ pattern: pattern!, entrypoint: doPacote(arquivo!) }))
 
 export type ComponenteDoEditorial = keyof typeof COMPONENTES
@@ -47,11 +51,13 @@ export interface OpcoesEditorial {
   config: ConfigDoEditorial
   /** Componentes que o site troca: nome → arquivo do site, relativo à raiz dele. */
   componentes?: Partial<Record<ComponenteDoEditorial, string>>
+  /** Módulos com os ganchos de `ExtensaoDoEditorial` (caminho relativo à raiz, ou pacote). */
+  extensoes?: string[]
 }
 
-export function editorial({ config, componentes }: OpcoesEditorial): AstroIntegration {
+export function editorial({ config, componentes, extensoes }: OpcoesEditorial): AstroIntegration {
   return temaAstro(
     { nome: 'editorial', rotas: ROTAS, componentes: COMPONENTES, middleware: doPacote('./middleware.ts') },
-    { config, componentes },
+    { config, componentes, extensoes },
   )
 }

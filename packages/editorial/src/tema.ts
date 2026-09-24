@@ -45,11 +45,18 @@ export interface OpcoesDoSite<C extends string> {
   componentes?: Partial<Record<C, string>>
   /** O que as rotas do tema leem de `virtual:<nome>/config`. Tem que ser serializável. */
   config?: object
+  /**
+   * Módulos que estendem o tema com CÓDIGO (o que não cabe na config, como uma função que
+   * reescreve link): caminho relativo à raiz do site ou nome de pacote. As rotas do tema os
+   * recebem, na ordem, por `virtual:<nome>/extensoes`.
+   */
+  extensoes?: string[]
 }
 
 export function temaAstro<C extends string>(tema: DefinicaoDoTema<C>, site: OpcoesDoSite<C> = {}): AstroIntegration {
   const prefixo = `virtual:${tema.nome}/`
   const idDaConfig = `\0${prefixo}config`
+  const idDasExtensoes = `\0${prefixo}extensoes`
 
   return {
     name: tema.nome,
@@ -68,6 +75,14 @@ export function temaAstro<C extends string>(tema: DefinicaoDoTema<C>, site: Opco
           }
           arquivos[nome] = absoluto
         }
+
+        // extensão com caminho relativo é arquivo do site: tem que existir, como o componente
+        const extensoes = (site.extensoes ?? []).map((ext) => {
+          if (!ext.startsWith('.')) return ext
+          const absoluto = fileURLToPath(new URL(ext, config.root))
+          if (!existsSync(absoluto)) throw new Error(`[${tema.nome}] a extensão ${ext} não existe`)
+          return absoluto
+        })
 
         const doSite = rotasDoSite(fileURLToPath(new URL('pages/', config.srcDir)))
         for (const rota of tema.rotas) {
@@ -89,12 +104,17 @@ export function temaAstro<C extends string>(tema: DefinicaoDoTema<C>, site: Opco
                   if (!id.startsWith(prefixo)) return undefined
                   const nome = id.slice(prefixo.length)
                   if (nome === 'config') return idDaConfig
+                  if (nome === 'extensoes') return idDasExtensoes
                   // o próprio arquivo .astro: o compilador do Astro o trata como qualquer outro
                   if (nome in arquivos) return arquivos[nome]
                   throw new Error(`[${tema.nome}] ${id} não existe neste tema`)
                 },
                 load(id: string) {
                   if (id === idDaConfig) return `export default ${JSON.stringify(site.config ?? {})}`
+                  if (id === idDasExtensoes) {
+                    const imports = extensoes.map((ext, i) => `import * as e${i} from ${JSON.stringify(ext)}`)
+                    return `${imports.join('\n')}\nexport default [${extensoes.map((_, i) => `e${i}`).join(', ')}]`
+                  }
                   return undefined
                 },
               },

@@ -17,9 +17,11 @@
 interface Props {
   posts: Array<{ titulo: string; slug: string }>
   letra: string
+  /** o endereço da página que mostra o índice — as letras são filtros dela */
+  caminho: string
 }
 
-const { posts, letra } = Astro.props
+const { posts, letra, caminho } = Astro.props
 
 /** Inicial sem acento; o que não é letra cai em `#` (títulos que abrem com aspas ou número). */
 const inicialDe = (titulo: string): string => {
@@ -42,7 +44,7 @@ const daLetra = porLetra.get(ativa) ?? []
 <nav class="letras" aria-label="Índice por letra">
   {
     letras.map((l) => (
-      <a href={l === letras[0] ? '/glossario/' : `/glossario/?letra=${encodeURIComponent(l)}`} aria-current={l === ativa ? 'page' : undefined}>
+      <a href={l === letras[0] ? caminho : `${caminho}?letra=${encodeURIComponent(l)}`} aria-current={l === ativa ? 'page' : undefined}>
         {l}
         <span class="quantos">{porLetra.get(l)!.length}</span>
       </a>

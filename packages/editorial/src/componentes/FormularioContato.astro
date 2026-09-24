@@ -14,6 +14,8 @@
  * Como a página é cacheada por tag, esse valor pode vir de um HTML de minutos atrás — por
  * isso o teste é só de tempo MÍNIMO, nunca de máximo.
  */
+import config from 'virtual:editorial/config'
+
 interface Props {
   origem: string
   enviado?: boolean
@@ -21,6 +23,12 @@ interface Props {
 }
 
 const { origem, enviado = false, erro = null } = Astro.props
+
+/* como o formulário se apresenta a um agente — o site dá o nome dele (`config.contato`) */
+const ferramenta = config.contato ?? {
+  ferramenta: 'enviar_mensagem',
+  descricaoDaFerramenta: 'Preenche uma mensagem para a equipe deste site. Quem envia é a pessoa, não o agente.',
+}
 
 const AVISOS: Record<string, string> = {
   campos: 'Preencha nome, e-mail e mensagem.',
@@ -40,8 +48,8 @@ const AVISOS: Record<string, string> = {
       class="contato"
       method="post"
       action="/api/contato"
-      toolname="enviar_mensagem_ao_runzos"
-      tooldescription="Preenche uma mensagem para a equipe do Runzos. Quem envia é a pessoa, não o agente."
+      toolname={ferramenta.ferramenta}
+      tooldescription={ferramenta.descricaoDaFerramenta}
     >
       {erro && (
         <p class="erro" role="alert">
