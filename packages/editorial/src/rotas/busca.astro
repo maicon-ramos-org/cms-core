@@ -3,20 +3,33 @@
  * Busca do site. Existe porque o campo no cabeçalho precisa levar a algum lugar — campo
  * que não busca é enfeite, e enfeite que parece funcionalidade é pior que ausência.
  *
- * É BUSCA POR TÍTULO, deliberadamente simples: `like` no título de posts, ofertas e lojas.
- * Não indexa corpo nem ordena por relevância. Quando o volume pedir, o lugar disso é um
- * índice de verdade — não um `like` mais esperto.
+ * É BUSCA POR TÍTULO, deliberadamente simples: `like` no título dos posts — e do que as
+ * extensões do site buscarem (`ExtensaoDoEditorial.busca`: lojas, ofertas…), cada uma na
+ * sua seção, antes dos artigos. Não indexa corpo nem ordena por relevância. Quando o volume
+ * pedir, o lugar disso é um índice de verdade — não um `like` mais esperto.
  *
  * `noindex`: página de resultado não entra no índice do Google (conteúdo duplicado do
  * catálogo, e URL infinita por query).
  */
-import Base from '@runzos/editorial/componentes/Base.astro'
-import { buscaSimples, caminhoDaOferta } from '../lib/cms'
+import config from 'virtual:editorial/config'
+import extensoes from 'virtual:editorial/extensoes'
+
+import Base from '../componentes/Base.astro'
+import type { SecaoDaBusca } from '../extensoes'
+import { buscaPorTitulo, type PostDTO } from '../lib/cms'
+
+const LIMITE = 12
 
 const tenant = Astro.locals.tenant
 const termo = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 80)
-const r = termo ? await buscaSimples(tenant.id, termo) : { posts: [], ofertas: [], lojas: [] }
-const total = r.posts.length + r.ofertas.length + r.lojas.length
+const [posts, dasExtensoes] = termo
+  ? await Promise.all([
+      buscaPorTitulo<PostDTO>(tenant.id, 'posts', 'titulo', termo, LIMITE),
+      Promise.all(extensoes.map((e) => e.busca?.(tenant, termo, LIMITE))),
+    ])
+  : [[] as PostDTO[], [] as Array<SecaoDaBusca[] | undefined>]
+const secoes = dasExtensoes.flatMap((s) => s ?? []).filter((s) => s.itens.length > 0)
+const total = posts.length + secoes.reduce((n, s) => n + s.itens.length, 0)
 
 const titulo = termo ? `Busca: ${termo}` : 'Busca'
 ---
@@ -35,10 +48,10 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
     method="get"
     role="search"
     toolname="refinar_busca"
-    tooldescription="Refaz a busca do Runzos com outro termo."
+    tooldescription={config.busca?.descricaoDaFerramenta ?? 'Refaz a busca do site com outro termo.'}
   >
     <label class="sr-only" for="q">Buscar no site</label>
-    <input id="q" type="search" name="q" value={termo} placeholder="Buscar oferta, cupom ou artigo" />
+    <input id="q" type="search" name="q" value={termo} placeholder={config.busca?.placeholder ?? 'Buscar artigo'} />
     <button type="submit">Buscar</button>
   </form>
 
@@ -47,38 +60,26 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
   {!termo && <p class="vazio">Digite o que procura no campo acima.</p>}
   {termo && total === 0 && (
     <p class="vazio">
-      Nada encontrado para “{termo}”. A busca olha o título de posts, ofertas e lojas — tente uma
-      palavra mais curta.
+      Nada encontrado para “{termo}”. {config.busca?.dicaSemResultado ?? 'A busca olha o título dos artigos — tente uma palavra mais curta.'}
     </p>
   )}
 
-  {r.lojas.length > 0 && (
+  {secoes.map((s) => (
     <section>
-      <h2>Lojas <span class="quantos">{r.lojas.length}</span></h2>
+      <h2>{s.titulo} <span class="quantos">{s.itens.length}</span></h2>
       <ul class="lista">
-        {r.lojas.map((l) => (
-          <li><a href={`/cupom-${l.slug}/`}>{l.nome}</a></li>
+        {s.itens.map((i) => (
+          <li><a href={i.url}>{i.nome}</a></li>
         ))}
       </ul>
     </section>
-  )}
+  ))}
 
-  {r.ofertas.length > 0 && (
+  {posts.length > 0 && (
     <section>
-      <h2>Ofertas <span class="quantos">{r.ofertas.length}</span></h2>
+      <h2>Artigos <span class="quantos">{posts.length}</span></h2>
       <ul class="lista">
-        {r.ofertas.map((o) => (
-          <li><a href={caminhoDaOferta(o)}>{o.titulo}</a></li>
-        ))}
-      </ul>
-    </section>
-  )}
-
-  {r.posts.length > 0 && (
-    <section>
-      <h2>Artigos <span class="quantos">{r.posts.length}</span></h2>
-      <ul class="lista">
-        {r.posts.map((p) => (
+        {posts.map((p) => (
           <li><a href={`/${p.slug}/`}>{p.titulo}</a></li>
         ))}
       </ul>

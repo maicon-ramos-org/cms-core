@@ -9,8 +9,20 @@
  * O host sai do tenant: marca cravada em rota é o que o projeto proíbe desde o começo.
  */
 import type { APIRoute } from 'astro'
+import config from 'virtual:editorial/config'
 
 import { deNicho } from '../../lib/nicho'
+import { texto } from '../../textos'
+
+/**
+ * As ferramentas do `Ferramentas` do tema. O site que troca o componente registra outras, e
+ * por isso declara a lista dele em `config.mcp.ferramentasPorRota`.
+ */
+const FERRAMENTAS_DO_TEMA: Record<string, string[]> = {
+  '*': ['buscar_no_site', 'markdown_desta_pagina (onde há gêmeo .md)'],
+  '/{slug} (artigo)': ['resumo_do_artigo', 'sumario_do_artigo'],
+  '/blog/, /categoria/{slug}, /tag/{slug}': ['buscar_artigo'],
+}
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
@@ -28,7 +40,7 @@ export const GET: APIRoute = async (context) => {
       version: '1.0.0',
     },
     name: tenant.nome,
-    description: `Cupons e ofertas${deNicho(tenant)}, com a data em que cada preço e cada desconto foram conferidos.`,
+    description: texto(config.textos, 'descricaoDoMcp', { nome: tenant.nome, nicho: deNicho(tenant) }),
     /**
      * As ferramentas que o agente do navegador encontra ao abrir uma página. Não é uma
      * lista de endpoints: são registradas na própria página, por tipo de rota, e só
@@ -37,17 +49,11 @@ export const GET: APIRoute = async (context) => {
     webmcp: {
       spec: 'https://github.com/webmachinelearning/webmcp',
       disponivel_em: 'document.modelContext',
-      ferramentas_por_rota: {
-        '*': ['buscar_no_site', 'markdown_desta_pagina (onde há gêmeo .md)'],
-        '/{slug} (artigo)': ['resumo_do_artigo', 'sumario_do_artigo'],
-        '/ofertas/{slug}': ['resumo_da_oferta', 'ver_cupom', 'ir_para_a_loja'],
-        '/cupom-{loja}': ['listar_cupons_da_loja', 'ver_cupom'],
-        '/ofertas/ e /lifetimes/': ['filtrar_ofertas'],
-        '/blog/, /categoria/{slug}, /tag/{slug}': ['buscar_artigo'],
-        '/apps/': ['buscar_app'],
-        '/apps/{slug}': ['requisitos_do_app'],
-      },
-      formularios_anotados: ['buscar_no_runzos', 'refinar_busca', 'enviar_mensagem_ao_runzos'],
+      ferramentas_por_rota: config.mcp?.ferramentasPorRota ?? FERRAMENTAS_DO_TEMA,
+      formularios_anotados: config.mcp?.formulariosAnotados ?? [
+        'refinar_busca',
+        config.contato?.ferramenta ?? 'enviar_mensagem',
+      ],
     },
     /**
      * Superfícies que não dependem de navegador nenhum — servem qualquer leitor, hoje.
@@ -66,13 +72,10 @@ export const GET: APIRoute = async (context) => {
       sitemap: `${base}/sitemap_index.xml`,
     },
     /**
-     * Regra que vale para toda superfície, e que é o produto: preço e desconto nunca saem
-     * sem a data em que foram conferidos.
+     * Regras que valem para toda superfície — no site de ofertas, que preço e desconto nunca
+     * saem sem a data em que foram conferidos. Sem declaração do site, a chave não sai.
      */
-    garantias: {
-      dado_verificado: 'todo preço e todo desconto vêm com verificado_em ou preco_em',
-      links_de_saida: 'sempre /r/{id} — nunca link de afiliado cru',
-    },
+    garantias: config.mcp?.garantias,
     // mcp_remoto: { url: `https://mcp.${tenant.canonical_host}`, transporte: 'streamable-http' },
     contato: `${base}/contato/`,
   }

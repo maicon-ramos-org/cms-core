@@ -42,7 +42,7 @@ const slug = Astro.params.slug ?? ''
  * `config.slugsSemPagina`. Os que já são rotas estáticas nem chegam neste curinga.
  */
 const ARQUIVOS_DO_BUILDER = new Set(config.slugsSemPagina ?? [])
-const FORA_DA_RAIZ = new Set(config.templatesForaDaRaiz ?? [])
+const FORA_DA_RAIZ = new Set(Object.keys(config.fichas ?? {}))
 
 const post = await getPostBySlug(tenant.id, slug)
 

@@ -580,3 +580,86 @@ function hashEstavel(s: string): number {
   }
   return Math.abs(h)
 }
+
+/** Um documento de uma coleção, no formato enxuto do índice de busca. */
+export interface ItemDaColecao {
+  colecao: string
+  id: string | number
+  slug: string
+  nome: string
+  wordpress_id?: string | null
+  /** só em `pages`: a ficha que mora numa pasta própria precisa do template para o endereço */
+  template?: string | null
+}
+
+/**
+ * Todos os documentos publicados de UMA coleção, só slug e título (ou nome), em páginas de
+ * 500 — a matéria-prima do índice de busca. A ordem é a do CMS, página a página; quem junta
+ * várias coleções junta em ordem fixa (ver `indice-de-busca.ts`), nunca na ordem em que as
+ * respostas chegam.
+ */
+export async function itensDaColecao(
+  tenantId: string | number,
+  colecao: string,
+  campo: string,
+  comStatus = true,
+): Promise<ItemDaColecao[]> {
+  const saida: ItemDaColecao[] = []
+  let pagina = 1
+  let totalPages = 1
+  do {
+    const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenantId) })
+    if (comStatus) q.set('where[and][1][_status][equals]', 'published')
+    q.set('select[slug]', 'true')
+    q.set(`select[${campo}]`, 'true')
+    q.set('select[wordpress_id]', 'true')
+    if (colecao === 'pages') q.set('select[template]', 'true')
+    q.set('limit', '500')
+    q.set('page', String(pagina))
+    q.set('depth', '0')
+    const r = await cmsFetch<FindResult<Record<string, unknown>> & { totalPages?: number }>(`/api/${colecao}?${q}`)
+    totalPages = r.totalPages ?? 1
+    for (const d of r.docs) {
+      if (typeof d.slug === 'string' && typeof d[campo] === 'string') {
+        saida.push({
+          colecao,
+          id: d.id as string | number,
+          slug: d.slug,
+          nome: d[campo] as string,
+          wordpress_id: (d.wordpress_id as string) ?? null,
+          template: (d.template as string) ?? null,
+        })
+      }
+    }
+    pagina += 1
+  } while (pagina <= totalPages)
+  return saida
+}
+
+/**
+ * Busca por TÍTULO numa coleção (`like`), a da página `/busca/`. `temDraft`: só as coleções
+ * com versões aceitam filtro por `_status` — filtrar por ele numa coleção sem versões devolve
+ * QueryError, que viraria lista vazia sem dizer por quê.
+ */
+export async function buscaPorTitulo<T>(
+  tenantId: string | number,
+  colecao: string,
+  campo: string,
+  termo: string,
+  limite = 12,
+  temDraft = true,
+): Promise<T[]> {
+  const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenantId) })
+  let i = 1
+  if (temDraft) q.set(`where[and][${i++}][_status][equals]`, 'published')
+  q.set(`where[and][${i}][${campo}][like]`, termo)
+  q.set('limit', String(limite))
+  q.set('depth', '0')
+  try {
+    return (await cmsFetch<FindResult<T>>(`/api/${colecao}?${q}`)).docs
+  } catch (e) {
+    // uma coleção fora do ar não derruba a página — mas o erro aparece, não some
+    console.error(`[busca] ${colecao} falhou:`, (e as Error).message)
+    return []
+  }
+}

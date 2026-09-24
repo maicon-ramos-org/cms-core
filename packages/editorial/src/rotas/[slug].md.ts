@@ -11,7 +11,7 @@ import { lexicalParaTexto } from '../lib/lexical'
 
 /** Mesma regra da página HTML: arquivo do builder tem rota própria, não sai daqui. */
 const ARQUIVOS_DO_BUILDER = new Set(config.slugsSemPagina ?? [])
-const FORA_DA_RAIZ = new Set(config.templatesForaDaRaiz ?? [])
+const FORA_DA_RAIZ = new Set(Object.keys(config.fichas ?? {}))
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant

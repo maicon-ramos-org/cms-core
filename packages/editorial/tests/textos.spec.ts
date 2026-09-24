@@ -20,6 +20,6 @@ describe('texto', () => {
 
   it('nicho vazio não deixa espaço sobrando', () => {
     expect(texto(undefined, 'descricaoDoManifest', { nome: 'Exemplo', nicho: '' })).toBe('Exemplo')
-    expect(Object.keys(TEXTOS_PADRAO)).toHaveLength(5)
+    expect(Object.keys(TEXTOS_PADRAO)).toHaveLength(6)
   })
 })

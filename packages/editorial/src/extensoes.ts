@@ -28,6 +28,25 @@ export interface LlmsDaExtensao {
 /** Gera as URLs de um sub-sitemap (`/sitemap-{tipo}.xml`); `base` é `https://{host canônico}`. */
 export type GeradorDeSitemap = (tenant: TenantDTO, base: string) => Promise<UrlDoSitemap[]>
 
+/** Um item do índice da busca instantânea — chaves curtas porque são centenas de itens. */
+export interface ItemDoIndice {
+  /** título */
+  t: string
+  /** endereço */
+  u: string
+  /** espécie (`artigo`, `página`…) — a que o filtro da busca usa */
+  k: string
+}
+
+/** Uma fonte do `/search-index.json`: todos os itens de uma espécie, do tenant. */
+export type FonteDoIndice = (tenant: TenantDTO) => Promise<ItemDoIndice[]>
+
+/** Uma seção da página `/busca/` (ex.: "Lojas"), com os resultados do termo. */
+export interface SecaoDaBusca {
+  titulo: string
+  itens: Array<{ nome: string; url: string }>
+}
+
 export interface ExtensaoDoEditorial {
   /** Chamado uma vez por página com corpo, com o tenant da requisição. */
   linksDoCorpo?: (tenant: TenantDTO) => Promise<LinksDoCorpo>
@@ -35,6 +54,10 @@ export interface ExtensaoDoEditorial {
   sitemaps?: Record<string, GeradorDeSitemap>
   /** O que a extensão acrescenta ao `llms.txt` do tenant. */
   llms?: (tenant: TenantDTO, base: string) => Promise<LlmsDaExtensao>
+  /** Fontes do índice da busca instantânea, por nome. O tema tem `posts` e `pages`. */
+  indiceDeBusca?: Record<string, FonteDoIndice>
+  /** Seções da página `/busca/` para um termo; saem antes dos artigos, na ordem das extensões. */
+  busca?: (tenant: TenantDTO, termo: string, limite: number) => Promise<SecaoDaBusca[]>
 }
 
 /**
@@ -57,21 +80,39 @@ export async function linksDoCorpo(extensoes: readonly ExtensaoDoEditorial[], te
 }
 
 /**
- * Os tipos de sitemap e quem gera cada um: os do tema e os das extensões. A ordem é a que o
- * site declara (`config.sitemap.ordem`) — a do índice que o buscador já conhece —; tipo fora
- * dela vai para o fim, na ordem em que apareceu. Tipo que ninguém gera não entra.
+ * Junta o que o tema e as extensões registram por nome (tipos de sitemap, fontes do índice
+ * de busca), na ordem que o site declara — a que o buscador ou o arquivo já conhecem. Nome
+ * fora da ordem vai para o fim, na ordem em que apareceu; nome que ninguém registrou não
+ * entra; extensão registrada depois ganha de quem veio antes com o mesmo nome.
  */
-export function tiposDeSitemap(
+export function ordenaContribuicoes<T>(
+  doTema: Record<string, T>,
+  dasExtensoes: ReadonlyArray<Record<string, T> | undefined>,
+  ordem: readonly string[] = [],
+): Map<string, T> {
+  const todos = new Map<string, T>(Object.entries(doTema))
+  for (const registro of dasExtensoes) for (const [nome, valor] of Object.entries(registro ?? {})) todos.set(nome, valor)
+  const ordenados = new Map<string, T>()
+  for (const nome of [...ordem, ...todos.keys()]) {
+    const valor = todos.get(nome)
+    if (valor !== undefined && !ordenados.has(nome)) ordenados.set(nome, valor)
+  }
+  return ordenados
+}
+
+/** Os tipos de sitemap e quem gera cada um: os do tema e os das extensões (`ordenaContribuicoes`). */
+export const tiposDeSitemap = (
   doTema: Record<string, GeradorDeSitemap>,
   extensoes: readonly ExtensaoDoEditorial[],
   ordem: readonly string[] = [],
-): Map<string, GeradorDeSitemap> {
-  const todos = new Map<string, GeradorDeSitemap>(Object.entries(doTema))
-  for (const e of extensoes) for (const [tipo, gerador] of Object.entries(e.sitemaps ?? {})) todos.set(tipo, gerador)
-  const ordenados = new Map<string, GeradorDeSitemap>()
-  for (const tipo of [...ordem, ...todos.keys()]) {
-    const gerador = todos.get(tipo)
-    if (gerador && !ordenados.has(tipo)) ordenados.set(tipo, gerador)
-  }
-  return ordenados
+): Map<string, GeradorDeSitemap> => ordenaContribuicoes(doTema, extensoes.map((e) => e.sitemaps), ordem)
+
+/**
+ * O índice de busca inteiro: as fontes em paralelo, mas cada uma na PRÓPRIA lista, e o
+ * resultado na ordem das fontes. Com uma lista comum, a ordem virava a ordem em que o CMS
+ * respondia — os blocos trocavam de lugar a cada reinício e o arquivo mudava sozinho.
+ */
+export async function juntaIndice(tenant: TenantDTO, fontes: ReadonlyMap<string, FonteDoIndice>): Promise<ItemDoIndice[]> {
+  const porFonte = await Promise.all([...fontes.values()].map((fonte) => fonte(tenant)))
+  return porFonte.flat()
 }

@@ -10,32 +10,11 @@
  */
 import type { APIRoute } from 'astro'
 
-import { caminhoDaOferta, itensParaBusca } from '../lib/cms'
-
-const ROTULO: Record<string, string> = {
-  posts: 'artigo',
-  ofertas: 'oferta',
-  lojas: 'cupons',
-  pages: 'página',
-}
+import { indiceDeBusca } from '../indice-de-busca'
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
-  const itens = await itensParaBusca(tenant.id)
-
-  const saida = itens.map((i) => ({
-    t: i.nome,
-    u:
-      i.colecao === 'ofertas'
-        ? caminhoDaOferta({ slug: i.slug, wordpress_id: i.wordpress_id })
-        : i.colecao === 'lojas'
-          ? `/cupom-${i.slug}/`
-          : // ficha de app é `pages` com template `apps`, e mora em /apps/{slug}
-            i.template === 'apps'
-            ? `/apps/${i.slug}/`
-            : `/${i.slug}/`,
-    k: i.template === 'apps' ? 'app' : (ROTULO[i.colecao] ?? ''),
-  }))
+  const saida = await indiceDeBusca(tenant)
 
   if (context.cache.enabled) {
     context.cache.set({ maxAge: 900, swr: 300, tags: [`tenant:${tenant.slug}`, 'busca:indice'] })

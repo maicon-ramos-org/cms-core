@@ -6,12 +6,17 @@
 export { editorial, type ComponenteDoEditorial, type OpcoesEditorial } from './editorial'
 export type { ConfigDoEditorial } from './config'
 export {
+  juntaIndice,
   linksDoCorpo,
+  ordenaContribuicoes,
   tiposDeSitemap,
   type ExtensaoDoEditorial,
+  type FonteDoIndice,
   type GeradorDeSitemap,
+  type ItemDoIndice,
   type LinksDoCorpo,
   type LlmsDaExtensao,
+  type SecaoDaBusca,
 } from './extensoes'
 export { TEXTOS_PADRAO, texto, type TextosDoEditorial } from './textos'
 export { temaAstro, type DefinicaoDoTema, type OpcoesDoSite, type RotaDoTema } from './tema'

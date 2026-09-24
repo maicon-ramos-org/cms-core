@@ -29,7 +29,7 @@ if (Astro.url.searchParams.get('__r') !== '1') {
 
 const [page, links] = await Promise.all([getPageBySlug(tenant.id, slug), linksDoCorpo(extensoes, tenant)])
 
-if (!page || new Set(config.templatesForaDaRaiz ?? []).has(page.template)) {
+if (!page || page.template in (config.fichas ?? {})) {
   return new Response('Página não encontrada.', { status: 404 })
 }
 

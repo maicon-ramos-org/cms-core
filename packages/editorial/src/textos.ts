@@ -17,6 +17,8 @@ export interface TextosDoEditorial {
   descricaoDoFeed: string
   /** `description` do `manifest.webmanifest`. Marcas: `{nome}`, `{nicho}`. */
   descricaoDoManifest: string
+  /** `description` do `.well-known/mcp.json`. Marcas: `{nome}`, `{nicho}`. */
+  descricaoDoMcp: string
 }
 
 export const TEXTOS_PADRAO: TextosDoEditorial = {
@@ -25,6 +27,7 @@ export const TEXTOS_PADRAO: TextosDoEditorial = {
   descricaoDaCategoria: 'Artigos sobre {categoria}.',
   descricaoDoFeed: 'Artigos de {nome}',
   descricaoDoManifest: '{nome}{nicho}',
+  descricaoDoMcp: '{nome}{nicho}',
 }
 
 /** A frase com as marcas preenchidas. Marca sem valor fica como está — e aparece na revisão. */

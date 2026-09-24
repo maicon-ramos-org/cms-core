@@ -34,8 +34,11 @@ export interface ConfigDoEditorial {
    * migrado é render velho.
    */
   slugsSemPagina?: string[]
-  /** Templates de página que moram numa pasta própria (`/apps/{slug}`): em `/{slug}`, 404. */
-  templatesForaDaRaiz?: string[]
+  /**
+   * Templates de página que moram numa pasta própria (`/apps/{slug}`), com o rótulo delas na
+   * busca: em `/{slug}` respondem 404, e o índice de busca aponta para a pasta.
+   */
+  fichas?: Record<string, { pasta: string; rotulo: string }>
   /** Como o formulário de contato se apresenta a um agente (atributos WebMCP do `<form>`). */
   contato?: { ferramenta: string; descricaoDaFerramenta: string }
   sitemap?: {
@@ -45,6 +48,24 @@ export interface ConfigDoEditorial {
     hubs?: string[]
     /** Templates de página com pasta própria: as fichas não saem como `/{slug}/`. */
     templatesDeFora?: string[]
+  }
+  busca?: {
+    /** A ordem das fontes no `/search-index.json` (o tema tem `posts` e `pages`). */
+    ordem?: string[]
+    /** Descrição da ferramenta WebMCP do formulário de busca da página. */
+    descricaoDaFerramenta?: string
+    /** O texto de exemplo do campo. */
+    placeholder?: string
+    /** O que a página diz quando nada é encontrado, depois do termo. */
+    dicaSemResultado?: string
+  }
+  mcp?: {
+    /** Ferramentas WebMCP por rota — quem troca `Ferramentas` sabe quais registra. */
+    ferramentasPorRota?: Record<string, string[]>
+    /** Formulários com atributos WebMCP (`toolname`) nas páginas. */
+    formulariosAnotados?: string[]
+    /** Regras que valem para toda superfície (ex.: de onde vem um preço). */
+    garantias?: Record<string, string>
   }
   /** As frases fixas do `llms.txt`; as contagens e listas vêm do banco e das extensões. */
   llms?: {
