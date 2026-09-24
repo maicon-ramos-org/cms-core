@@ -7,6 +7,7 @@
  * Um gancho que nenhuma extensão exporta simplesmente não roda: o tema funciona sozinho.
  */
 import type { TenantDTO } from './lib/cms'
+import type { UrlDoSitemap } from './lib/sitemap'
 
 /** Como tratar os links do corpo (Lexical) de posts e páginas. */
 export interface LinksDoCorpo {
@@ -16,9 +17,24 @@ export interface LinksDoCorpo {
   ehRastreio?: (url: string) => boolean
 }
 
+/** O que uma extensão acrescenta ao `llms.txt`. */
+export interface LlmsDaExtensao {
+  /** Linhas de lista (`- [Nome](url) — detalhe`) na seção de índices, depois do blog. */
+  indices?: string[]
+  /** Seções inteiras depois dos índices. */
+  secoes?: Array<{ titulo: string; linhas: string[] }>
+}
+
+/** Gera as URLs de um sub-sitemap (`/sitemap-{tipo}.xml`); `base` é `https://{host canônico}`. */
+export type GeradorDeSitemap = (tenant: TenantDTO, base: string) => Promise<UrlDoSitemap[]>
+
 export interface ExtensaoDoEditorial {
   /** Chamado uma vez por página com corpo, com o tenant da requisição. */
   linksDoCorpo?: (tenant: TenantDTO) => Promise<LinksDoCorpo>
+  /** Sub-sitemaps que a extensão acrescenta, por tipo. O tema tem `posts` e `paginas`. */
+  sitemaps?: Record<string, GeradorDeSitemap>
+  /** O que a extensão acrescenta ao `llms.txt` do tenant. */
+  llms?: (tenant: TenantDTO, base: string) => Promise<LlmsDaExtensao>
 }
 
 /**
@@ -38,4 +54,24 @@ export async function linksDoCorpo(extensoes: readonly ExtensaoDoEditorial[], te
     },
     ehRastreio: (url) => validas.some((l) => l.ehRastreio?.(url) === true),
   }
+}
+
+/**
+ * Os tipos de sitemap e quem gera cada um: os do tema e os das extensões. A ordem é a que o
+ * site declara (`config.sitemap.ordem`) — a do índice que o buscador já conhece —; tipo fora
+ * dela vai para o fim, na ordem em que apareceu. Tipo que ninguém gera não entra.
+ */
+export function tiposDeSitemap(
+  doTema: Record<string, GeradorDeSitemap>,
+  extensoes: readonly ExtensaoDoEditorial[],
+  ordem: readonly string[] = [],
+): Map<string, GeradorDeSitemap> {
+  const todos = new Map<string, GeradorDeSitemap>(Object.entries(doTema))
+  for (const e of extensoes) for (const [tipo, gerador] of Object.entries(e.sitemaps ?? {})) todos.set(tipo, gerador)
+  const ordenados = new Map<string, GeradorDeSitemap>()
+  for (const tipo of [...ordem, ...todos.keys()]) {
+    const gerador = todos.get(tipo)
+    if (gerador && !ordenados.has(tipo)) ordenados.set(tipo, gerador)
+  }
+  return ordenados
 }

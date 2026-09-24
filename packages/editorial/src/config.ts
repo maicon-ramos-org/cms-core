@@ -38,4 +38,19 @@ export interface ConfigDoEditorial {
   templatesForaDaRaiz?: string[]
   /** Como o formulário de contato se apresenta a um agente (atributos WebMCP do `<form>`). */
   contato?: { ferramenta: string; descricaoDaFerramenta: string }
+  sitemap?: {
+    /** A ordem dos sub-sitemaps no índice — a que o buscador já conhece. */
+    ordem?: string[]
+    /** Hubs do site (`/ofertas/`) que entram no sub-sitemap de páginas, depois do blog. */
+    hubs?: string[]
+    /** Templates de página com pasta própria: as fichas não saem como `/{slug}/`. */
+    templatesDeFora?: string[]
+  }
+  /** As frases fixas do `llms.txt`; as contagens e listas vêm do banco e das extensões. */
+  llms?: {
+    /** Parágrafo de apresentação, uma linha por item (sai como citação). */
+    intro?: string[]
+    /** Os itens de "Como ler este site". */
+    comoLer?: string[]
+  }
 }

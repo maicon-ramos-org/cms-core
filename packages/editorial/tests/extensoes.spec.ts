@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { linksDoCorpo, type ExtensaoDoEditorial } from '../src/extensoes'
+import { linksDoCorpo, tiposDeSitemap, type ExtensaoDoEditorial } from '../src/extensoes'
 
 const tenant = { id: 1, slug: 'exemplo', nome: 'Exemplo', canonical_host: 'exemplo.test' }
 
@@ -30,5 +30,23 @@ describe('linksDoCorpo', () => {
     const vistos: unknown[] = []
     await linksDoCorpo([{ linksDoCorpo: async (t) => (vistos.push(t.slug), {}) }], tenant)
     expect(vistos).toEqual(['exemplo'])
+  })
+})
+
+describe('tiposDeSitemap', () => {
+  const g = (nome: string) => async () => [{ loc: nome }]
+
+  it('os do tema e os das extensões, na ordem que o site declara', () => {
+    const tipos = tiposDeSitemap(
+      { posts: g('posts'), paginas: g('paginas') },
+      [{ sitemaps: { ofertas: g('ofertas'), lojas: g('lojas') } }, { sitemaps: { apps: g('apps') } }],
+      ['posts', 'ofertas', 'apps', 'lojas', 'paginas'],
+    )
+    expect([...tipos.keys()]).toEqual(['posts', 'ofertas', 'apps', 'lojas', 'paginas'])
+  })
+
+  it('tipo fora da ordem vai para o fim; tipo que ninguém gera não entra', () => {
+    const tipos = tiposDeSitemap({ posts: g('posts') }, [{ sitemaps: { extra: g('extra') } }], ['fantasma', 'posts'])
+    expect([...tipos.keys()]).toEqual(['posts', 'extra'])
   })
 })

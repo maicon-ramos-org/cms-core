@@ -39,6 +39,9 @@ const ROTAS = [
   ['/api/contato', './rotas/api/contato.ts'],
   ['/api/revalidate', './rotas/api/revalidate.ts'],
   ['/api/uso-agente', './rotas/api/uso-agente.ts'],
+  ['/llms.txt', './rotas/llms.txt.ts'],
+  ['/sitemap_index.xml', './rotas/sitemap_index.xml.ts'],
+  ['/sitemap-[tipo].xml', './rotas/sitemap-[tipo].xml.ts'],
   // o curinga de um segmento: post, ou página por rewrite para `/pagina/{slug}`
   ['/[slug]', './rotas/[slug].astro'],
   ['/[slug].md', './rotas/[slug].md.ts'],

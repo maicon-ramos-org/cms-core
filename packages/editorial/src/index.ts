@@ -5,7 +5,14 @@
  */
 export { editorial, type ComponenteDoEditorial, type OpcoesEditorial } from './editorial'
 export type { ConfigDoEditorial } from './config'
-export { linksDoCorpo, type ExtensaoDoEditorial, type LinksDoCorpo } from './extensoes'
+export {
+  linksDoCorpo,
+  tiposDeSitemap,
+  type ExtensaoDoEditorial,
+  type GeradorDeSitemap,
+  type LinksDoCorpo,
+  type LlmsDaExtensao,
+} from './extensoes'
 export { TEXTOS_PADRAO, texto, type TextosDoEditorial } from './textos'
 export { temaAstro, type DefinicaoDoTema, type OpcoesDoSite, type RotaDoTema } from './tema'
 export { normalizaPadrao, padraoDoArquivo, rotasDoSite } from './rotas'

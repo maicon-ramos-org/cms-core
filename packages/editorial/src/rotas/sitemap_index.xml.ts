@@ -4,9 +4,8 @@
  */
 import type { APIRoute } from 'astro'
 
-import { respostaXml, sitemapindex } from '@runzos/editorial/lib/sitemap'
-
-import { TIPOS } from '../lib/tipos-de-sitemap'
+import { respostaXml, sitemapindex } from '../lib/sitemap'
+import { SITEMAPS } from '../sitemaps'
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
@@ -15,5 +14,5 @@ export const GET: APIRoute = async (context) => {
   if (context.cache.enabled) {
     context.cache.set({ maxAge: 3600, swr: 600, tags: [`tenant:${tenant.slug}`, 'sitemap:index'] })
   }
-  return respostaXml(sitemapindex(tenant, TIPOS))
+  return respostaXml(sitemapindex(tenant, [...SITEMAPS.keys()]))
 }
