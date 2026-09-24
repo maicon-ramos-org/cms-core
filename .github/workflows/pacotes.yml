@@ -13,6 +13,8 @@ on:
 permissions:
   contents: read
   packages: write
+  # para conferir o resultado do CI da revisão da tag
+  actions: read
   # procedência: o atestado assina o pacote exato que foi publicado, ligado a este build
   id-token: write
   attestations: write
@@ -43,8 +45,14 @@ jobs:
           grep -q "^## $versao" "$pasta/CHANGELOG.md" || { echo "::error::$pasta/CHANGELOG.md não tem a seção $versao"; exit 1; }
           echo "pasta=$pasta" >> "$GITHUB_OUTPUT"
 
-      # o pacote só sai se o núcleo inteiro estiver verde nesta tag
-      - run: pnpm -r typecheck && pnpm -r test
+      # o pacote só sai se o CI desta revisão passou — o CI completo, com Postgres, MinIO e o
+      # site de referência de pé, e não uma cópia dele sem a infraestrutura
+      - name: o CI desta revisão está verde
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          r=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')
+          [ "$r" = "completed success" ] || { echo "::error::o CI de $GITHUB_SHA não está verde ($r): publique depois dele"; exit 1; }
 
       # `pnpm pack` troca `workspace:*` pela versão publicada de cada pacote irmão
       - name: empacota
