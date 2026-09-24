@@ -7,6 +7,10 @@
  *
  * Declarar aqui é o oposto de silenciar com `any`: os atributos ficam TIPADOS, com o nome
  * exato da spec, e um erro de digitação continua sendo erro de compilação.
+ *
+ * Mora no tema, e não no site, porque os formulários do tema (contato, busca) usam os
+ * atributos: um site sem esta declaração não compila (achado do site de referência do
+ * núcleo, PRD 17 RF9). O site que inclui `packages/editorial/src` no `astro check` a recebe.
  */
 declare namespace astroHTML.JSX {
   interface FormHTMLAttributes {
