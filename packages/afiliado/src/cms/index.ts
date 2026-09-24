@@ -6,5 +6,12 @@
 export { afiliado, programasAtivos } from './plugin'
 export * from './catalogo/regras'
 export { lockListing, observaListing } from './catalogo/hooks'
-export { diaDeHoje, rodaSnapshotDesconto, snapshotDescontoTask, type ResumoSnapshot } from './jobs/snapshotDesconto'
+export {
+  agendaDoSnapshot,
+  diaDeHoje,
+  primeiraPassadaNaHora,
+  rodaSnapshotDesconto,
+  snapshotDescontoTask,
+  type ResumoSnapshot,
+} from './jobs/snapshotDesconto'
 export { tagsDaLoja } from './hooks/tags-loja'

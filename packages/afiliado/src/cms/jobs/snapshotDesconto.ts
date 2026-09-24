@@ -113,9 +113,48 @@ export async function rodaSnapshotDesconto(payload: Payload): Promise<ResumoSnap
   return resumo
 }
 
+/**
+ * QUANDO o snapshot roda (PRD 24 RF8): todo dia às 03:10 UTC, na fila `diario`. O site que
+ * passa o relógio usa esta mesma hora e esta mesma fila — no `jobs.autoRun` (Node) ou no Cron
+ * Trigger que chama `/api/payload-jobs/run?queue=diario` (Workers). Fila diferente aqui e lá
+ * é job que nunca roda.
+ */
+export const agendaDoSnapshot = { cron: '10 3 * * *', queue: 'diario' } as const
+
+type Agenda = NonNullable<TaskConfig<'snapshotDesconto'>['schedule']>[number]
+type AntesDeAgendar = NonNullable<NonNullable<Agenda['hooks']>['beforeSchedule']>
+
+/**
+ * O `schedule` do Payload 3.88 agenda sempre a PRÓXIMA ocorrência do cron depois da última
+ * vez que agendou. Na primeira vez não há "última": o tique das 03:10 agenda o job para as
+ * 03:10 de AMANHÃ, e o primeiro dia depois do deploy fica sem fotografia — e o `curl` do
+ * aceite não roda nada. Sem agendamento anterior registrado, este hook agenda para já.
+ *
+ * Todo o resto é do Payload (`defaultBeforeSchedule`): no máximo um job agendado pendente
+ * por fila. É isso que impede duas execuções no mesmo dia; este hook nunca agenda quando o
+ * padrão diz que não.
+ */
+export const primeiraPassadaNaHora: AntesDeAgendar = async (args) => {
+  const padrao = await args.defaultBeforeSchedule(args)
+  const { queueable, jobStats } = args
+  const slug = queueable.taskConfig?.slug
+  // O Payload tipa `tasks` com o `TaskType` do site; com os tipos gerados, ele é uma união de
+  // literais e o índice some. O que se lê é um registro por slug.
+  const tarefas = jobStats?.stats?.scheduledRuns?.queues?.[queueable.scheduleConfig.queue]?.tasks as
+    | Record<string, { lastScheduledRun?: string } | undefined>
+    | undefined
+  const ultima = slug ? tarefas?.[slug]?.lastScheduledRun : undefined
+  if (!padrao.shouldSchedule || ultima) return padrao
+  return { ...padrao, waitUntil: undefined }
+}
+
 export const snapshotDescontoTask: TaskConfig<'snapshotDesconto'> = {
   slug: 'snapshotDesconto',
   label: 'Snapshot diário do desconto',
+  // quem agenda é a task; quem passa o relógio é o site (autoRun na VPS, Cron Trigger nos
+  // Workers). Muda o schema: o Payload cria o global `payload-jobs-stats` e o campo `meta`
+  // em `payload-jobs` — o site precisa de migration ao receber esta versão.
+  schedule: [{ ...agendaDoSnapshot, hooks: { beforeSchedule: primeiraPassadaNaHora } }],
   // uma tentativa: se falhar, a próxima execução diária cobre — represar retry de um job
   // que roda todo dia só empilha trabalho
   retries: 1,
