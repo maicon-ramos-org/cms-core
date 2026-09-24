@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { chavesDaMidia, clienteR2, copiaAcervo, type BucketS3 } from '../src/lib/copia-r2'
+import { chavesDaMidia, clienteR2, copiaAcervo, type BucketS3 } from '../src/midia/copia-r2'
 
 /** Bucket falso. `perde` simula envio que não chega: o PUT responde, o arquivo não fica. */
 function bucketFalso({ perde = new Set<string>() } = {}) {

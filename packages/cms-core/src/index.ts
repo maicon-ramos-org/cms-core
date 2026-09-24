@@ -17,3 +17,23 @@ export { revalidateAfterChange, revalidateAfterDelete, slugDeRelacao, type Opcoe
 export { chaveDeOrigem } from './fields/origem'
 export * from './lib/nome-midia'
 export * from './lib/contraste'
+// para os scripts de um site (PRD 17 RF5): ciclo de vida, pool, portão de migração e mídia
+export { mantemVivo, SaidaInesperada, sair, semSaidaDoProcesso } from './scripts/sair'
+export { emPool } from './scripts/pool'
+export { portaoDeMigracao, type OpcoesDoPortao } from './scripts/portao'
+export {
+  chavesDaMidia,
+  clienteR2,
+  copiaAcervo,
+  type BucketS3,
+  type MidiaParaCopia,
+  type Relatorio as RelatorioDaCopia,
+} from './midia/copia-r2'
+export {
+  DERIVADOS,
+  regeneraAcervo,
+  temTodosOsDerivados,
+  type BucketRegenera,
+  type MidiaDoAcervo,
+  type Relatorio as RelatorioDaRegeneracao,
+} from './midia/regenera'

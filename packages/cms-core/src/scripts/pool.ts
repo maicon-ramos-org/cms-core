@@ -21,7 +21,8 @@ export async function emPool<T, R>(
       let ultimoErro: Error | null = null
       for (let t = 1; t <= tentativas; t += 1) {
         try {
-          resultados[i] = { item: itens[i], ok: true, valor: await tarefa(itens[i], i) }
+          // `!`: i < itens.length, conferido acima
+          resultados[i] = { item: itens[i]!, ok: true, valor: await tarefa(itens[i]!, i) }
           ultimoErro = null
           break
         } catch (err) {
@@ -30,7 +31,7 @@ export async function emPool<T, R>(
           if (t < tentativas) await new Promise((r) => setTimeout(r, 300 * t))
         }
       }
-      if (ultimoErro) resultados[i] = { item: itens[i], ok: false, erro: ultimoErro }
+      if (ultimoErro) resultados[i] = { item: itens[i]!, ok: false, erro: ultimoErro }
       feitos += 1
       opcoes.aoProgredir?.(feitos, itens.length)
     }

@@ -16,7 +16,7 @@ import { relative, resolve, sep } from 'node:path'
 
 import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
-import { endpointR2 } from '@runzos/cms-core'
+import { endpointR2 } from '../r2'
 
 /** O mínimo do cliente S3 que a cópia usa — é o que deixa testar sem rede. */
 export interface BucketS3 {

@@ -25,9 +25,9 @@
 import { CopyObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import type { Payload } from 'payload'
 
-import { Midia } from '@runzos/cms-core'
+import { Midia } from '../collections/Midia'
 
-import { planoDeRenomeacao, type MidiaComNome } from '@runzos/cms-core'
+import { planoDeRenomeacao, type MidiaComNome } from '../lib/nome-midia'
 
 /** os derivados da coleção, na ordem em que ela os declara */
 export const DERIVADOS: readonly string[] =

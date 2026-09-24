@@ -8,7 +8,7 @@
  *
  * Variáveis PRÓPRIAS (`MINIO_*`), nunca as `R2_*`: teste não pode escrever no bucket de
  * produção por engano. Local: `docker compose up -d minio` e
- *   MINIO_ENDPOINT=http://127.0.0.1:9000 MINIO_USUARIO=<usuário> MINIO_SENHA=<senha>
+ *   MINIO_ENDPOINT=http://127.0.0.1:9000 MINIO_USUARIO=<usuário> MINIO_SENHA=<senha> (os do README)
  * No CI o MinIO sobe no job, e sem ele o teste REPROVA em vez de pular.
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -24,7 +24,7 @@ import {
 } from '@aws-sdk/client-s3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { clienteR2, copiaAcervo } from '../../src/lib/copia-r2'
+import { clienteR2, copiaAcervo } from '../../src/midia/copia-r2'
 
 const ENDPOINT = process.env.MINIO_ENDPOINT
 const semMinio = !ENDPOINT
