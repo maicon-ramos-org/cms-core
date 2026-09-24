@@ -47,3 +47,5 @@ export {
   type MidiaDoAcervo,
   type Relatorio as RelatorioDaRegeneracao,
 } from './midia/regenera'
+// a trava do ADR-0006 (coleção mudou sem migration), dentro do processo
+export { confereSchema, confereSchemaNoPayload } from './scripts/confere-schema'
