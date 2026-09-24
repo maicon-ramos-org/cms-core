@@ -2,12 +2,23 @@
   "name": "@maicon-ramos-org/cms-core",
   "version": "0.1.0",
   "description": "Núcleo do CMS: a fábrica da config do Payload (PRD 17, ADR-0011)",
-  "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "CHANGELOG.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maicon-ramos-org/cms-core.git",
+    "directory": "packages/cms-core"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -2,11 +2,24 @@
   "name": "@maicon-ramos-org/desconto",
   "version": "0.1.0",
   "description": "Composição de desconto (loja + cupom) — contrato spec-desconto-e-historico.md",
-  "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "CHANGELOG.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maicon-ramos-org/cms-core.git",
+    "directory": "packages/desconto"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

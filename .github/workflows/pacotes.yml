@@ -1,0 +1,64 @@
+name: pacotes
+
+# Publicação versionada (PRD 17 RF6): uma tag `<pacote>@<versão>` (ex.: `cms-core@0.1.0`)
+# publica ESSE pacote no GitHub Packages. Só roda em tag — nunca em push comum.
+#
+# SemVer de verdade: major para o que exige mudança no site que consome (campo obrigatório
+# novo, assinatura da fábrica, rota removida), minor para aditivo, patch para correção. O
+# CHANGELOG.md do pacote diz qual é qual, e major traz a nota de migração.
+on:
+  push:
+    tags: ['*@[0-9]*.[0-9]*.[0-9]*']
+
+permissions:
+  contents: read
+  packages: write
+  # procedência: o atestado assina o pacote exato que foi publicado, ligado a este build
+  id-token: write
+  attestations: write
+
+jobs:
+  publica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@maicon-ramos-org'
+      - run: pnpm install --frozen-lockfile
+
+      - name: confere a tag contra o package.json
+        id: pacote
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          nome="${tag%@*}"; versao="${tag##*@}"
+          pasta="packages/${nome}"
+          [ -f "$pasta/package.json" ] || { echo "::error::não existe $pasta"; exit 1; }
+          declarada=$(node -p "require('./$pasta/package.json').version")
+          [ "$declarada" = "$versao" ] || { echo "::error::a tag diz $versao e o package.json diz $declarada"; exit 1; }
+          grep -q "^## $versao" "$pasta/CHANGELOG.md" || { echo "::error::$pasta/CHANGELOG.md não tem a seção $versao"; exit 1; }
+          echo "pasta=$pasta" >> "$GITHUB_OUTPUT"
+
+      # o pacote só sai se o núcleo inteiro estiver verde nesta tag
+      - run: pnpm -r typecheck && pnpm -r test
+
+      # `pnpm pack` troca `workspace:*` pela versão publicada de cada pacote irmão
+      - name: empacota
+        id: tgz
+        working-directory: ${{ steps.pacote.outputs.pasta }}
+        run: |
+          pnpm pack --pack-destination "$RUNNER_TEMP/pacote"
+          echo "arquivo=$(ls "$RUNNER_TEMP"/pacote/*.tgz)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.tgz.outputs.arquivo }}
+
+      - name: publica
+        run: npm publish "${{ steps.tgz.outputs.arquivo }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
