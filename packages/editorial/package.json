@@ -9,11 +9,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./lib/*": "./src/lib/*.ts",
-    "./middleware": "./src/middleware.ts"
+    "./middleware": "./src/middleware.ts",
+    "./componentes/*": "./src/componentes/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@runzos/schema": "workspace:*"
   },
   "peerDependencies": {
     "astro": "^7.2.4"

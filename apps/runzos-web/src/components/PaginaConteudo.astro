@@ -6,7 +6,7 @@
  * Fica em componente porque divide a URL `/{slug}` com os posts: a rota tenta post
  * primeiro e cai aqui quando o slug é de página.
  */
-import Base from '../layouts/Base.astro'
+import Base from '@runzos/editorial/componentes/Base.astro'
 import FormularioContato from './FormularioContato.astro'
 import IndiceDePosts from './IndiceDePosts.astro'
 import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'

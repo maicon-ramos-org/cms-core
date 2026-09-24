@@ -1,0 +1,79 @@
+---
+/*
+ * Cabeçalho padrão do tema: a marca do tenant (logo ou nome), o blog e a busca.
+ *
+ * O site que quer outro menu troca este componente — `editorial({ componentes: {
+ * Cabecalho: './src/components/Cabecalho.astro' } })`, o nível 2 de personalização do
+ * PRD 17 RF3. Cores e fontes vêm dos tokens do `Base.astro`, que vêm do tenant.
+ */
+import { urlMidia } from '../lib/cms'
+
+const tenant = Astro.locals.tenant
+const logo = tenant.tema?.logo && typeof tenant.tema.logo === 'object' ? tenant.tema.logo : null
+const logoUrl = logo?.url ? urlMidia(logo.url) : null
+/* largura e altura no <img> reservam o espaço antes de a imagem chegar (sem salto de layout) */
+const ALTURA = 28
+const largura = logo?.width && logo?.height ? Math.round((ALTURA * logo.width) / logo.height) : 160
+---
+
+<header class="cabecalho">
+  <div class="faixa">
+    <a class="marca" href="/">
+      {logoUrl ? <img src={logoUrl} alt={tenant.nome} width={largura} height={ALTURA} /> : tenant.nome}
+    </a>
+    <nav aria-label="Principal">
+      <a href="/blog/">Blog</a>
+    </nav>
+    <form class="busca" action="/busca/" method="get" role="search">
+      <label for="busca-q">Buscar</label>
+      <input id="busca-q" name="q" type="search" placeholder="Buscar" />
+    </form>
+  </div>
+</header>
+
+<style>
+  .cabecalho {
+    background: var(--rz-surface);
+    border-bottom: 1px solid var(--rz-borda);
+  }
+  .faixa {
+    max-width: var(--rz-container);
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+  .marca {
+    font-family: var(--rz-fonte-titulos);
+    font-weight: 700;
+    color: var(--rz-ink);
+    text-decoration: none;
+  }
+  .marca img {
+    display: block;
+    height: 28px;
+    width: auto;
+  }
+  nav {
+    flex: 1;
+  }
+  nav a {
+    color: var(--rz-ink);
+  }
+  .busca label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .busca input {
+    border: 1px solid var(--rz-borda);
+    border-radius: var(--rz-raio-pilula);
+    padding: 0.4rem 0.8rem;
+    background: var(--rz-bg);
+    color: var(--rz-ink);
+  }
+</style>

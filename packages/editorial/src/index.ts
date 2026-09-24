@@ -3,7 +3,7 @@
  * do site, e o mecanismo que ele e a entrada `web` dos plugins usam — rotas que o site pode
  * substituir e componentes que ele pode trocar. Dados e utilidades em `./lib/*`.
  */
-export { editorial, type OpcoesEditorial } from './editorial'
+export { editorial, type ComponenteDoEditorial, type OpcoesEditorial } from './editorial'
 export type { ConfigDoEditorial } from './config'
 export { temaAstro, type DefinicaoDoTema, type OpcoesDoSite, type RotaDoTema } from './tema'
 export { normalizaPadrao, padraoDoArquivo, rotasDoSite } from './rotas'

@@ -1,23 +1,17 @@
 ---
 /*
- * Fontes no <head>, e a explicação mora AQUI e não em comentário HTML: comentário no
- * markup viaja pro leitor em toda página.
- *
- * - `?raw` embute o @font-face em vez de servir folha externa. A folha era uma ida e volta
- *   BLOQUEANTE antes de o navegador saber sequer qual arquivo de fonte buscar; são 4KB,
- *   custam menos que a requisição que economizam — ainda mais pra leitor de celular vindo
- *   de busca, que vê uma página só e não reaproveita cache.
- * - Preload dos dois arquivos `latin`, um por família. Como a fonte é variável, esses dois
- *   cobrem TODOS os pesos da página — não existe "preload da face errada". E só `latin`:
- *   acento do português (ã, ç, é) mora em U+0000-00FF, então `latin-ext` quase nunca é
- *   buscado em texto pt-BR.
+ * As fontes entram pelo componente `Fontes` (substituível): os arquivos são do site, e o
+ * site sabe como servi-los. Cabeçalho e rodapé também são do site quando ele os troca
+ * (`editorial({ componentes })`, PRD 17 RF3c).
  */
-import fontesCss from '../../public/fontes/fontes.css?raw'
-import Cabecalho from '../components/Cabecalho.astro'
-import Rodape from '../components/Rodape.astro'
-import { urlMidia, type MidiaDTO } from '../lib/cms'
-import { PADRAO_CLARO, PADRAO_ESCURO, SOMBRAS, resolvePaleta, temaEscuroAtivo } from '@runzos/editorial/lib/tema'
+import Cabecalho from 'virtual:editorial/Cabecalho'
+import Fontes from 'virtual:editorial/Fontes'
+import Rodape from 'virtual:editorial/Rodape'
+
 import { montaGrafo, noImagem, troncoDoSite, type No } from '@runzos/schema'
+
+import { urlMidia, type MidiaDTO } from '../lib/cms'
+import { PADRAO_CLARO, PADRAO_ESCURO, SOMBRAS, resolvePaleta, temaEscuroAtivo } from '../lib/tema'
 
 /**
  * Layout base — TODO token de cor e fonte vem do TENANT (zero marca hardcoded, PRD 02
@@ -333,9 +327,7 @@ const grafo = canonical
     <meta name="theme-color" content={claro.cor_superficie_marca} media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content={escuro.cor_superficie_marca} media="(prefers-color-scheme: dark)" />
     <meta name="msapplication-TileColor" content={claro.cor_primaria} />
-    <link rel="preload" href="/fontes/open-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fontes/lexend-deca-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <style is:inline set:html={fontesCss}></style>
+    <Fontes />
     <style
       define:vars={vars}
     >
@@ -384,7 +376,7 @@ const grafo = canonical
          *
          * `100vw - 5.5rem` mantém exatamente a largura de antes num viewport de 1280 (os
          * mesmos 1192px), então nada muda onde já estava bom — só cresce onde havia espaço
-         * ocioso. O teto de 95rem é o do runzos de referência, medido: 1518px.
+         * ocioso. O teto de 95rem é o do site de referência, medido: 1518px.
          */
         --rz-container: min(95rem, 100vw - 5.5rem);
         --rz-medida: 48rem;

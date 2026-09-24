@@ -1,0 +1,40 @@
+---
+/*
+ * Rodapé padrão do tema: o nome do tenant e o caminho de volta para o blog.
+ *
+ * O site troca este componente como troca o cabeçalho (`editorial({ componentes })`). Se
+ * ele ganha comissão, é no rodapé DELE que mora a divulgação — o tema não sabe se o site é
+ * afiliado.
+ */
+const tenant = Astro.locals.tenant
+const ano = new Date().getFullYear()
+---
+
+<footer class="rodape">
+  <div class="faixa">
+    <p>© {ano} {tenant.nome}</p>
+    <nav aria-label="Rodapé">
+      <a href="/blog/">Blog</a>
+    </nav>
+  </div>
+</footer>
+
+<style>
+  .rodape {
+    background: var(--rz-inverso);
+    color: var(--rz-inverso-ink);
+    margin-top: 3rem;
+  }
+  .faixa {
+    max-width: var(--rz-container);
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  a {
+    color: inherit;
+  }
+</style>
