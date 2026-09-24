@@ -1,0 +1,108 @@
+/**
+ * PRD 17 RF2 — nada de marca, domínio ou programa de afiliado dentro do core.
+ *
+ * O que está em `packages/` vai virar o núcleo da plataforma, com repositório próprio
+ * (ADR-0011 §4), e ser instalado por sites que não são o Runzos. Marca de um site escrita
+ * ali vaza para todos os outros — o PRD 14 já achou o defeito em três lugares do tenant 3d
+ * (título da home, manifest e `.well-known/mcp.json`), e o RF2 achou mais um em código de
+ * produção: o validador da Amazon só aceitava a etiqueta de associado do Runzos, e
+ * recusaria os links de qualquer outro site afiliado.
+ *
+ * Duas regras:
+ *
+ * 1. Em TODO `packages/`: nenhuma marca ou domínio de site nosso. Comentário e teste
+ *    contam — os dois vão junto quando o pacote mudar de repositório, e o núcleo tem que se
+ *    provar com dado de exemplo (ADR-0011 §4, `apps/referencia`).
+ * 2. Em `packages/cms-core` e `packages/editorial`: nenhum nome de programa de afiliado.
+ *    Esses nomes só podem morar no plugin `afiliado` (ADR-0011 §5); a instância editorial
+ *    não tem programa nenhum.
+ *
+ * Exceção declarada: o escopo npm `@runzos/` (nome de pacote e import). Ele muda junto com
+ * a mudança de repositório, no RF9, porque o GitHub Packages exige que o escopo seja o dono
+ * do repositório (ADR-0011 §4). Depois do RF9, esta exceção sai daqui.
+ *
+ * `node scripts/confere-core-sem-marca.mjs`
+ */
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+/**
+ * As instâncias da plataforma (ADR-0011 §1). Site novo entra aqui no dia em que a
+ * instância nasce (PRD 19/21/22). `3d` não entra sozinho: é palavra comum ("impressão 3D"),
+ * e a marca dele é "Runzos 3D" em `3d.runzos.com`, que a primeira regra já pega.
+ */
+const MARCAS = [
+  { nome: 'runzos', re: /runzos/gi },
+  { nome: 'solomo', re: /solomo/gi },
+  { nome: 'alma fitness', re: /alma[\s-]?fitness/gi },
+  { nome: 'maiconramos', re: /maiconramos/gi },
+]
+
+/** A lista do PRD 17 RF2, com `\b` nos dois lados: "impacto" não é Impact. */
+const PROGRAMAS = /\b(hostinger|cloudways|amazon|awin|impact|shopee|mercado\s?livre|hotmart)\b/gi
+const SO_NO_PLUGIN = ['packages/cms-core/', 'packages/editorial/']
+
+const ESCOPO_NPM = /@runzos\/[a-z0-9._-]+/gi
+const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo'])
+
+function arquivos(dir) {
+  const saida = []
+  let itens
+  try {
+    itens = readdirSync(dir)
+  } catch {
+    return saida
+  }
+  for (const nome of itens) {
+    if (IGNORADOS.has(nome)) continue
+    const caminho = join(dir, nome)
+    if (statSync(caminho).isDirectory()) saida.push(...arquivos(caminho))
+    else saida.push(caminho)
+  }
+  return saida
+}
+
+/** Binário (imagem, fonte) não tem "menção"; o byte zero denuncia. */
+const ehTexto = (buf) => !buf.subarray(0, 8192).includes(0)
+
+/** Tudo o que a trava encontrou em `raiz/packages`, como `caminho:linha — motivo`. */
+export function procuraMarcas(raiz) {
+  const achados = []
+  for (const arq of arquivos(join(raiz, 'packages'))) {
+    const rel = relative(raiz, arq).split(sep).join('/')
+    const buf = readFileSync(arq)
+    if (!ehTexto(buf)) continue
+    const soNoPlugin = SO_NO_PLUGIN.some((p) => rel.startsWith(p))
+    buf
+      .toString('utf8')
+      .split('\n')
+      .forEach((linhaBruta, i) => {
+        const linha = linhaBruta.replace(ESCOPO_NPM, '')
+        for (const m of MARCAS) {
+          if (linha.match(m.re)) achados.push(`${rel}:${i + 1} — marca de site "${m.nome}"`)
+        }
+        if (soNoPlugin) {
+          for (const p of new Set((linha.match(PROGRAMAS) ?? []).map((x) => x.toLowerCase()))) {
+            achados.push(`${rel}:${i + 1} — programa de afiliado "${p}" fora do plugin afiliado`)
+          }
+        }
+      })
+  }
+  return achados
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const raiz = fileURLToPath(new URL('..', import.meta.url))
+  const achados = procuraMarcas(raiz)
+  if (achados.length) {
+    console.error('Marca, domínio ou programa de afiliado dentro do core (PRD 17 RF2):\n')
+    for (const a of achados) console.error(`  ${a}`)
+    console.error(
+      '\nO que é de um site vira parâmetro da fábrica ou campo de `tenants`; o que é de afiliado' +
+        '\nmora no plugin `afiliado`. Teste usa dado de exemplo (`Exemplo`, `exemplo.test`).',
+    )
+    process.exit(1)
+  }
+  console.log('confere-core-sem-marca: ok (packages/ sem marca de site; cms-core e editorial sem programa de afiliado)')
+}
