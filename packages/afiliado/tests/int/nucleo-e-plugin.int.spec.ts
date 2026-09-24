@@ -8,9 +8,9 @@
  * temporária e lida como texto.
  *
  * Precisa de um Postgres alcançável (`DATABASE_URL`) e das `R2_*`. No CI os dois estão no job,
- * e sem eles o teste REPROVA; fora do CI, pula — o mesmo padrão do teste do MinIO
- * (`apps/cms/tests/int/copia-r2.int.spec.ts`). Local: as variáveis do `apps/cms/.env` e as
- * `R2_*` do MinIO (README).
+ * e sem eles o teste REPROVA; fora do CI, pula — o mesmo padrão do teste do MinIO no app do
+ * site (`tests/int/copia-r2.int.spec.ts`). Local: as variáveis do `.env` do CMS e as `R2_*`
+ * do MinIO (README).
  */
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
