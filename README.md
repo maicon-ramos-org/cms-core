@@ -24,6 +24,9 @@ Suba a versão no `package.json` do pacote, escreva a seção no `CHANGELOG.md` 
 tag `<pacote>@<versão>` (ex.: `cms-core@0.2.0`): o workflow `pacotes.yml` confere, testa,
 empacota, atesta a procedência e publica no GitHub Packages.
 
+Envie **uma tag por `git push`**: o GitHub não dispara workflow quando mais de três tags
+chegam no mesmo envio — as tags sobem e nada é publicado, sem aviso.
+
 ## Como consumir
 
 Os pacotes saem como código-fonte (TypeScript e `.astro`): o site compila. Instalar do
