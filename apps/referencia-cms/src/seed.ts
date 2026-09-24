@@ -45,18 +45,18 @@ const TEMA = {
   cor_aviso: '#9a5b08',
 }
 
-const tenant = (slug: string, nome: string, nicho: string) => ({
+const tenant = (slug: string, nome: string) => ({
   slug,
   nome,
   canonical_host: `${slug}.referencia.test`,
-  nicho,
   tema: TEMA,
   seo: { sitemap_enabled: true },
 })
 
+// o nicho por extenso: a trava `confere-nicho-cravado` lê daqui os nichos que procura no código
 const TENANTS: Semente['tenants'] = [
-  tenant('exemplo', 'Exemplo', 'ferramentas de exemplo'),
-  tenant('outro', 'Outro Exemplo', 'outro assunto'),
+  { ...tenant('exemplo', 'Exemplo'), nicho: 'ferramentas de exemplo' },
+  { ...tenant('outro', 'Outro Exemplo'), nicho: 'outro assunto' },
 ]
 
 const USUARIOS: Semente['usuarios'] = [
