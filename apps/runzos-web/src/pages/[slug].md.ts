@@ -5,7 +5,7 @@
 import type { APIRoute } from 'astro'
 
 import { getPageBySlug, getPostBySlug, getPostsRelacionados } from '../lib/cms'
-import { lexicalParaTexto } from '../lib/lexical'
+import { lexicalParaTexto } from '@runzos/editorial/lib/lexical'
 
 /** Mesma regra da página HTML: arquivo do builder tem rota própria, não sai daqui. */
 const ARQUIVOS_DO_BUILDER = new Set(['home', 'apps', 'ofertas', 'blog'])

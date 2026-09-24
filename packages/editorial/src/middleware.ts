@@ -1,42 +1,22 @@
 /**
  * PRD 02 RF1 — tenant resolvido pelo Host. Host desconhecido → 404.
- * Em dev (localhost), cai no DEFAULT_TENANT (runzos).
+ * Em dev (localhost), cai no tenant padrão do site (`ConfigDoEditorial.tenantPadrao`).
  * Cache em memória 60s pra não bater no CMS a cada request.
+ *
+ * Entra no site pela integração `editorial()` (PRD 17 RF3b). As regras de URL moram em
+ * `regras-de-url.ts`, onde dá para testar sem o Astro.
  */
+/// <reference path="./virtual.d.ts" />
 import { defineMiddleware } from 'astro:middleware'
+import config from 'virtual:editorial/config'
 
 import { getTenantByHost, getTenantBySlug, type TenantDTO } from './lib/cms'
+import { caminhoDoMd, isLocalhost, querMarkdown, regrasDeUrl, slugPeloSufixo, tenantPadrao } from './regras-de-url'
+
+const { precisaDeBarra, temGemeoMd } = regrasDeUrl(config)
 
 const cache = new Map<string, { tenant: TenantDTO | null; expira: number }>()
 const TTL_MS = 60_000
-
-const isLocalhost = (host: string) =>
-  host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')
-
-/**
- * Sufixos em que o tenant vem do SUBDOMÍNIO, e não do `canonical_host`.
- *
- * Existe porque fora de produção o host NUNCA é o canônico: o mesmo tenant é
- * `3d.runzos.com` em produção, `3d.dev.runzos.com` em staging e `3d.runzos.local` na
- * máquina — e canonizar staging pra si mesmo é justamente o que o ADR-0004 proíbe. Sem
- * esta regra, staging responde 404 em todo tenant que não seja o default.
- *
- * O sufixo NU (`dev.runzos.com`, sem subdomínio) cai no DEFAULT_TENANT — mesmo contrato
- * do localhost.
- */
-const SUFIXOS_DE_SLUG = (process.env.HOST_SUFIXOS_TENANT ?? '.runzos.local')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean)
-
-/** `3d.dev.runzos.com` → `3d`; `dev.runzos.com` → o default; fora dos sufixos → null. */
-const slugPeloSufixo = (host: string): string | null => {
-  for (const sufixo of SUFIXOS_DE_SLUG) {
-    if (host === sufixo.replace(/^\./, '')) return process.env.DEFAULT_TENANT ?? 'runzos'
-    if (host.endsWith(sufixo)) return host.slice(0, -sufixo.length)
-  }
-  return null
-}
 
 async function resolveTenant(hostComPorta: string): Promise<TenantDTO | null> {
   const host = hostComPorta.split(':')[0] ?? ''
@@ -46,11 +26,11 @@ async function resolveTenant(hostComPorta: string): Promise<TenantDTO | null> {
   let tenant: TenantDTO | null = null
   try {
     tenant = isLocalhost(host)
-      ? await getTenantBySlug(process.env.DEFAULT_TENANT ?? 'runzos')
+      ? await getTenantBySlug(tenantPadrao(config))
       : await getTenantByHost(host)
-    // fora de produção o tenant vem do subdomínio: {slug}.runzos.local, {slug}.dev.runzos.com
+    // fora de produção o tenant vem do subdomínio: {slug}.exemplo.local, {slug}.dev.exemplo.com
     if (!tenant) {
-      const slug = slugPeloSufixo(host)
+      const slug = slugPeloSufixo(host, config)
       if (slug) tenant = await getTenantBySlug(slug)
     }
   } catch (err) {
@@ -60,60 +40,6 @@ async function resolveTenant(hostComPorta: string): Promise<TenantDTO | null> {
   cache.set(host, { tenant, expira: agora + TTL_MS })
   return tenant
 }
-
-/**
- * Paridade de URL: o WordPress serve TUDO com barra final e 301 quem chega sem ela.
- * Sem reproduzir isso, cada URL do acervo vira duas (mesmo conteúdo em /x e /x/), o
- * canonical diverge do que já está indexado, e o diff da Fase D acusa 100% das páginas.
- *
- * Fora da regra: arquivos com extensão (.md, .xml, .txt, /fontes/*), a API, o healthz e
- * o redirect de afiliado — nenhum deles é URL de conteúdo indexável.
- */
-const SEM_BARRA = /^\/(api|r)\//
-const EH_ARQUIVO = /\.[a-z0-9]+$/i
-
-const precisaDeBarra = (pathname: string): boolean =>
-  pathname !== '/' &&
-  !pathname.endsWith('/') &&
-  !SEM_BARRA.test(pathname) &&
-  !EH_ARQUIVO.test(pathname) &&
-  pathname !== '/healthz'
-
-/**
- * `text/markdown` só vence se vier antes de `text/html` na ordem do header. Navegador
- * sempre manda html primeiro; quem pede markdown explicitamente coloca ele na frente.
- */
-const querMarkdown = (accept: string): boolean => {
-  const tipos = accept
-    .split(',')
-    .map((t) => t.split(';')[0]!.trim().toLowerCase())
-    .filter(Boolean)
-  const md = tipos.indexOf('text/markdown')
-  if (md === -1) return false
-  const html = tipos.indexOf('text/html')
-  return html === -1 || md < html
-}
-
-/** Rotas que têm gêmeo `.md`. Fora daqui, o header é ignorado e serve HTML. */
-const temGemeoMd = (p: string): boolean =>
-  /^\/(ofertas|apps|modelos|automacoes)\/[^/]+\/$/.test(p) || (/^\/[^/]+\/$/.test(p) && !ROTAS_SEM_MD.has(p))
-
-// os HUBS não têm gêmeo `.md` — só as fichas. Sem `/modelos/` e `/automacoes/` aqui, o
-// segundo ramo da regra acima os trataria como página de raiz e reescreveria pra
-// `/modelos.md`, que não existe: agente pedindo markdown no hub receberia 404.
-const ROTAS_SEM_MD = new Set([
-  '/',
-  '/blog/',
-  '/ofertas/',
-  '/apps/',
-  '/modelos/',
-  '/automacoes/',
-  '/lifetimes/',
-  '/busca/',
-  '/glossario/',
-])
-
-const caminhoDoMd = (p: string): string => `${p.replace(/\/$/, '')}.md`
 
 /**
  * `Vary: Accept` nas rotas que negociam formato — e vai nas DUAS variantes, não só na

@@ -27,7 +27,8 @@ import {
   urlMidia,
   type PostDTO,
 } from '../lib/cms'
-import { extraiSumario, lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+import { extraiSumario, lexicalParaHtml, lexicalParaTexto } from '@runzos/editorial/lib/lexical'
+import { ehLinkDeAfiliado } from '../lib/links-de-afiliado'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -126,6 +127,7 @@ const relacionados = post ? await getPostsRelacionados(tenant.id, post, 4) : ([]
 
 const corpoHtml = lexicalParaHtml(post?.corpo, {
   reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
+  ehLinkDeAfiliado,
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })

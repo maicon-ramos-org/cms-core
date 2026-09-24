@@ -5,7 +5,7 @@
 import type { APIRoute } from 'astro'
 
 import { getOfertaBySlug, type CupomDTO, type LojaDTO } from '../../lib/cms'
-import { lexicalParaTexto } from '../../lib/lexical'
+import { lexicalParaTexto } from '@runzos/editorial/lib/lexical'
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant

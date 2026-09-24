@@ -82,17 +82,15 @@ const hrefSeguro = (url: string | undefined): string | null =>
  */
 let reescreveAfiliado: ((url: string) => string | null) | null = null
 let resolveMidia: ((url: string) => string | undefined) | null = null
-
 /**
- * Hosts que só existem para rastrear clique de afiliado, e padrões de parâmetro de
- * tracking. Link assim SEM destino mapeado não pode sair no HTML (regra dura) — vira
- * texto puro. Hoje isso acontece em 1 link de todo o acervo migrado.
+ * Diz se um link é de rastreio de afiliado. Link assim SEM destino mapeado não pode sair no
+ * HTML (regra dura) — vira texto puro. Quais hosts e parâmetros rastreiam é conhecimento de
+ * afiliado, não do tema: vem de quem chama.
  */
-const REDES_DE_AFILIADO = /^(www\.)?(anrdoezrs\.net|tkqlhce\.com|kqzyfj\.com|hostg\.xyz|m\.do\.co|links\.automacaosemlimites\.com\.br)$/i
-const PARAMS_DE_TRACKING = /[?&](via|aff|aff_id|referral|partner)=|\/aff\.php|\/click-\d/i
+let ehLinkDeAfiliado: ((url: string) => boolean) | null = null
 
 /**
- * O WP escreveu link interno em ABSOLUTO (`https://runzos.com/outro-post`). Em staging
+ * O WP escreveu link interno em ABSOLUTO (`https://exemplo.com/outro-post`). Em staging
  * isso mandaria o leitor de volta pro site velho e estragaria o diff de paridade —
  * então link pro próprio host vira caminho relativo.
  */
@@ -105,15 +103,6 @@ function relativizaInterno(url: string): string {
     return u.host === hostDoTenant ? `${u.pathname}${u.search}${u.hash}` : url
   } catch {
     return url
-  }
-}
-
-function ehLinkDeAfiliado(url: string): boolean {
-  if (PARAMS_DE_TRACKING.test(url)) return true
-  try {
-    return REDES_DE_AFILIADO.test(new URL(url).host)
-  } catch {
-    return false
   }
 }
 
@@ -162,7 +151,7 @@ function renderaNo(no: No): string {
       const cru = no.fields?.url
       const trocado = cru && reescreveAfiliado ? reescreveAfiliado(cru) : null
       // sem destino mapeado, link de afiliado sai do HTML (nunca cru) e sobra o texto
-      if (!trocado && cru && ehLinkDeAfiliado(cru)) return filhos(no)
+      if (!trocado && cru && ehLinkDeAfiliado?.(cru)) return filhos(no)
       const href = hrefSeguro(trocado ?? (cru ? relativizaInterno(cru) : cru))
       if (!href) return filhos(no)
       if (trocado) return `<a href="${href}" rel="sponsored nofollow">${filhos(no)}</a>`
@@ -187,6 +176,7 @@ export function lexicalParaHtml(
   corpo: unknown,
   opcoes: {
     reescreveAfiliado?: (url: string) => string | null
+    ehLinkDeAfiliado?: (url: string) => boolean
     resolveMidia?: (url: string) => string | undefined
     hostDoTenant?: string
   } = {},
@@ -194,6 +184,7 @@ export function lexicalParaHtml(
   const raiz = (corpo as { root?: No } | null)?.root
   if (!raiz) return ''
   reescreveAfiliado = opcoes.reescreveAfiliado ?? null
+  ehLinkDeAfiliado = opcoes.ehLinkDeAfiliado ?? null
   resolveMidia = opcoes.resolveMidia ?? null
   hostDoTenant = opcoes.hostDoTenant ?? null
   idsUsados = new Map()

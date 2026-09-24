@@ -10,7 +10,8 @@ import Base from '../layouts/Base.astro'
 import FormularioContato from './FormularioContato.astro'
 import IndiceDePosts from './IndiceDePosts.astro'
 import { caminhoCanonico, urlMidia, type PageDTO } from '../lib/cms'
-import { lexicalParaHtml, lexicalParaTexto } from '../lib/lexical'
+import { lexicalParaHtml, lexicalParaTexto } from '@runzos/editorial/lib/lexical'
+import { ehLinkDeAfiliado } from '../lib/links-de-afiliado'
 
 interface Props {
   page: PageDTO
@@ -24,6 +25,7 @@ const tenant = Astro.locals.tenant
 
 const corpoHtml = lexicalParaHtml(page.corpo, {
   reescreveAfiliado: (url) => mapaAfiliados.get(url) ?? mapaAfiliados.get(url.replace(/\/$/, '')) ?? null,
+  ehLinkDeAfiliado,
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })

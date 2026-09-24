@@ -20,7 +20,7 @@ import {
   resolvePaleta,
   temaEscuroAtivo,
   type Paleta,
-} from '../src/lib/tema'
+} from '../../src/lib/tema'
 
 const EH_HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 

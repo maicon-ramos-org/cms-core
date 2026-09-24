@@ -36,13 +36,15 @@ export interface DefinicaoDoTema<C extends string> {
   rotas: RotaDoTema[]
   /** Cada componente substituível → o arquivo padrão, caminho absoluto dentro do pacote. */
   componentes: Record<C, string>
+  /** Middleware do tema, caminho absoluto — roda antes do middleware do site. */
+  middleware?: string
 }
 
 export interface OpcoesDoSite<C extends string> {
   /** Componentes que o site troca: nome → arquivo do site, relativo à raiz dele. */
   componentes?: Partial<Record<C, string>>
   /** O que as rotas do tema leem de `virtual:<nome>/config`. Tem que ser serializável. */
-  config?: Record<string, unknown>
+  config?: object
 }
 
 export function temaAstro<C extends string>(tema: DefinicaoDoTema<C>, site: OpcoesDoSite<C> = {}): AstroIntegration {
@@ -52,7 +54,7 @@ export function temaAstro<C extends string>(tema: DefinicaoDoTema<C>, site: Opco
   return {
     name: tema.nome,
     hooks: {
-      'astro:config:setup': ({ config, injectRoute, updateConfig, logger }) => {
+      'astro:config:setup': ({ config, injectRoute, updateConfig, addMiddleware, logger }) => {
         // nome de componente errado no site é erro de digitação: falha no build, não some
         const arquivos: Record<string, string> = { ...tema.componentes }
         for (const [nome, relativo] of Object.entries(site.componentes ?? {}) as Array<[string, string]>) {
@@ -75,6 +77,8 @@ export function temaAstro<C extends string>(tema: DefinicaoDoTema<C>, site: Opco
           }
           injectRoute({ pattern: rota.pattern, entrypoint: rota.entrypoint })
         }
+
+        if (tema.middleware) addMiddleware({ entrypoint: tema.middleware, order: 'pre' })
 
         updateConfig({
           vite: {

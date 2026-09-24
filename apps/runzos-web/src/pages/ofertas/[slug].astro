@@ -16,7 +16,8 @@ import Base from '../../layouts/Base.astro'
 import { compor } from '@runzos/desconto'
 
 import { caminhoDaOferta, caminhoCanonico, getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
-import { lexicalParaHtml, lexicalParaTexto } from '../../lib/lexical'
+import { lexicalParaHtml, lexicalParaTexto } from '@runzos/editorial/lib/lexical'
+import { ehLinkDeAfiliado } from '../../lib/links-de-afiliado'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -78,6 +79,7 @@ if (cupom?.url_afiliado_fonte) destinos.set(cupom.url_afiliado_fonte, `/r/c${cup
 
 const corpoHtml = lexicalParaHtml(oferta.corpo, {
   reescreveAfiliado: (url) => destinos.get(url) ?? destinos.get(url.replace(/\/$/, '')) ?? null,
+  ehLinkDeAfiliado,
   resolveMidia: urlMidia,
   hostDoTenant: tenant.canonical_host,
 })

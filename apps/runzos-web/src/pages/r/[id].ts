@@ -24,7 +24,7 @@ import {
   type OfertaDTO,
   type ProdutoDTO,
 } from '../../lib/cms'
-import { ipHash } from '../../lib/hash'
+import { ipHash } from '@runzos/editorial/lib/hash'
 
 interface Destino {
   tipo_doc: 'cupom' | 'oferta' | 'produto'
