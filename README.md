@@ -24,6 +24,10 @@ Suba a versão no `package.json` do pacote, escreva a seção no `CHANGELOG.md` 
 tag `<pacote>@<versão>` (ex.: `cms-core@0.2.0`): o workflow `pacotes.yml` confere, testa,
 empacota, atesta a procedência e publica no GitHub Packages.
 
+Pré-lançamento (versão com `-`, ex.: `cms-core@0.2.0-next.1`) sai na dist-tag `next`, e o
+`latest` continua na última estável — quem consome fixa a versão exata de qualquer jeito.
+Versão estável sai sem `--tag` e o npm aplica o `latest` (`scripts/dist-tag.mjs`).
+
 Envie **uma tag por `git push`**: o GitHub não dispara workflow quando mais de três tags
 chegam no mesmo envio — as tags sobem e nada é publicado, sem aviso.
 

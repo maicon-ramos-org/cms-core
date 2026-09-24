@@ -8,7 +8,7 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "check": "pnpm cobertura && node scripts/confere-core-sem-marca.mjs && node scripts/confere-cor-cravada.mjs && node scripts/confere-nicho-cravado.mjs && node scripts/confere-tenant-explicito.mjs && node --test scripts/confere-core-sem-marca.test.mjs && pnpm -r typecheck && pnpm -r test",
+    "check": "pnpm cobertura && node scripts/confere-core-sem-marca.mjs && node scripts/confere-cor-cravada.mjs && node scripts/confere-nicho-cravado.mjs && node scripts/confere-tenant-explicito.mjs && node --test scripts/confere-core-sem-marca.test.mjs scripts/dist-tag.test.mjs && pnpm -r typecheck && pnpm -r test",
     "cobertura": "node scripts/confere-cobertura.mjs"
   },
   "pnpm": {
