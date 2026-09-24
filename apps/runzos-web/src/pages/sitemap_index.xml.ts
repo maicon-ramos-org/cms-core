@@ -4,7 +4,9 @@
  */
 import type { APIRoute } from 'astro'
 
-import { respostaXml, sitemapindex, TIPOS } from '../lib/sitemap'
+import { respostaXml, sitemapindex } from '@runzos/editorial/lib/sitemap'
+
+import { TIPOS } from '../lib/tipos-de-sitemap'
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant

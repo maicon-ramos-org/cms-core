@@ -13,8 +13,11 @@
  */
 import type { APIRoute } from 'astro'
 
+import config from 'virtual:editorial/config'
+
 import { urlMidia } from '../lib/cms'
 import { deNicho } from '../lib/nicho'
+import { texto } from '../textos'
 
 const url = (m: unknown): string | undefined =>
   m && typeof m === 'object' && (m as { url?: string }).url ? urlMidia((m as { url?: string }).url) : undefined
@@ -37,7 +40,7 @@ export const GET: APIRoute = async (context) => {
   const doc = {
     name: tenant.nome,
     short_name: tenant.nome,
-    description: `Cupons e ofertas${deNicho(tenant)}, com a data em que cada preço foi conferido.`,
+    description: texto(config.textos, 'descricaoDoManifest', { nome: tenant.nome, nicho: deNicho(tenant) }),
     start_url: '/',
     scope: '/',
     display: 'browser',

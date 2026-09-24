@@ -3,13 +3,16 @@
  * Hub /blog — URL real do site antigo. Lista o acervo por data REAL de publicação, com
  * paginação: são 735 posts, então página única não serve nem pro leitor nem pro crawler.
  */
-import ChipsCategorias from '../components/ChipsCategorias.astro'
-import CardPost from '../components/CardPost.astro'
-import Ferramentas from '../components/Ferramentas.astro'
+import ChipsCategorias from '../componentes/ChipsCategorias.astro'
+import CardPost from '../componentes/CardPost.astro'
+import Ferramentas from 'virtual:editorial/Ferramentas'
 import { noColecao, noMigalhas } from '@runzos/schema'
 
-import Base from '@runzos/editorial/componentes/Base.astro'
+import Base from '../componentes/Base.astro'
+import config from 'virtual:editorial/config'
+
 import { getCategorias, getPostsPaginados } from '../lib/cms'
+import { texto } from '../textos'
 
 const tenant = Astro.locals.tenant
 
@@ -33,8 +36,8 @@ if (Astro.cache.enabled) {
 const base = `https://${tenant.canonical_host}/blog/`
 // canonical da paginada é ela mesma (nunca a página 1: seriam páginas distintas)
 const canonical = pagina > 1 ? `${base}?pagina=${pagina}` : base
-const titulo = pagina > 1 ? `Blog — página ${pagina}` : `Blog: ${totalDocs} artigos sobre VPS, automação e IA`
-const descricao = `Artigos com teste prático e preço conferido — VPS, n8n, automação e IA. ${totalDocs} publicações.`
+const titulo = pagina > 1 ? `Blog — página ${pagina}` : texto(config.textos, 'tituloDoBlog', { total: totalDocs, nome: tenant.nome })
+const descricao = texto(config.textos, 'descricaoDoBlog', { total: totalDocs, nome: tenant.nome })
 
 /*
  * Schema pelo `Base`, não por bloco `ld+json` próprio. O hub montava o grafo à mão desde

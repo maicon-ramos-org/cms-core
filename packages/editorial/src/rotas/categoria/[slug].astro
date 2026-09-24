@@ -3,11 +3,14 @@
  * /categoria/{slug} — arquivo editorial por categoria. Estas 7 URLs existem no sitemap
  * do WordPress e davam 404 aqui: é paridade que faltava, e é o destino dos chips.
  */
-import ChipsCategorias from '../../components/ChipsCategorias.astro'
-import CardPost from '../../components/CardPost.astro'
-import Ferramentas from '../../components/Ferramentas.astro'
-import Base from '@runzos/editorial/componentes/Base.astro'
+import ChipsCategorias from '../../componentes/ChipsCategorias.astro'
+import CardPost from '../../componentes/CardPost.astro'
+import Ferramentas from 'virtual:editorial/Ferramentas'
+import Base from '../../componentes/Base.astro'
+import config from 'virtual:editorial/config'
+
 import { getCategoriaBySlug, getCategorias, getPostsPaginados } from '../../lib/cms'
+import { texto } from '../../textos'
 
 const tenant = Astro.locals.tenant
 const slug = Astro.params.slug ?? ''
@@ -48,7 +51,7 @@ const titulo =
 const descricao =
   categoria.meta?.description ||
   categoria.descricao_seo ||
-  `Artigos sobre ${categoria.nome} — teste prático e preço conferido.`
+  texto(config.textos, 'descricaoDaCategoria', { categoria: categoria.nome, nome: tenant.nome })
 
 const jsonLd = JSON.stringify({
   '@context': 'https://schema.org',

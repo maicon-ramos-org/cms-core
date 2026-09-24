@@ -17,7 +17,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@runzos/schema": "workspace:*"
+    "@mcp-b/webmcp-polyfill": "^5.1.0",
+    "@runzos/schema": "workspace:*",
+    "@runzos/webmcp": "workspace:*"
   },
   "peerDependencies": {
     "astro": "^7.2.4"

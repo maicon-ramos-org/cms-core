@@ -9,6 +9,8 @@
  */
 import type { APIRoute } from 'astro'
 
+import config from 'virtual:editorial/config'
+
 import { ehStaging } from '../lib/sitemap'
 
 /** Crawlers de IA que queremos explicitamente dentro (PRD 09 RF3 mede quem lê). */
@@ -29,6 +31,8 @@ export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
   const host = context.request.headers.get('host') ?? ''
   const staging = ehStaging(host, tenant)
+  // o que o site fecha além da API — no afiliado, o redirect `/r/`, que não é conteúdo
+  const bloqueios = config.robotsBloqueia ?? []
 
   const linhas = staging
     ? ['# ambiente de staging/preview — fora do índice', 'User-agent: *', 'Disallow: /']
@@ -50,15 +54,14 @@ export const GET: APIRoute = async (context) => {
         '',
         'User-agent: *',
         'Allow: /',
-        '# redirect de afiliado não é conteúdo',
-        'Disallow: /r/',
+        ...bloqueios.flatMap((b) => [`# ${b.motivo}`, `Disallow: ${b.caminho}`]),
         '# endpoints internos',
         'Disallow: /api/',
         '',
         // Bots de IA liberados EXPLICITAMENTE: ser lido por agente é o produto, não um
         // efeito colateral. Nomeá-los evita que uma regra futura mais restritiva no
         // `*` os pegue junto sem ninguém perceber.
-        ...BOTS_DE_IA.flatMap((bot) => [`User-agent: ${bot}`, 'Allow: /', 'Disallow: /r/', '']),
+        ...BOTS_DE_IA.flatMap((bot) => [`User-agent: ${bot}`, 'Allow: /', ...bloqueios.map((b) => `Disallow: ${b.caminho}`), '']),
         `# mapa para agentes: https://${tenant.canonical_host}/llms.txt`,
         `# RSS: https://${tenant.canonical_host}/feed/`,
         ...(tenant.seo?.sitemap_enabled === false

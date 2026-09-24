@@ -3,6 +3,8 @@
  * pelo `editorial({ config })` do `astro.config` e as rotas e o middleware leem de
  * `virtual:editorial/config`. Tem que ser serializável: vira JSON no build.
  */
+import type { TextosDoEditorial } from './textos'
+
 export interface ConfigDoEditorial {
   /** O tenant de localhost e do sufixo nu. A variável `DEFAULT_TENANT` ganha deste valor. */
   tenantPadrao: string
@@ -17,4 +19,13 @@ export interface ConfigDoEditorial {
   pastasComMd?: string[]
   /** Páginas de raiz sem gêmeo `.md`, além de `/`, `/blog/`, `/busca/` e os hubs das pastas. */
   semMd?: string[]
+  /** O nome que o `/healthz` responde em `servico` (o smoke e o monitoramento leem). */
+  servico?: string
+  /** Frases das rotas que dependem do assunto do site; o que faltar usa o padrão do tema. */
+  textos?: Partial<TextosDoEditorial>
+  /**
+   * Caminhos que o `robots.txt` fecha para todos os robôs, inclusive os de IA liberados — cada
+   * um com o motivo, que sai como comentário no arquivo. `/api/` o tema já fecha.
+   */
+  robotsBloqueia?: Array<{ caminho: string; motivo: string }>
 }

@@ -16,9 +16,9 @@
  * Sem `.md` paralelo de propósito: o `.md` existe pra dar o CONTEÚDO ao leitor-agente, e
  * aqui o conteúdo é uma lista de links cujos destinos já servem o próprio `.md`.
  */
-import CardPost from '../../components/CardPost.astro'
-import Ferramentas from '../../components/Ferramentas.astro'
-import Base from '@runzos/editorial/componentes/Base.astro'
+import CardPost from '../../componentes/CardPost.astro'
+import Ferramentas from 'virtual:editorial/Ferramentas'
+import Base from '../../componentes/Base.astro'
 import { getPostsPaginados, getTagBySlug } from '../../lib/cms'
 
 const tenant = Astro.locals.tenant

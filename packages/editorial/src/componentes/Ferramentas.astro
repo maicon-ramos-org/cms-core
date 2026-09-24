@@ -1,0 +1,150 @@
+---
+/**
+ * Registra as ferramentas WebMCP da página (PRD 11 RF3) — o conjunto EDITORIAL do tema:
+ * buscar no site, o markdown da página, a ficha e o sumário do artigo, e a busca no blog.
+ *
+ * O site que tem outras páginas (oferta, loja, catálogo) troca este componente pelo dele
+ * (`editorial({ componentes: { Ferramentas } })`, PRD 17 RF3), que registra estas mais as
+ * dele. As rotas do tema passam `tipo` e `dados`; o que um tipo não conhece, ignora.
+ *
+ * O DADO VAI NUM `<script type="application/json">`, não em `define:vars`: `define:vars`
+ * obriga `is:inline`, e script inline não passa pelo Vite — não poderia importar a casca.
+ * Assim o módulo é empacotado, sai `type="module"` (deferido, nunca bloqueante) e o gate
+ * de budget continua vendo zero JS bloqueante.
+ *
+ * NENHUMA FERRAMENTA INVENTA CONSULTA: ou o dado já está nesta página, ou vem de um
+ * endpoint que já existe (`/search-index.json`).
+ */
+interface Props {
+  tipo: string
+  dados?: Record<string, unknown>
+}
+
+const { tipo, dados = {} } = Astro.props
+
+/*
+ * O polyfill é DECISÃO DO TENANT, desligada por padrão. Sem uma extensão que leia
+ * `document.modelContext`, ele registra ferramentas que ninguém consome.
+ */
+const polyfill = Astro.locals.tenant.webmcp_polyfill === true
+const carga = JSON.stringify({ tipo, polyfill, ...dados })
+---
+
+<script type="application/json" id="webmcp-dados" set:html={carga} is:inline />
+
+<script>
+  import { registraFerramentas, type Ferramenta } from '@runzos/webmcp'
+
+  const el = document.getElementById('webmcp-dados')
+  const d = el ? (JSON.parse(el.textContent || '{}') as Record<string, any>) : {}
+
+  /** o índice só é baixado se alguma ferramenta de busca for chamada */
+  let indice: Array<{ t: string; u: string; k: string }> | null = null
+  const carregaIndice = async (): Promise<Array<{ t: string; u: string; k: string }>> => {
+    if (!indice) {
+      const r = await fetch('/search-index.json', { headers: { accept: 'application/json' } })
+      indice = r.ok ? await r.json() : []
+    }
+    return indice ?? []
+  }
+
+  const busca = async (texto: string, especie?: string, limite = 10) => {
+    const alvo = String(texto ?? '').trim().toLowerCase()
+    if (alvo.length < 2) return { erro: 'Use pelo menos 2 letras.' }
+    const itens = (await carregaIndice())
+      .filter((i) => (especie ? i.k === especie : true))
+      .filter((i) => i.t.toLowerCase().includes(alvo))
+      .slice(0, limite)
+      .map((i) => ({ titulo: i.t, url: i.u, tipo: i.k }))
+    return { total: itens.length, itens }
+  }
+
+  const ferramentas: Ferramenta[] = [
+    {
+      name: 'buscar_no_site',
+      description: 'Busca artigos e páginas deste site pelo título. Devolve título e URL de cada resultado.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          texto: { type: 'string', description: 'o que procurar (mínimo 2 letras)' },
+          tipo: { type: 'string', enum: ['artigo', 'página'], description: 'restringe o tipo de resultado' },
+        },
+        required: ['texto'],
+      },
+      annotations: { readOnlyHint: true },
+      execute: async (a) => busca(String(a.texto ?? ''), a.tipo as string | undefined),
+    },
+  ]
+
+  if (d.md) {
+    ferramentas.push({
+      name: 'markdown_desta_pagina',
+      description:
+        'Endereço da versão em markdown desta página — mesmo conteúdo, sem layout. A URL normal também devolve markdown com o header Accept: text/markdown.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async () => ({ url: d.md, tambem_por_header: 'Accept: text/markdown' }),
+    })
+  }
+
+  if (d.tipo === 'post') {
+    ferramentas.push({
+      name: 'resumo_do_artigo',
+      description: 'Ficha deste artigo: título, autor, quando foi publicado, categoria, tags e tempo de leitura.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async () => d.post,
+    })
+    if ((d.sumario ?? []).length > 0) {
+      ferramentas.push({
+        name: 'sumario_do_artigo',
+        description: 'Seções deste artigo, com a âncora de cada uma.',
+        inputSchema: { type: 'object', properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => ({ secoes: d.sumario }),
+      })
+    }
+  }
+
+  if (d.tipo === 'arquivo') {
+    ferramentas.push({
+      name: 'buscar_artigo',
+      description: 'Procura artigos do blog pelo texto do título.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          texto: { type: 'string', description: 'o que procurar' },
+          limite: { type: 'number', description: 'quantos resultados (padrão 10)' },
+        },
+        required: ['texto'],
+      },
+      annotations: { readOnlyHint: true },
+      execute: async (a) => busca(String(a.texto ?? ''), 'artigo', Number(a.limite) || 10),
+    })
+  }
+
+  /* telemetria (PRD 11 RF8): depois de responder, sem esperar, e com `keepalive` */
+  const comTelemetria = (f: Ferramenta): Ferramenta => ({
+    ...f,
+    execute: async (args, ctx) => {
+      const saida = await f.execute(args, ctx)
+      const achou = !(saida && typeof saida === 'object' && 'erro' in (saida as object))
+      void fetch('/api/uso-agente', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tool: f.name, args, achou }),
+      }).catch(() => {})
+      return saida
+    },
+  })
+
+  void registraFerramentas(ferramentas.map(comTelemetria), {
+    polyfill: d.polyfill
+      ? async () => {
+          const { initializeWebMCPPolyfill } = await import('@mcp-b/webmcp-polyfill')
+          initializeWebMCPPolyfill()
+        }
+      : undefined,
+  })
+</script>

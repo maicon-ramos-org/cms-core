@@ -20,3 +20,7 @@ declare module 'virtual:editorial/Fontes' {
   const Componente: typeof import('./componentes/Fontes.astro').default
   export default Componente
 }
+declare module 'virtual:editorial/Ferramentas' {
+  const Componente: typeof import('./componentes/Ferramentas.astro').default
+  export default Componente
+}

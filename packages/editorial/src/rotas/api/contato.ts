@@ -16,7 +16,7 @@
 import type { APIRoute } from 'astro'
 
 import { cmsFetch } from '../../lib/cms'
-import { ipHash } from '@runzos/editorial/lib/hash'
+import { ipHash } from '../../lib/hash'
 
 const TEMPO_MINIMO_MS = 3000
 const TETO_POR_HORA = 5

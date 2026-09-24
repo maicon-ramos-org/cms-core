@@ -1,0 +1,39 @@
+---
+/**
+ * A home padrão do tema: os artigos mais recentes. O site que tem outra home escreve a
+ * própria `src/pages/index.astro` e esta não é injetada — nível 3 de personalização do
+ * PRD 17 RF3 (um site de catálogo, por exemplo, tem a dele em fileiras).
+ */
+import Ferramentas from 'virtual:editorial/Ferramentas'
+
+import Base from '../componentes/Base.astro'
+import CardPost from '../componentes/CardPost.astro'
+import { getPostsPaginados } from '../lib/cms'
+import { deNicho } from '../lib/nicho'
+
+const tenant = Astro.locals.tenant
+const { docs: posts } = await getPostsPaginados(tenant.id, 1, 12)
+
+if (Astro.cache?.enabled) {
+  Astro.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, 'posts:hub'] })
+}
+
+const titulo = `${tenant.nome}${deNicho(tenant)}`
+---
+
+<Base titulo={titulo} canonical={`https://${tenant.canonical_host}/`}>
+  <h1>{tenant.nome}</h1>
+  <div class="grade">
+    {posts.map((p, i) => <CardPost post={p} prioritario={i < 3} />)}
+  </div>
+  <p><a href="/blog/">Todos os artigos →</a></p>
+  <Ferramentas tipo="arquivo" />
+</Base>
+
+<style>
+  .grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1.1rem;
+  }
+</style>

@@ -5,8 +5,12 @@
  */
 import type { APIRoute } from 'astro'
 
+import config from 'virtual:editorial/config'
+
 import { getPostsPaginados } from '../lib/cms'
 import { caminhoCanonico } from '../lib/cms'
+import { deNicho } from '../lib/nicho'
+import { texto } from '../textos'
 
 const escapa = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -37,7 +41,7 @@ export const GET: APIRoute = async (context) => {
   <channel>
     <title>${escapa(tenant.nome)}</title>
     <link>${base}/</link>
-    <description>Cupons e ofertas verificados — ${escapa(tenant.nome)}</description>
+    <description>${escapa(texto(config.textos, 'descricaoDoFeed', { nome: tenant.nome, nicho: deNicho(tenant) }))}</description>
     <language>pt-BR</language>
     <atom:link href="${base}/feed/" rel="self" type="application/rss+xml" />
 ${itens}
