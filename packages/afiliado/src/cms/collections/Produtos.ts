@@ -1,9 +1,9 @@
 import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook, type CollectionBeforeChangeHook } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
-import { chaveDeOrigem } from '@runzos/cms-core'
-import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
-import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@maicon-ramos-org/cms-core'
+import { chaveDeOrigem } from '@maicon-ramos-org/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@maicon-ramos-org/cms-core'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { tagsDaLoja } from '../hooks/tags-loja'
 
 /** "preco + preco_em ✔ juntos — NUNCA preço sem timestamp" (contrato). */

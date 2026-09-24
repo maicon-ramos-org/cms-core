@@ -1,5 +1,5 @@
 {
-  "name": "@runzos/auto-linker",
+  "name": "@maicon-ramos-org/auto-linker",
   "version": "0.1.0",
   "description": "Linkagem interna automática — PRD 04, package puro sobre a árvore Lexical",
   "private": true,

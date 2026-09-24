@@ -1,6 +1,6 @@
 import type { Field, Plugin } from 'payload'
 
-import { acrescentaAoGrupoDoTenant, acrescentaCamposAoTenant, acrescentaDestinosDoAutoLinker } from '@runzos/cms-core'
+import { acrescentaAoGrupoDoTenant, acrescentaCamposAoTenant, acrescentaDestinosDoAutoLinker } from '@maicon-ramos-org/cms-core'
 
 import { protegeReferencias } from './catalogo/protegeReferencias'
 import { Banners } from './collections/Banners'

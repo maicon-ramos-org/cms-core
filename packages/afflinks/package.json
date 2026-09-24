@@ -1,5 +1,5 @@
 {
-  "name": "@runzos/afflinks",
+  "name": "@maicon-ramos-org/afflinks",
   "version": "0.1.0",
   "description": "Builders de deep-link de afiliado POR PROGRAMA — contrato docs/contratos/redirect-afiliado.md",
   "private": true,

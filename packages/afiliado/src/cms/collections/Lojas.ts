@@ -1,8 +1,8 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
-import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
-import { uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@maicon-ramos-org/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@maicon-ramos-org/cms-core'
+import { uniquePorTenant, validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { tagsDaLoja } from '../hooks/tags-loja'
 
 const urlValida = (value: string | null | undefined): true | string =>

@@ -1,4 +1,4 @@
-import { slugDeRelacao, type TagsExtras } from '@runzos/cms-core'
+import { slugDeRelacao, type TagsExtras } from '@maicon-ramos-org/cms-core'
 
 /**
  * A tag `loja:{slug}` da revalidação (PRD 01 RF5), do lado do afiliado desde o PRD 17 RF1b:

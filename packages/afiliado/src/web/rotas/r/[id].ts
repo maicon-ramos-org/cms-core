@@ -7,11 +7,11 @@ import { getDestinoFisico } from '../../lib/catalogo'
  * Regras:
  * 1. lookup ESCOPADO pelo tenant do host (nada cruza tenant) e por _status published
  * 2. só monetiza estado apto: cupom publicado|expirando|expirado; produto landing|indexavel
- * 3. builder por programa (@runzos/afflinks); sem ID de afiliado configurado → redireciona
+ * 3. builder por programa (@maicon-ramos-org/afflinks); sem ID de afiliado configurado → redireciona
  *    a URL fonte CRUA (sem comissão) e loga mesmo assim — nunca 500 pro usuário
  * 4. log ANTES do redirect (falha de log nunca bloqueia)
  */
-import { AfflinkError, buildAffiliateUrl, normalizaRef, type Programa } from '@runzos/afflinks'
+import { AfflinkError, buildAffiliateUrl, normalizaRef, type Programa } from '@maicon-ramos-org/afflinks'
 import type { APIRoute } from 'astro'
 
 import { classificaUserAgent } from '../../lib/agentClass'
@@ -24,7 +24,7 @@ import {
   type OfertaDTO,
   type ProdutoDTO,
 } from '../../lib/cms'
-import { ipHash } from '@runzos/editorial/lib/hash'
+import { ipHash } from '@maicon-ramos-org/editorial/lib/hash'
 
 interface Destino {
   tipo_doc: 'cupom' | 'oferta' | 'produto'

@@ -1,8 +1,8 @@
 import { ValidationError, type CollectionConfig, type CollectionBeforeValidateHook } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
-import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
-import { draftOnlyIngestao, efetivo } from '@runzos/cms-core'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@maicon-ramos-org/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@maicon-ramos-org/cms-core'
+import { draftOnlyIngestao, efetivo } from '@maicon-ramos-org/cms-core'
 
 import { uniqueCupomPorLoja } from '../hooks/cupons'
 import { tagsDaLoja } from '../hooks/tags-loja'

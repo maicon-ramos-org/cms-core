@@ -1,6 +1,6 @@
 /**
  * O que o plugin de afiliado acrescenta ao tema editorial em CÓDIGO (PRD 17 RF3d/RF3e). O
- * site lista este módulo em `editorial({ extensoes: ['@runzos/afiliado/web/extensao', …] })`.
+ * site lista este módulo em `editorial({ extensoes: ['@maicon-ramos-org/afiliado/web/extensao', …] })`.
  *
  * - `linksDoCorpo`: o corpo de posts e páginas migrados tem link de loja cru, e link de
  *   afiliado cru no HTML é proibido — ele sai como `/r/{id}`, pelo mapa do catálogo do
@@ -15,8 +15,8 @@ import type {
   LinksDoCorpo,
   LlmsDaExtensao,
   SecaoDaBusca,
-} from '@runzos/editorial'
-import { buscaPorTitulo, itensDaColecao } from '@runzos/editorial/lib/cms'
+} from '@maicon-ramos-org/editorial'
+import { buscaPorTitulo, itensDaColecao } from '@maicon-ramos-org/editorial/lib/cms'
 
 import {
   caminhoCanonico,

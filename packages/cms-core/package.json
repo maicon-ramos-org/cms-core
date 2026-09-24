@@ -1,5 +1,5 @@
 {
-  "name": "@runzos/cms-core",
+  "name": "@maicon-ramos-org/cms-core",
   "version": "0.1.0",
   "description": "Núcleo do CMS: a fábrica da config do Payload (PRD 17, ADR-0011)",
   "private": true,

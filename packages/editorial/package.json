@@ -1,5 +1,5 @@
 {
-  "name": "@runzos/editorial",
+  "name": "@maicon-ramos-org/editorial",
   "version": "0.1.0",
   "description": "Tema editorial como integração Astro: rotas injetadas e componentes substituíveis (PRD 17 RF3)",
   "private": true,
@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@mcp-b/webmcp-polyfill": "^5.1.0",
-    "@runzos/schema": "workspace:*",
-    "@runzos/webmcp": "workspace:*"
+    "@maicon-ramos-org/schema": "workspace:*",
+    "@maicon-ramos-org/webmcp": "workspace:*"
   },
   "peerDependencies": {
     "astro": "^7.2.4"

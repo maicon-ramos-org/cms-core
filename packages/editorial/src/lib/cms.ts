@@ -54,7 +54,7 @@ export interface MidiaDTO {
 
 /**
  * O tenant como o site lê — só os campos do núcleo. Campo que um plugin ou o site acrescenta
- * em `tenants` entra no tipo por ampliação (`declare module '@runzos/editorial/lib/cms'`,
+ * em `tenants` entra no tipo por ampliação (`declare module '@maicon-ramos-org/editorial/lib/cms'`,
  * `interface TenantDTO { ... }`), no pacote ou no site dono dele.
  */
 export interface TenantDTO {

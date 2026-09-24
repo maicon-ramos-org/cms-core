@@ -1,4 +1,4 @@
-import { validaSiteStripe, validaAmazonLink } from '@runzos/afflinks'
+import { validaSiteStripe, validaAmazonLink } from '@maicon-ramos-org/afflinks'
 import { cmsFetch, type MidiaDTO } from './cms'
 type Id = string | number
 export interface ProdutoFisico { id: Id; tenant: Id; nome: string; slug: string; marca: string; modelo: string; descricao?: string; estado: string; imagem?: MidiaDTO }

@@ -6,7 +6,7 @@
  * pacote novo pôde escapar. Depender de lembrar de registrar cada pacote falha de novo no
  * próximo; então o check descobre os pacotes sozinho e falha quando acha um descoberto.
  *
- * Exceção é declarada NO PRÓPRIO pacote (`runzos.semTestes`), não numa lista central:
+ * Exceção é declarada NO PRÓPRIO pacote (`plataforma.semTestes`), não numa lista central:
  * assim ela aparece no diff de quem criou o pacote, com o motivo do lado.
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
@@ -48,10 +48,10 @@ for (const pasta of pastas) {
       problemas.push(`${onde} (${pkg.name}) não declara "${script}" — pnpm -r pula em silêncio`)
       continue
     }
-    if (script === 'test' && ehFingido(scripts[script]) && !pkg.runzos?.semTestes) {
+    if (script === 'test' && ehFingido(scripts[script]) && !pkg.plataforma?.semTestes) {
       problemas.push(
         `${onde} (${pkg.name}) tem "test" que não roda nada. Se é intencional, declare o` +
-          ` motivo em "runzos": { "semTestes": "..." } no package.json.`,
+          ` motivo em "plataforma": { "semTestes": "..." } no package.json.`,
       )
     }
   }

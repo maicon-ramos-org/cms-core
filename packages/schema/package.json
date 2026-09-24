@@ -1,5 +1,5 @@
 {
-  "name": "@runzos/schema",
+  "name": "@maicon-ramos-org/schema",
   "version": "0.1.0",
   "description": "Grafo JSON-LD do PRD 02 RF6 — Organization → WebSite → WebPage, amarrados por @id",
   "private": true,

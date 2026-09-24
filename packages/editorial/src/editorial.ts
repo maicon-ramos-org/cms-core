@@ -3,8 +3,8 @@
  * (PRD 17 RF3).
  *
  * Traz o middleware (tenant pelo Host, barra final, negociação de markdown), as rotas
- * editoriais que o site não tiver, o layout `@runzos/editorial/componentes/Base.astro` com os
- * componentes que o site pode trocar, e as bibliotecas de `@runzos/editorial/lib/*`.
+ * editoriais que o site não tiver, o layout `@maicon-ramos-org/editorial/componentes/Base.astro` com os
+ * componentes que o site pode trocar, e as bibliotecas de `@maicon-ramos-org/editorial/lib/*`.
  */
 import { fileURLToPath } from 'node:url'
 

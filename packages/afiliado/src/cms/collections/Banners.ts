@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo } from '@runzos/cms-core'
-import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
+import { authenticated, podeEscreverConteudo } from '@maicon-ramos-org/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@maicon-ramos-org/cms-core'
 import { tagsDaLoja } from '../hooks/tags-loja'
 
 /**

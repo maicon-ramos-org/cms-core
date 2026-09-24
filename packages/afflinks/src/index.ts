@@ -1,5 +1,5 @@
 /**
- * @runzos/afflinks — monta o deep-link do programa de afiliado.
+ * @maicon-ramos-org/afflinks — monta o deep-link do programa de afiliado.
  *
  * Contrato (docs/contratos/redirect-afiliado.md):
  * - IDs/tags de afiliado vêm de fora (tenant/env) — NUNCA hardcoded aqui.

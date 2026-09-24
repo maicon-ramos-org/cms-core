@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { nunca, sistemaOnly, superAdminOnly } from '@runzos/cms-core'
+import { nunca, sistemaOnly, superAdminOnly } from '@maicon-ramos-org/cms-core'
 
 /** Log de cliques do /r/{id} — contrato redirect-afiliado.md. ip_hash, NUNCA IP puro. */
 export const Cliques: CollectionConfig = {

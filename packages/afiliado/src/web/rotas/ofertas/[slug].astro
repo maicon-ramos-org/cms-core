@@ -7,16 +7,16 @@
  * inteiro no HTML inicial, porque crawler de IA não executa JS.
  */
 import CardOferta from '../../componentes/CardOferta.astro'
-import { noFaq } from '@runzos/schema'
-import Compartilhar from '@runzos/editorial/componentes/Compartilhar.astro'
+import { noFaq } from '@maicon-ramos-org/schema'
+import Compartilhar from '@maicon-ramos-org/editorial/componentes/Compartilhar.astro'
 import CtaAfiliado from '../../componentes/CtaAfiliado.astro'
 import CupomCard from '../../componentes/CupomCard.astro'
 import Ferramentas from 'virtual:editorial/Ferramentas'
-import Base from '@runzos/editorial/componentes/Base.astro'
-import { compor } from '@runzos/desconto'
+import Base from '@maicon-ramos-org/editorial/componentes/Base.astro'
+import { compor } from '@maicon-ramos-org/desconto'
 
 import { caminhoDaOferta, caminhoCanonico, getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
-import { lexicalParaHtml, lexicalParaTexto } from '@runzos/editorial/lib/lexical'
+import { lexicalParaHtml, lexicalParaTexto } from '@maicon-ramos-org/editorial/lib/lexical'
 import { ehLinkDeAfiliado } from '../../lib/links-de-afiliado'
 
 const tenant = Astro.locals.tenant

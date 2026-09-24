@@ -1,6 +1,6 @@
 import { ValidationError, type CollectionBeforeValidateHook } from 'payload'
 
-import { efetivo } from '@runzos/cms-core'
+import { efetivo } from '@maicon-ramos-org/cms-core'
 
 /** Cupons — unicidade (loja, codigo); backstop no banco via indexes da coleção. */
 export const uniqueCupomPorLoja: CollectionBeforeValidateHook = async ({ data, originalDoc, req }) => {

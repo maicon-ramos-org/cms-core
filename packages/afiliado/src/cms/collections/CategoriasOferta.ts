@@ -1,7 +1,7 @@
 import { ValidationError, type CollectionBeforeValidateHook, type CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
-import { efetivo, uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@maicon-ramos-org/cms-core'
+import { efetivo, uniquePorTenant, validaSlugKebab } from '@maicon-ramos-org/cms-core'
 
 /**
  * Taxonomia do CATÁLOGO (spec-desconto-e-historico §3.3) — separada da taxonomia

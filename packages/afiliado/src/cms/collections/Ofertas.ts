@@ -1,9 +1,9 @@
 import { ValidationError, type CollectionBeforeValidateHook, type CollectionConfig } from 'payload'
 
-import { authenticated, podeEscreverConteudo, superAdminOnly } from '@runzos/cms-core'
-import { chaveDeOrigem } from '@runzos/cms-core'
-import { revalidateAfterChange, revalidateAfterDelete } from '@runzos/cms-core'
-import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@runzos/cms-core'
+import { authenticated, podeEscreverConteudo, superAdminOnly } from '@maicon-ramos-org/cms-core'
+import { chaveDeOrigem } from '@maicon-ramos-org/cms-core'
+import { revalidateAfterChange, revalidateAfterDelete } from '@maicon-ramos-org/cms-core'
+import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { tagsDaLoja } from '../hooks/tags-loja'
 
 /**

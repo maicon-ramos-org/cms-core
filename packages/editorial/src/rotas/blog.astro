@@ -6,7 +6,7 @@
 import ChipsCategorias from '../componentes/ChipsCategorias.astro'
 import CardPost from '../componentes/CardPost.astro'
 import Ferramentas from 'virtual:editorial/Ferramentas'
-import { noColecao, noMigalhas } from '@runzos/schema'
+import { noColecao, noMigalhas } from '@maicon-ramos-org/schema'
 
 import Base from '../componentes/Base.astro'
 import config from 'virtual:editorial/config'
@@ -41,7 +41,7 @@ const descricao = texto(config.textos, 'descricaoDoBlog', { total: totalDocs, no
 
 /*
  * Schema pelo `Base`, não por bloco `ld+json` próprio. O hub montava o grafo à mão desde
- * antes de `@runzos/schema` existir, e isso custava duas coisas medidas em 2026-09-07:
+ * antes de `@maicon-ramos-org/schema` existir, e isso custava duas coisas medidas em 2026-09-07:
  * faltava `BreadcrumbList` (que todo outro tipo de página emite) e a página servia DOIS
  * grafos — o tronco do Base e este —, o oposto do desenho ancorado por `@id`.
  */

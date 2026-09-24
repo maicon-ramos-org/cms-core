@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Field } from 'payload'
-import type { Programa } from '@runzos/afflinks'
+import type { Programa } from '@maicon-ramos-org/afflinks'
 
 import { Lojas } from '../src/cms/collections/Lojas'
 import { programasAtivos } from '../src/cms/plugin'
@@ -40,7 +40,7 @@ describe('enum `programa` — lojas e tenants não podem divergir', () => {
     expect(doTenant).toContain('cloudways')
   })
 
-  it('todo valor é um `Programa` com builder no @runzos/afflinks', () => {
+  it('todo valor é um `Programa` com builder no @maicon-ramos-org/afflinks', () => {
     // trava de TIPO: valor novo no select sem entrada no union do pacote não compila
     const programas = daLoja as Programa[]
     expect(programas.length).toBe(daLoja.length)

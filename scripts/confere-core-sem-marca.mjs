@@ -1,25 +1,23 @@
 /**
  * PRD 17 RF2 — nada de marca, domínio ou programa de afiliado dentro do core.
  *
- * O que está em `packages/` vai virar o núcleo da plataforma, com repositório próprio
- * (ADR-0011 §4), e ser instalado por sites que não são o Runzos. Marca de um site escrita
- * ali vaza para todos os outros — o PRD 14 já achou o defeito em três lugares do tenant 3d
+ * Este repositório é o núcleo da plataforma (ADR-0011 §4), instalado por vários sites.
+ * Marca de um site escrita aqui vaza para todos os outros — o PRD 14 já achou o defeito em três lugares do tenant 3d
  * (título da home, manifest e `.well-known/mcp.json`), e o RF2 achou mais um em código de
  * produção: o validador da Amazon só aceitava a etiqueta de associado do Runzos, e
  * recusaria os links de qualquer outro site afiliado.
  *
  * Duas regras:
  *
- * 1. Em TODO `packages/`: nenhuma marca ou domínio de site nosso. Comentário e teste
- *    contam — os dois vão junto quando o pacote mudar de repositório, e o núcleo tem que se
- *    provar com dado de exemplo (ADR-0011 §4, `apps/referencia`).
+ * 1. Em TODO `packages/` e `apps/`: nenhuma marca ou domínio de site nosso. Comentário e
+ *    teste contam, e o núcleo se prova com dado de exemplo (ADR-0011 §4, o site de
+ *    referência em `apps/`).
  * 2. Em `packages/cms-core` e `packages/editorial`: nenhum nome de programa de afiliado.
  *    Esses nomes só podem morar no plugin `afiliado` (ADR-0011 §5); a instância editorial
  *    não tem programa nenhum.
  *
- * Exceção declarada: o escopo npm `@runzos/` (nome de pacote e import). Ele muda junto com
- * a mudança de repositório, no RF9, porque o GitHub Packages exige que o escopo seja o dono
- * do repositório (ADR-0011 §4). Depois do RF9, esta exceção sai daqui.
+ * Sem exceção: o escopo npm é o dono do repositório (`@maicon-ramos-org/`, exigência do
+ * GitHub Packages), e o escopo antigo saiu na mudança de casa (PRD 17 RF9).
  *
  * `node scripts/confere-core-sem-marca.mjs`
  */
@@ -43,7 +41,6 @@ const MARCAS = [
 const PROGRAMAS = /\b(hostinger|cloudways|amazon|awin|impact|shopee|mercado\s?livre|hotmart)\b/gi
 const SO_NO_PLUGIN = ['packages/cms-core/', 'packages/editorial/']
 
-const ESCOPO_NPM = /@runzos\/[a-z0-9._-]+/gi
 const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo'])
 
 function arquivos(dir) {
@@ -66,10 +63,10 @@ function arquivos(dir) {
 /** Binário (imagem, fonte) não tem "menção"; o byte zero denuncia. */
 const ehTexto = (buf) => !buf.subarray(0, 8192).includes(0)
 
-/** Tudo o que a trava encontrou em `raiz/packages`, como `caminho:linha — motivo`. */
+/** Tudo o que a trava encontrou em `packages/` e `apps/`, como `caminho:linha — motivo`. */
 export function procuraMarcas(raiz) {
   const achados = []
-  for (const arq of arquivos(join(raiz, 'packages'))) {
+  for (const arq of ['packages', 'apps'].flatMap((d) => arquivos(join(raiz, d)))) {
     const rel = relative(raiz, arq).split(sep).join('/')
     const buf = readFileSync(arq)
     if (!ehTexto(buf)) continue
@@ -78,7 +75,7 @@ export function procuraMarcas(raiz) {
       .toString('utf8')
       .split('\n')
       .forEach((linhaBruta, i) => {
-        const linha = linhaBruta.replace(ESCOPO_NPM, '')
+        const linha = linhaBruta
         for (const m of MARCAS) {
           if (linha.match(m.re)) achados.push(`${rel}:${i + 1} — marca de site "${m.nome}"`)
         }
@@ -104,5 +101,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     )
     process.exit(1)
   }
-  console.log('confere-core-sem-marca: ok (packages/ sem marca de site; cms-core e editorial sem programa de afiliado)')
+  console.log('confere-core-sem-marca: ok (packages/ e apps/ sem marca de site; cms-core e editorial sem programa de afiliado)')
 }

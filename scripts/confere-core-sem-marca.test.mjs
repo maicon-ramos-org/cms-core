@@ -1,7 +1,8 @@
 /**
  * PRD 17 RF2 — a trava tem que errar nos dois sentidos de propósito: reprovar marca,
  * domínio e programa de afiliado onde eles não podem morar, e NÃO reprovar o que é
- * legítimo (o escopo npm até o RF9, o plugin de afiliado, palavra comum que contém o nome).
+ * legítimo (o escopo npm do dono do repositório, o plugin de afiliado, palavra comum que
+ * contém o nome).
  */
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -27,12 +28,23 @@ function achados(arquivos) {
   return procuraMarcas(raiz)
 }
 
-test('pacote neutro passa, inclusive o escopo npm @runzos/ que só muda no RF9', () => {
+test('pacote neutro passa, com o escopo npm do dono do repositório', () => {
   const r = achados({
-    'packages/schema/package.json': '{ "name": "@runzos/schema" }',
-    'packages/schema/src/index.ts': "import { x } from '@runzos/afflinks'\nexport const tenant = { nome: 'Exemplo' }",
+    'packages/schema/package.json': '{ "name": "@maicon-ramos-org/schema" }',
+    'packages/schema/src/index.ts': "import { x } from '@maicon-ramos-org/afflinks'\nexport const tenant = { nome: 'Exemplo' }",
   })
   assert.deepEqual(r, [])
+})
+
+test('o escopo antigo, com a marca, reprova — a exceção acabou com a mudança de casa', () => {
+  const r = achados({ 'packages/schema/src/index.ts': "import { x } from '@runzos/afflinks'" })
+  assert.equal(r.length, 1)
+})
+
+test('o site de referência em apps/ também é olhado', () => {
+  const r = achados({ 'apps/referencia-web/src/pages/x.astro': '<p>runzos.com</p>' })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^apps\/referencia-web/)
 })
 
 test('domínio de site em código reprova, com arquivo e linha', () => {
@@ -48,7 +60,7 @@ test('marca em comentário também reprova — o comentário vai junto com o pac
 })
 
 test('o atributo WebMCP do formulário de contato é pego quando o componente entra no pacote', () => {
-  // o achado do PRD 17 RF7: FormularioContato.astro, hoje em apps/runzos-web, vai para o editorial no RF3
+  // o achado do PRD 17 RF7: o atributo WebMCP do formulário de contato citava o site
   const r = achados({
     'packages/editorial/src/FormularioContato.astro': '<form toolname="enviar_mensagem_ao_runzos"></form>',
   })

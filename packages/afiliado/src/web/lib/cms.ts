@@ -1,18 +1,18 @@
 /**
  * Os dados do plugin de afiliado no site (PRD 17 RF3e): loja, cupom, oferta, produto,
  * categoria do catálogo, banner e clique, lidos pela REST do Payload. A parte do núcleo
- * (cliente do CMS, tenant, posts, mídia) mora em `@runzos/editorial/lib/cms` e é reexportada
+ * (cliente do CMS, tenant, posts, mídia) mora em `@maicon-ramos-org/editorial/lib/cms` e é reexportada
  * daqui, para as rotas do plugin importarem de um lugar só.
  */
 /// <reference path="../virtual.d.ts" />
 import config from 'virtual:afiliado/config'
 
-import { type FindResult, type MidiaDTO, type TenantDTO, caminhoCanonico, cmsFetch } from '@runzos/editorial/lib/cms'
+import { type FindResult, type MidiaDTO, type TenantDTO, caminhoCanonico, cmsFetch } from '@maicon-ramos-org/editorial/lib/cms'
 
-export * from '@runzos/editorial/lib/cms'
+export * from '@maicon-ramos-org/editorial/lib/cms'
 
 /* os campos do plugin em `tenants`, no tipo do tenant que o tema lê */
-declare module '@runzos/editorial/lib/cms' {
+declare module '@maicon-ramos-org/editorial/lib/cms' {
   interface TenantDTO {
     programas_ativos?: Array<{ programa: string; id_afiliado_env: string }>
   }

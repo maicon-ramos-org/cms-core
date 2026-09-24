@@ -1,6 +1,6 @@
 import type { Payload, TaskConfig } from 'payload'
 
-import { compor, type CupomParaCompor, type DescontoDaLoja } from '@runzos/desconto'
+import { compor, type CupomParaCompor, type DescontoDaLoja } from '@maicon-ramos-org/desconto'
 
 /*
  * O recorte de `ofertas` e `cupons` que a tarefa lê. O tipo completo sai do

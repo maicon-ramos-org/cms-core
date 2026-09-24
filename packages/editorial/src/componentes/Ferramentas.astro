@@ -33,7 +33,7 @@ const carga = JSON.stringify({ tipo, polyfill, ...dados })
 <script type="application/json" id="webmcp-dados" set:html={carga} is:inline />
 
 <script>
-  import { registraFerramentas, type Ferramenta } from '@runzos/webmcp'
+  import { registraFerramentas, type Ferramenta } from '@maicon-ramos-org/webmcp'
 
   const el = document.getElementById('webmcp-dados')
   const d = el ? (JSON.parse(el.textContent || '{}') as Record<string, any>) : {}

@@ -1,5 +1,5 @@
 {
-  "name": "@runzos/desconto",
+  "name": "@maicon-ramos-org/desconto",
   "version": "0.1.0",
   "description": "Composição de desconto (loja + cupom) — contrato spec-desconto-e-historico.md",
   "private": true,
