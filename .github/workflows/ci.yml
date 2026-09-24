@@ -51,8 +51,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - name: sobe o MinIO
-        run: bash .github/sobe-minio.sh
+      - name: sobe o S3 local
+        run: bash .github/sobe-s3.sh
       - run: pnpm check
 
   # o site de referência: só o núcleo e o plugin, subindo de verdade (ADR-0011 §4)
@@ -76,8 +76,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - name: sobe o MinIO
-        run: bash .github/sobe-minio.sh
+      - name: sobe o S3 local
+        run: bash .github/sobe-s3.sh
       - name: migração pelo portão, em banco vazio
         working-directory: apps/referencia-cms
         run: pnpm migrate
