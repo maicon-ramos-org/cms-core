@@ -6,12 +6,12 @@
  * estado), então NÃO é prerender — e o dado de cupom nunca vai pra Server Island: sai
  * inteiro no HTML inicial, porque crawler de IA não executa JS.
  */
-import CardOferta from '../../components/CardOferta.astro'
+import CardOferta from '../../componentes/CardOferta.astro'
 import { noFaq } from '@runzos/schema'
 import Compartilhar from '@runzos/editorial/componentes/Compartilhar.astro'
-import CtaAfiliado from '../../components/CtaAfiliado.astro'
-import CupomCard from '../../components/CupomCard.astro'
-import Ferramentas from '../../components/Ferramentas.astro'
+import CtaAfiliado from '../../componentes/CtaAfiliado.astro'
+import CupomCard from '../../componentes/CupomCard.astro'
+import Ferramentas from 'virtual:editorial/Ferramentas'
 import Base from '@runzos/editorial/componentes/Base.astro'
 import { compor } from '@runzos/desconto'
 

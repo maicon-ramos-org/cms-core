@@ -3,11 +3,20 @@
  * tracking. Link assim SEM destino mapeado não pode sair no HTML (regra dura) — vira
  * texto puro. Hoje isso acontece em 1 link de todo o acervo migrado.
  *
- * Morava no `lexical.ts`; o conversor foi para o tema editorial (PRD 17 RF3b) e isto ficou
- * aqui, porque quais redes rastreiam é conhecimento de afiliado. Vai para a entrada `web`
- * do plugin no RF3e. Quem chama `lexicalParaHtml` passa `ehLinkDeAfiliado`.
+ * As redes conhecidas moram aqui; o site acrescenta os encurtadores próprios dele em
+ * `afiliado({ config: { redesDeRastreio } })`.
  */
-const REDES_DE_AFILIADO = /^(www\.)?(anrdoezrs\.net|tkqlhce\.com|kqzyfj\.com|hostg\.xyz|m\.do\.co|links\.automacaosemlimites\.com\.br)$/i
+/// <reference path="../virtual.d.ts" />
+import config from 'virtual:afiliado/config'
+
+const REDES_CONHECIDAS = ['anrdoezrs.net', 'tkqlhce.com', 'kqzyfj.com', 'hostg.xyz', 'm.do.co']
+
+const escapa = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const REDES_DE_AFILIADO = new RegExp(
+  `^(www\\.)?(${[...REDES_CONHECIDAS, ...(config.redesDeRastreio ?? [])].map(escapa).join('|')})$`,
+  'i',
+)
 const PARAMS_DE_TRACKING = /[?&](via|aff|aff_id|referral|partner)=|\/aff\.php|\/click-\d/i
 
 export function ehLinkDeAfiliado(url: string): boolean {
