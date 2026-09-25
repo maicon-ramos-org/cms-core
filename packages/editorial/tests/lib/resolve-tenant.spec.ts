@@ -129,12 +129,44 @@ describe('criaResolveTenant', () => {
     expect(buscaPorHost).toHaveBeenCalledTimes(1)
   })
 
-  it('tenant realmente inexistente continua 404 mesmo repetindo a consulta (sem cache de sucesso)', async () => {
-    const resolveTenant = criaResolveTenant(deps.deps)
-    await resolveTenant('desconhecido.test')
-    const r = await resolveTenant('desconhecido.test')
-    expect(r).toEqual({ tipo: 'inexistente' })
-    expect(deps.buscaPorHost).toHaveBeenCalledTimes(2)
+  it('tenant realmente inexistente: dois pedidos dentro de 60s fazem UMA busca só, e depois de 60s fazem outra', async () => {
+    const { deps: d, buscaPorHost, avanca } = deps
+    const resolveTenant = criaResolveTenant(d)
+
+    const primeiro = await resolveTenant('desconhecido.test')
+    expect(primeiro).toEqual({ tipo: 'inexistente' })
+
+    avanca(1_000) // dentro do TTL de 60s — não deveria bater no CMS de novo
+    const segundo = await resolveTenant('desconhecido.test')
+    expect(segundo).toEqual({ tipo: 'inexistente' })
+    expect(buscaPorHost).toHaveBeenCalledTimes(1)
+
+    avanca(60_000) // total 61s desde o primeiro pedido — além do TTL, tenta de novo
+    const terceiro = await resolveTenant('desconhecido.test')
+    expect(terceiro).toEqual({ tipo: 'inexistente' })
+    expect(buscaPorHost).toHaveBeenCalledTimes(2)
+  })
+
+  it('busca lenta que estoura o timeout (8s): a janela de falha conta do FIM da busca, não do início', async () => {
+    // Regressão do PR #9: `falhaAte = t + TTL_FALHA_MS` usava o `t` lido ANTES da busca. Como
+    // `cmsFetch` pode gastar os 8s inteiros até o `AbortSignal.timeout(8000)` desistir, a
+    // falha nascia já vencida (t+8000 ≈ agora), e o pedido seguinte, 1ms depois, batia no CMS
+    // de novo — com o CMS travado, TODO pedido esperaria os 8s antes do 503.
+    const { deps: d, buscaPorHost, avanca } = montaDeps({
+      buscaPorHost: vi.fn(async () => {
+        avanca(8_000) // simula o tempo gasto pela busca até o timeout
+        throw new Error('The operation was aborted due to timeout')
+      }),
+    })
+    const resolveTenant = criaResolveTenant(d)
+
+    const primeiro = await resolveTenant('exemplo.test')
+    expect(primeiro).toEqual({ tipo: 'cms-fora' })
+
+    avanca(1) // 1ms depois do fim da busca — ainda bem dentro da janela de falha de 8s
+    const segundo = await resolveTenant('exemplo.test')
+    expect(segundo).toEqual({ tipo: 'cms-fora' })
+    expect(buscaPorHost).toHaveBeenCalledTimes(1)
   })
 
   it('um tenant novo substitui o anterior depois do TTL (comportamento de sempre, sem falha no meio)', async () => {

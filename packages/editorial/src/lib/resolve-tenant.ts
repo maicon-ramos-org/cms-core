@@ -37,6 +37,8 @@ interface EntradaCache {
   bom?: { tenant: TenantDTO; expira: number }
   /** Até quando uma falha recente ainda vale, pra não bater no CMS a cada request na queda. */
   falhaAte?: number
+  /** Até quando um "CMS respondeu que não existe" ainda vale — mesmo TTL do tenant bom. */
+  inexistenteAte?: number
 }
 
 /** Tenant bom, revalidado a cada 60s — o comportamento de sempre. */
@@ -66,6 +68,12 @@ export function criaResolveTenant(deps: DependenciasResolveTenant): (hostComPort
       return entrada.bom ? { tipo: 'ok', tenant: entrada.bom.tenant } : { tipo: 'cms-fora' }
     }
 
+    // "CMS respondeu que não existe" ainda dentro do TTL: nem tenta de novo (mesmo
+    // comportamento de sempre para host desconhecido — 1 consulta por minuto, não por request).
+    if (entrada?.inexistenteAte && entrada.inexistenteAte > t) {
+      return { tipo: 'inexistente' }
+    }
+
     let tenant: TenantDTO | null = null
     try {
       tenant = deps.isLocalhost(host) ? await deps.buscaPorSlug(deps.tenantPadrao()) : await deps.buscaPorHost(host)
@@ -76,7 +84,12 @@ export function criaResolveTenant(deps: DependenciasResolveTenant): (hostComPort
       }
     } catch (err) {
       console.error('[middleware] CMS indisponível ao resolver tenant:', (err as Error).message)
-      cache.set(host, { bom: entrada?.bom, falhaAte: t + TTL_FALHA_MS })
+      // A janela de falha conta do FIM da busca, não do início (`t`): `buscaPorHost` pode
+      // gastar os 8s inteiros até o `AbortSignal.timeout` desistir, e se a janela contasse a
+      // partir de `t` ela já nasceria vencida — o próximo pedido, 1ms depois, bateria no CMS
+      // de novo, e com o CMS travado TODO pedido esperaria os 8s antes do 503. Por isso o
+      // relógio é lido de novo aqui, não reaproveitado de `t`.
+      cache.set(host, { bom: entrada?.bom, falhaAte: agora() + TTL_FALHA_MS })
       // a cópia boa que já tínhamos (de qualquer idade) continua valendo enquanto o CMS
       // estiver fora — é o que impede a revalidação de trocar a cópia boa por um erro.
       return entrada?.bom ? { tipo: 'ok', tenant: entrada.bom.tenant } : { tipo: 'cms-fora' }
@@ -86,9 +99,10 @@ export function criaResolveTenant(deps: DependenciasResolveTenant): (hostComPort
       cache.set(host, { bom: { tenant, expira: t + TTL_MS } })
       return { tipo: 'ok', tenant }
     }
-    // o CMS respondeu e não achou — isso é diferente de não ter respondido; limpa qualquer
-    // resquício de falha/tenant velho para este host.
-    cache.set(host, {})
+    // o CMS respondeu e não achou — isso é diferente de não ter respondido. Guarda pelo mesmo
+    // TTL_MS do tenant bom (60s), como já era antes desta correção, pra não bater no CMS a
+    // cada request enquanto o host continuar inexistente; descarta qualquer bom/falha velhos.
+    cache.set(host, { inexistenteAte: t + TTL_MS })
     return { tipo: 'inexistente' }
   }
 }
