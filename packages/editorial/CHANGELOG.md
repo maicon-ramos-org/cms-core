@@ -1,6 +1,8 @@
 # @maicon-ramos-org/editorial
 
-## Não publicado
+## 0.2.0-next.2 — 2026-09-25 (pré-lançamento, PRD 24 RF10.10)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.
 
 PRD 24 RF10.10 — o middleware distingue "o CMS respondeu que o tenant não existe" de "o CMS
 não respondeu" (rede, DNS, tempo esgotado ou HTTP 5xx — o que `cmsFetch` já lança para
