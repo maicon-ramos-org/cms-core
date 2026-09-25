@@ -55,8 +55,8 @@ import { mantemVivo, sair } from '@maicon-ramos-org/cms-core/scripts'
 - `midia.r2` — o bucket; sem a opção, as `R2_*` do ambiente, como antes.
 - `midia.derivados` — um `GeradorDeDerivados` (tipos novos em `midia/derivados.ts`,
   exportados pela entrada principal), que a fábrica entrega à coleção `midia` em
-  `custom.derivados`. O hook que o usa e a implementação pelo binding Images vêm na RF2 do
-  PRD 24.
+  `custom.derivados`. O hook que o usa e a implementação pelo binding Images estão logo
+  abaixo (RF2).
 - `graphQL: { disable }` e `logger` — repassados à config do Payload.
 
 O `sharp` virou dependência par **opcional** (`peerDependenciesMeta`). Sem ele instalado e
@@ -91,10 +91,40 @@ envia uma vez, em lotes de até 100 tags por POST (`TAGS_POR_POST`), cada tag um
 - Limite conhecido: operações concorrentes com o MESMO `req` (um `Promise.all` de escritas
   num hook) podem sair em mais de um envio — nenhuma tag se perde, só o agrupamento.
 
-### Ainda não
+### Novo: os derivados da mídia sem `sharp` (PRD 24 RF2)
 
-`hooks/og-sem-transparencia.ts` (na coleção `midia`) ainda importa `sharp` e `node:fs`
-estaticamente: a entrada principal só fica sem os dois com a RF2 do PRD 24.
+- `derivadosViaImages(env.IMAGES)` — o `GeradorDeDerivados` pelo binding Images da Cloudflare,
+  para passar em `midia.derivados` junto com `sharp: null`. Gera cada `imageSizes` da coleção
+  com a regra do Payload traduzida para as opções da Cloudflare (o tamanho que o Payload
+  omitiria é omitido; `cover` recorta e amplia; um lado só mantém a proporção; sem `quality`,
+  a padrão do `sharp`; JPEG sobre branco; nome `{base}-{largura}x{altura}.{extensão}`). O que
+  não tem tradução (`withoutReduction`, `trimOptions`, `fit: 'outside'`) falha no upload
+  dizendo qual tamanho. Original TIFF ou AVIF — que o `sharp` redimensiona, mas o binding não
+  aceita como entrada fora do plano Enterprise — falha no upload dizendo o tipo, e o erro do
+  binding sai com o tipo, o arquivo e o tamanho (o original em `cause`). Tipos novos:
+  `BindingImages` (o subconjunto do binding que o gerador usa; o `env.IMAGES` cabe nele sem
+  conversão), `MIME_REDIMENSIONAVEIS` (a lista do `sharp`) e `MIME_DO_BINDING_IMAGES` (a
+  entrada do binding: JPEG, PNG, GIF, WebP).
+- **O formato de saída vem do binding, nunca do pedido.** Provado com um Worker de teste
+  (binding Images de verdade, plano Paid) em 2026-09-25: de um PNG 3200×1800,
+  `output({format:'image/avif', quality:55})` em 1600×900 (a `capa` desta coleção) saiu AVIF de
+  verdade (`ftypavif`; `contentType()` e `info()` concordando em `image/avif`, 38,8KB contra
+  45,6KB do mesmo corte em WebP) — o limite de 1.200px da página de limites da Cloudflare **não
+  vale** para este uso; 1200×675 e 640×360 também saíram AVIF. Mas 2400×1350 pedido em AVIF
+  voltou WebP **silenciosamente** (sem erro; `contentType()` e `info()` já diziam `image/webp`):
+  o fallback existe acima de ~1.600–2.400px. Por isso `mimeType`, a extensão do `filename` e o
+  `filesize` de cada derivado saem sempre do que `resultado.contentType()`/`info()` devolveram —
+  nunca um `.avif` com WebP dentro — e quando o formato devolvido difere do pedido o gerador
+  avisa no `logger` (`EntradaDoGerador.logger`, o `payload.logger`), sem falhar o upload.
+- A coleção `midia` ganha um `beforeChange` (`midia/derivados-sem-sharp.ts`) que, **só quando
+  a config vem sem `sharp`**, chama o gerador de `custom.derivados` e preenche `data.sizes` e
+  `req.payloadUploadSizes` — o que o `storage-s3` sobe. Com `sharp`, não faz nada.
+- `hooks/og-sem-transparencia.ts` deixou de importar `sharp` e `node:fs`: usa o `sharp` da
+  config e `req.file.data`. Em Node a saída é a mesma, byte a byte. O recorte do Payload que
+  ele refaz mora em `midia/derivados-sharp.ts`. A entrada principal fica sem `node:fs` e sem
+  `import` estático do `sharp` (o da fábrica é sob demanda desde a RF1).
+- Só upload novo passa pelo gerador; o acervo continua sendo regenerado em Node
+  (`regeneraAcervo`, em `@maicon-ramos-org/cms-core/scripts`).
 
 ## 0.1.0 — 2026-09-24
 

@@ -3,6 +3,7 @@ import type { CollectionConfig } from 'payload'
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { nomeBaseUnico } from '../hooks/nome-base-unico'
 import { ogSemTransparencia } from '../hooks/og-sem-transparencia'
+import { derivadosSemSharp } from '../midia/derivados-sem-sharp'
 
 export const Midia: CollectionConfig = {
   slug: 'midia',
@@ -16,8 +17,12 @@ export const Midia: CollectionConfig = {
   hooks: {
     // dois registros não dividem o nome-base: os derivados herdam esse nome (PRD 18 RF5)
     beforeOperation: [nomeBaseUnico],
-    // `og` de imagem transparente com fundo branco, não preto (PRD 18 RF5)
-    beforeChange: [ogSemTransparencia],
+    /*
+     * Sem `sharp` na config (num Worker), os derivados saem do gerador da fábrica (PRD 24 RF2);
+     * com `sharp`, o Payload já os gerou e o primeiro hook não faz nada. Depois, o `og` de
+     * imagem transparente com fundo branco, não preto (PRD 18 RF5) — só com `sharp`.
+     */
+    beforeChange: [derivadosSemSharp, ogSemTransparencia],
   },
   upload: {
     staticDir: 'media',
