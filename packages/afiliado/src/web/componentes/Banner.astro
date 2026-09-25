@@ -6,11 +6,17 @@
  *
  * `width`/`height` vêm da mídia porque o gate de budget reprova imagem sem dimensão, e um
  * banner de 250px de altura sem reserva de espaço empurra a home inteira quando carrega.
+ * Larga e estreita têm proporções DIFERENTES (a estreita costuma ser 300x250, não um recorte
+ * da larga) — por isso cada `<source>`/`<img>` leva a própria dimensão, e o CSS reserva a
+ * caixa certa por breakpoint (`aspect-ratio`, ver o `<style>`), não só a da larga (PRD 24,
+ * CLS de 0,188 no Lighthouse móvel: a caixa reservada era a da larga, e a home pulava quando
+ * a imagem estreita — proporção diferente — terminava de carregar).
  *
  * O destino é a página da oferta, nunca o link de afiliado: o clique no afiliado acontece
  * lá dentro, pelo `/r/{id}`, com o selo e a data à vista.
  */
 import { caminhoDaOferta, urlMidia, type BannerDTO, type OfertaDTO } from '../lib/cms'
+import { dimensoesBanner } from '../lib/banner'
 
 interface Props {
   banner: BannerDTO
@@ -24,18 +30,21 @@ const oferta = banner.oferta && typeof banner.oferta === 'object' ? (banner.ofer
 
 // sem imagem ou sem destino não há banner — melhor nada do que um retângulo que não leva a lugar nenhum
 const destino = oferta ? caminhoDaOferta(oferta) : null
+
+const dim = dimensoesBanner(banner)
+const dimEstreita = dim.estreita ?? dim.larga
 ---
 
 {
   larga?.url && destino && (
     <a class="banner" href={destino}>
       <picture>
-        {estreita?.url && <source media="(max-width: 46rem)" srcset={urlMidia(estreita.url)} width={estreita.width} height={estreita.height} />}
+        {estreita?.url && <source media="(max-width: 46rem)" srcset={urlMidia(estreita.url)} width={dimEstreita.width} height={dimEstreita.height} />}
         <img
           src={urlMidia(larga.url)}
           alt={larga.alt ?? oferta?.titulo ?? ''}
-          width={larga.width ?? 970}
-          height={larga.height ?? 250}
+          width={dim.larga.width}
+          height={dim.larga.height}
           fetchpriority="high"
           decoding="async"
         />
@@ -44,7 +53,7 @@ const destino = oferta ? caminhoDaOferta(oferta) : null
   )
 }
 
-<style>
+<style define:vars={{ largaW: dim.larga.width, largaH: dim.larga.height, estreitaW: dimEstreita.width, estreitaH: dimEstreita.height }}>
   .banner {
     display: block;
     margin: 0 0 1.5rem;
@@ -56,9 +65,17 @@ const destino = oferta ? caminhoDaOferta(oferta) : null
     display: block;
     width: 100%;
     height: auto;
+    aspect-ratio: var(--largaW) / var(--largaH);
   }
-  /* o mobile é 300x250 — centraliza em vez de esticar até deformar */
+  /* o mobile é 300x250 — centraliza em vez de esticar até deformar. `aspect-ratio` aqui usa a
+     proporção da imagem ESTREITA (não a da larga): é o que reserva a caixa certa antes dela
+     carregar e elimina o salto de layout (PRD 24). */
   @media (max-width: 46rem) {
-    .banner img { width: auto; max-width: 100%; margin: 0 auto; }
+    .banner img {
+      width: auto;
+      max-width: 100%;
+      margin: 0 auto;
+      aspect-ratio: var(--estreitaW) / var(--estreitaH);
+    }
   }
 </style>

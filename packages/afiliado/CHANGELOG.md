@@ -1,5 +1,16 @@
 # @maicon-ramos-org/afiliado
 
+## Não publicado
+
+### Corrigiu
+
+- CLS do banner da home (PRD 24 — achado do Lighthouse móvel, 0,188 em dev): a caixa que o
+  navegador reserva pro `<picture>` de `Banner.astro` agora usa a proporção de CADA imagem
+  (larga e estreita têm proporções diferentes — a estreita costuma ser 300x250, não um
+  recorte da larga). O `<source>` da estreita ganha `width`/`height` próprios, e o CSS reserva
+  o espaço certo por breakpoint (`aspect-ratio`), em vez de só a proporção da larga aplicada
+  às duas larguras. Sem mudança visual nem no LCP.
+
 ## 0.2.0-next.3 — 2026-09-25 (pré-lançamento, PRD 24 RF10.10)
 
 Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
