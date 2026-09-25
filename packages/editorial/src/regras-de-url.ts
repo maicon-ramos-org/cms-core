@@ -4,6 +4,14 @@
  * gêmeo `.md`, que caminho não leva barra) chega pela `ConfigDoEditorial`.
  */
 import type { ConfigDoEditorial } from './config'
+import { variavel } from './lib/ambiente'
+
+/**
+ * As variáveis que as regras leem. Sem o objeto, vêm do ambiente pelo `variavel` (Node ou
+ * Workers — PRD 24 RF3); com ele, só dele (é como o teste isola o ambiente).
+ */
+type Ambiente = Readonly<Record<string, string | undefined>>
+const le = (nome: string, env?: Ambiente): string | undefined => (env ? env[nome] : variavel(nome))
 
 /**
  * Sufixos em que o tenant vem do SUBDOMÍNIO, e não do `canonical_host`.
@@ -16,15 +24,15 @@ import type { ConfigDoEditorial } from './config'
  * O sufixo NU (`dev.exemplo.com`, sem subdomínio) cai no tenant padrão — mesmo contrato
  * do localhost. A variável `HOST_SUFIXOS_TENANT` (separada por vírgula) ganha da config.
  */
-export const sufixosDeSlug = (config: ConfigDoEditorial, env: NodeJS.ProcessEnv = process.env): string[] =>
-  (env.HOST_SUFIXOS_TENANT ?? (config.sufixosDeHost ?? []).join(','))
+export const sufixosDeSlug = (config: ConfigDoEditorial, env?: Ambiente): string[] =>
+  (le('HOST_SUFIXOS_TENANT', env) ?? (config.sufixosDeHost ?? []).join(','))
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
 
 /** O tenant de localhost e do sufixo nu. A variável `DEFAULT_TENANT` ganha da config. */
-export const tenantPadrao = (config: ConfigDoEditorial, env: NodeJS.ProcessEnv = process.env): string =>
-  env.DEFAULT_TENANT ?? config.tenantPadrao
+export const tenantPadrao = (config: ConfigDoEditorial, env?: Ambiente): string =>
+  le('DEFAULT_TENANT', env) ?? config.tenantPadrao
 
 export const isLocalhost = (host: string): boolean =>
   host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')
@@ -33,7 +41,7 @@ export const isLocalhost = (host: string): boolean =>
 export const slugPeloSufixo = (
   host: string,
   config: ConfigDoEditorial,
-  env: NodeJS.ProcessEnv = process.env,
+  env?: Ambiente,
 ): string | null => {
   for (const sufixo of sufixosDeSlug(config, env)) {
     if (host === sufixo.replace(/^\./, '')) return tenantPadrao(config, env)
@@ -101,3 +109,38 @@ export const querMarkdown = (accept: string): boolean => {
 }
 
 export const caminhoDoMd = (p: string): string => `${p.replace(/\/$/, '')}.md`
+
+/**
+ * Junta nomes ao `Vary` que a resposta já trouxe, sem repetir (a comparação é por nome
+ * inteiro e sem caixa: `Accept-Encoding` não é `Accept`). `Vary: *` já varia por tudo e
+ * fica como está.
+ */
+export const juntaVary = (anterior: string | null, nomes: string[]): string => {
+  const tokens = (anterior ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (tokens.includes('*')) return anterior!
+  const presentes = new Set(tokens.map((t) => t.toLowerCase()))
+  const novos = nomes.filter((n) => !presentes.has(n.toLowerCase()))
+  return [...tokens, ...novos].join(', ')
+}
+
+/**
+ * A resposta PODE ir para um cache compartilhado? GET/HEAD sem `no-store` nem `private`.
+ *
+ * É de propósito mais largo que "a rota chamou `cache.set`": o cache na frente do Worker
+ * segue a RFC 9111, que guarda 301 e 404 sem instrução nenhuma, e rota que manda
+ * `Cache-Control: public` sozinha (manifest, robots) também entra. Errar para o lado de
+ * pôr `Vary: Host` onde não precisava não custa nada; errar para o outro lado serve a
+ * página de um tenant no domínio do outro (PRD 24 RF3).
+ */
+export const respostaCacheavel = (metodo: string, cacheControl: string | null): boolean => {
+  const m = metodo.toUpperCase()
+  if (m !== 'GET' && m !== 'HEAD') return false
+  const diretivas = (cacheControl ?? '')
+    .toLowerCase()
+    .split(',')
+    .map((d) => d.trim().split('=')[0])
+  return !diretivas.includes('no-store') && !diretivas.includes('private')
+}

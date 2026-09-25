@@ -3,10 +3,18 @@
  * verdade passou pela comparação com as regras antigas, caminho a caminho (PRD 17 RF3b); aqui
  * fica o comportamento que precisa continuar valendo.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ConfigDoEditorial } from '../src/config'
-import { caminhoDoMd, querMarkdown, regrasDeUrl, slugPeloSufixo, tenantPadrao } from '../src/regras-de-url'
+import {
+  caminhoDoMd,
+  juntaVary,
+  querMarkdown,
+  regrasDeUrl,
+  respostaCacheavel,
+  slugPeloSufixo,
+  tenantPadrao,
+} from '../src/regras-de-url'
 
 const config: ConfigDoEditorial = {
   tenantPadrao: 'principal',
@@ -73,5 +81,62 @@ describe('tenant pelo host', () => {
     expect(slugPeloSufixo('x.dev.b.com', config, env)).toBe('x')
     expect(slugPeloSufixo('dev.b.com', config, env)).toBe('outro')
     expect(slugPeloSufixo('y.exemplo.local', config, env)).toBeNull()
+  })
+})
+
+describe('tenant pelo host, sem env explícito (PRD 24 RF3: lê por `variavel`)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+  it('sem a variável, vale a config', () => {
+    vi.stubEnv('DEFAULT_TENANT', undefined)
+    vi.stubEnv('HOST_SUFIXOS_TENANT', undefined)
+    expect(tenantPadrao(config)).toBe('principal')
+    expect(slugPeloSufixo('3d.exemplo.local', config)).toBe('3d')
+  })
+  it('com a variável no ambiente do processo, ela ganha', () => {
+    vi.stubEnv('DEFAULT_TENANT', 'outro')
+    vi.stubEnv('HOST_SUFIXOS_TENANT', '.dev.b.com')
+    expect(tenantPadrao(config)).toBe('outro')
+    expect(slugPeloSufixo('x.dev.b.com', config)).toBe('x')
+    expect(slugPeloSufixo('3d.exemplo.local', config)).toBeNull()
+  })
+})
+
+describe('juntaVary', () => {
+  it('sem Vary anterior, só os nomes pedidos', () => {
+    expect(juntaVary(null, ['Host'])).toBe('Host')
+    expect(juntaVary(null, ['Accept', 'Host'])).toBe('Accept, Host')
+  })
+  it('acrescenta ao que já estava, sem repetir e sem olhar a caixa', () => {
+    expect(juntaVary('Accept', ['Accept', 'Host'])).toBe('Accept, Host')
+    expect(juntaVary('host', ['Host'])).toBe('host')
+  })
+  it('Accept-Encoding não é Accept', () => {
+    expect(juntaVary('Accept-Encoding', ['Accept'])).toBe('Accept-Encoding, Accept')
+  })
+  it('Vary: * já varia por tudo: fica como está', () => {
+    expect(juntaVary('*', ['Host'])).toBe('*')
+  })
+})
+
+describe('respostaCacheavel', () => {
+  it.each([
+    ['GET', null],
+    ['HEAD', null],
+    ['GET', 'public, max-age=3600'],
+    ['GET', 'max-age=0, must-revalidate'],
+    ['get', 's-maxage=300'],
+  ])('%s com Cache-Control %s pode ir para cache', (metodo, cc) => {
+    expect(respostaCacheavel(metodo, cc)).toBe(true)
+  })
+  it.each([
+    ['POST', null],
+    ['GET', 'no-store'],
+    ['GET', 'private, max-age=60'],
+    ['GET', 'No-Store'],
+    ['HEAD', 'no-cache, no-store, must-revalidate'],
+  ])('%s com Cache-Control %s não vai', (metodo, cc) => {
+    expect(respostaCacheavel(metodo, cc)).toBe(false)
   })
 })

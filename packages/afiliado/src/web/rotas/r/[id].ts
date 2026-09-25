@@ -24,6 +24,7 @@ import {
   type OfertaDTO,
   type ProdutoDTO,
 } from '../../lib/cms'
+import { ipDoCliente, variavel } from '@maicon-ramos-org/editorial/lib/ambiente'
 import { ipHash } from '@maicon-ramos-org/editorial/lib/hash'
 
 interface Destino {
@@ -92,7 +93,7 @@ export const GET: APIRoute = async (context) => {
   const programa = (destino.loja?.programa ?? 'outro') as Programa
   // resolve o ID de afiliado: tenants.programas_ativos aponta o NOME da env var
   const envName = tenant.programas_ativos?.find((p) => p.programa === programa)?.id_afiliado_env
-  const afiliadoId = envName ? process.env[envName] : undefined
+  const afiliadoId = envName ? variavel(envName) : undefined
 
   let destinoFinal: string
   try {
@@ -118,7 +119,7 @@ export const GET: APIRoute = async (context) => {
     programa,
     ref,
     user_agent_class: classificaUserAgent(context.request.headers.get('user-agent')),
-    ip_hash: ipHash(context.clientAddress),
+    ip_hash: ipHash(ipDoCliente(context)),
   })
 
   return new Response(null, {

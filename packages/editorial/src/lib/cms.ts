@@ -2,10 +2,11 @@
  * Cliente REST do Payload (server-side only).
  * Autentica com a API key do usuário de serviço `web-server` (papel: sistema).
  */
+import { variavel } from './ambiente'
 
-const CMS_URL = () => process.env.CMS_URL ?? 'http://localhost:3000'
+const CMS_URL = () => variavel('CMS_URL') ?? 'http://localhost:3000'
 
-const CMS_API_KEY = () => process.env.CMS_API_KEY ?? ''
+const CMS_API_KEY = () => variavel('CMS_API_KEY') ?? ''
 
 /**
  * Base PÚBLICA do CMS (a que o navegador alcança). O Payload devolve a mídia como
@@ -13,7 +14,7 @@ const CMS_API_KEY = () => process.env.CMS_API_KEY ?? ''
  * daria 404 — a imagem mora no CMS. Em produção o host interno costuma ser diferente do
  * público, daí a env separada.
  */
-const CMS_PUBLIC_URL = () => process.env.CMS_PUBLIC_URL ?? CMS_URL()
+const CMS_PUBLIC_URL = () => variavel('CMS_PUBLIC_URL') ?? CMS_URL()
 
 /**
  * Canonical byte a byte igual ao do WordPress: ele publica o caminho percent-encoded com

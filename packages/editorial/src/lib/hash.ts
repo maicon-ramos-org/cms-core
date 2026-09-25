@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
 
+import { variavel } from './ambiente'
+
 let avisou = false
 
 /**
@@ -9,7 +11,7 @@ let avisou = false
  */
 export const ipHash = (ip: string | undefined | null): string | undefined => {
   if (!ip) return undefined
-  const salt = process.env.IP_HASH_SALT
+  const salt = variavel('IP_HASH_SALT')
   if (!salt) {
     if (!avisou) {
       avisou = true

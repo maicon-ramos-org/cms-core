@@ -11,7 +11,16 @@ import { defineMiddleware } from 'astro:middleware'
 import config from 'virtual:editorial/config'
 
 import { getTenantByHost, getTenantBySlug, type TenantDTO } from './lib/cms'
-import { caminhoDoMd, isLocalhost, querMarkdown, regrasDeUrl, slugPeloSufixo, tenantPadrao } from './regras-de-url'
+import {
+  caminhoDoMd,
+  isLocalhost,
+  juntaVary,
+  querMarkdown,
+  regrasDeUrl,
+  respostaCacheavel,
+  slugPeloSufixo,
+  tenantPadrao,
+} from './regras-de-url'
 
 const { precisaDeBarra, temGemeoMd } = regrasDeUrl(config)
 
@@ -76,12 +85,30 @@ const comAlternate = (r: Response, url: string): Response => {
   return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
 }
 
-const comVary = (r: Response): Response => {
+const comVary = (r: Response, nomes: string[]): Response => {
   const anterior = r.headers.get('vary')
-  if (anterior?.toLowerCase().includes('accept')) return r
+  const valor = juntaVary(anterior, nomes)
+  if (valor === (anterior ?? '')) return r
   const h = new Headers(r.headers)
-  h.set('vary', anterior ? `${anterior}, Accept` : 'Accept')
+  h.set('vary', valor)
   return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
+}
+
+/**
+ * `Vary: Host` em toda resposta que pode ir para cache (PRD 24 RF3).
+ *
+ * Um Worker serve os dois tenants, e a chave do cache da Cloudflare na frente dele é o
+ * caminho — o host fica de fora. Sem o `Vary: Host`, a home de um tenant, guardada
+ * primeiro, seria servida no domínio do outro. O cache honra o `Vary` (RFC 9111): com ele,
+ * cada host tem a sua cópia. Em Node, o cache em memória do Astro já tinha o host na chave
+ * e continua igual.
+ *
+ * "Pode ir para cache" é a regra de `respostaCacheavel`, de propósito larga: inclui o 301
+ * da barra final (o destino leva o host) e o 404 de host desconhecido.
+ */
+const varia = (r: Response, metodo: string, nomes: string[] = []): Response => {
+  const todos = respostaCacheavel(metodo, r.headers.get('cache-control')) ? [...nomes, 'Host'] : nomes
+  return todos.length > 0 ? comVary(r, todos) : r
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -90,9 +117,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next()
   }
 
+  const metodo = context.request.method
+
   // /feed/ é a URL do WP; internamente a rota é feed.xml
   if (context.url.pathname === '/feed' || context.url.pathname === '/feed/') {
-    return context.rewrite('/feed.xml')
+    return varia(await context.rewrite('/feed.xml'), metodo)
   }
 
   /*
@@ -109,21 +138,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const negociavel = temGemeoMd(context.url.pathname)
   if (querMarkdown(aceita) && negociavel) {
     const r = await context.rewrite(caminhoDoMd(context.url.pathname))
-    return comVary(r)
+    return varia(r, metodo, ['Accept'])
   }
 
   if (precisaDeBarra(context.url.pathname)) {
     const destino = new URL(context.url)
     destino.pathname = `${context.url.pathname}/`
     // 301 como o WP: é a mesma canonicalização que o acervo já tem indexada
-    return context.redirect(destino.toString(), 301)
+    return varia(context.redirect(destino.toString(), 301), metodo)
   }
   const tenant = await resolveTenant(context.request.headers.get('host') ?? '')
   if (!tenant) {
-    return new Response('Tenant não encontrado para este host.', { status: 404 })
+    return varia(new Response('Tenant não encontrado para este host.', { status: 404 }), metodo)
   }
   context.locals.tenant = tenant
   const resposta = await next()
-  if (!negociavel) return resposta
-  return comAlternate(comVary(resposta), caminhoDoMd(context.url.pathname))
+  if (!negociavel) return varia(resposta, metodo)
+  return comAlternate(varia(resposta, metodo, ['Accept']), caminhoDoMd(context.url.pathname))
 })
