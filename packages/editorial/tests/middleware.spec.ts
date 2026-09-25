@@ -26,8 +26,19 @@ vi.mock('virtual:editorial/config', () => ({
     semTenant: ['/wp-content/uploads'],
   },
 }))
+/**
+ * `falhaCmsHost`: quando bate esse host, `getTenantByHost` LANÇA em vez de responder — é
+ * como `cmsFetch` se comporta pra rede fora, timeout ou qualquer HTTP que não seja ok
+ * (5xx incluído). Fica fora dos hosts fixos de baixo pra não mudar o comportamento dos
+ * testes que já existiam.
+ */
+let falhaCmsHost: string | null = null
+
 vi.mock('../src/lib/cms', () => ({
-  getTenantByHost: async (host: string) => (host === 'exemplo.test' ? { id: 1, slug: 'principal' } : null),
+  getTenantByHost: async (host: string) => {
+    if (host === falhaCmsHost) throw new Error('CMS /api/tenants → HTTP 502')
+    return host === 'exemplo.test' || host === 'cache-bom.test' ? { id: 1, slug: 'principal' } : null
+  },
   getTenantBySlug: async (slug: string) => (slug === 'principal' || slug === '3d' ? { id: slug, slug } : null),
 }))
 
@@ -64,6 +75,7 @@ const vary = (r: Response): string[] =>
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  falhaCmsHost = null
 })
 
 describe('Vary: Host', () => {
@@ -200,5 +212,53 @@ describe('o Vary que a rota já trouxe', () => {
   it('o Link para o gêmeo .md continua no HTML', async () => {
     const { r } = await pede('https://exemplo.test/post-qualquer/')
     expect(r.headers.get('link')).toBe('</post-qualquer.md>; rel="alternate"; type="text/markdown"')
+  })
+})
+
+/**
+ * PRD 24 RF10.10 — reproduz o defeito: um teste com o CMS fora (rede, timeout ou HTTP não-ok,
+ * `getTenantByHost` lançando como `cmsFetch` lança de verdade) mostrou páginas EM CACHE
+ * caindo para 404 "Tenant não encontrado", em vez de continuarem servidas do cache
+ * (`stale-if-error` só serve a cópia velha quando o Worker devolve 5xx — um 404 é resposta
+ * válida e substitui a cópia boa). A correção: CMS fora vira 503 sem cache; tenant realmente
+ * inexistente continua 404 como hoje.
+ */
+describe('CMS fora do ar (RF10.10): nunca um 404 guardável', () => {
+  it('CMS que lança (rede/timeout/5xx) dá 503, nunca 404 — e sem Vary nem cache-control cacheável', async () => {
+    falhaCmsHost = 'cms-fora.test'
+    const { r, next } = await pede('https://cms-fora.test/blog/')
+    expect(r.status).toBe(503)
+    expect(next).not.toHaveBeenCalled()
+    expect(r.headers.get('retry-after')).toBe('30')
+    expect(r.headers.get('cache-control')).toBe('no-store')
+    expect(r.headers.get('cloudflare-cdn-cache-control')).toBe('no-store')
+    // nunca pode sair com um cache-control que autorize a Cloudflare a guardar o 503
+    expect(r.headers.get('cache-control')).not.toMatch(/public|max-age/)
+    expect(r.headers.get('vary')).toBeNull()
+  })
+
+  it('tenant que o CMS respondeu que não existe continua 404 (não vira 503)', async () => {
+    const { r, next } = await pede('https://desconhecido.test/blog/')
+    expect(r.status).toBe(404)
+    expect(next).not.toHaveBeenCalled()
+    expect(vary(r)).toEqual(['host'])
+  })
+
+  it('revalidação com o CMS fora não troca a cópia boa: tenant já resolvido continua servindo mesmo host depois de o CMS cair', async () => {
+    vi.useFakeTimers()
+    try {
+      const primeira = await pede('https://cache-bom.test/blog/')
+      expect(primeira.r.status).toBe(200)
+      expect(primeira.context.locals.tenant).toEqual({ id: 1, slug: 'principal' })
+
+      vi.advanceTimersByTime(61_000) // além do TTL de 60s do tenant — força nova consulta
+      falhaCmsHost = 'cache-bom.test' // e agora o CMS está fora
+
+      const segunda = await pede('https://cache-bom.test/blog/')
+      expect(segunda.r.status).toBe(200)
+      expect(segunda.context.locals.tenant).toEqual({ id: 1, slug: 'principal' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

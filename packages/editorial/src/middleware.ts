@@ -1,7 +1,12 @@
 /**
- * PRD 02 RF1 — tenant resolvido pelo Host. Host desconhecido → 404.
- * Em dev (localhost), cai no tenant padrão do site (`ConfigDoEditorial.tenantPadrao`).
+ * PRD 02 RF1 — tenant resolvido pelo Host. Host desconhecido (o CMS respondeu e não achou) →
+ * 404. Em dev (localhost), cai no tenant padrão do site (`ConfigDoEditorial.tenantPadrao`).
  * Cache em memória 60s pra não bater no CMS a cada request.
+ *
+ * PRD 24 RF10.10 — CMS que NÃO RESPONDE (rede, timeout, 5xx) é outra coisa: → 503, nunca
+ * 404, porque um 404 substitui a cópia boa que a Cloudflare já tinha em cache; um 503 aciona
+ * o `stale-if-error` da borda. A lógica dos três casos (achou/não achou/CMS fora) mora em
+ * `lib/resolve-tenant.ts`, pura e testável sem o CMS de verdade.
  *
  * Entra no site pela integração `editorial()` (PRD 17 RF3b). As regras de URL moram em
  * `regras-de-url.ts`, onde dá para testar sem o Astro.
@@ -10,7 +15,8 @@
 import { defineMiddleware } from 'astro:middleware'
 import config from 'virtual:editorial/config'
 
-import { getTenantByHost, getTenantBySlug, type TenantDTO } from './lib/cms'
+import { getTenantByHost, getTenantBySlug } from './lib/cms'
+import { criaResolveTenant } from './lib/resolve-tenant'
 import {
   caminhoDoMd,
   isLocalhost,
@@ -24,31 +30,17 @@ import {
 
 const { precisaDeBarra, temGemeoMd, precisaPularTenant } = regrasDeUrl(config)
 
-const cache = new Map<string, { tenant: TenantDTO | null; expira: number }>()
-const TTL_MS = 60_000
-
-async function resolveTenant(hostComPorta: string): Promise<TenantDTO | null> {
-  const host = hostComPorta.split(':')[0] ?? ''
-  const agora = Date.now()
-  const hit = cache.get(host)
-  if (hit && hit.expira > agora) return hit.tenant
-  let tenant: TenantDTO | null = null
-  try {
-    tenant = isLocalhost(host)
-      ? await getTenantBySlug(tenantPadrao(config))
-      : await getTenantByHost(host)
-    // fora de produção o tenant vem do subdomínio: {slug}.exemplo.local, {slug}.dev.exemplo.com
-    if (!tenant) {
-      const slug = slugPeloSufixo(host, config)
-      if (slug) tenant = await getTenantBySlug(slug)
-    }
-  } catch (err) {
-    console.error('[middleware] CMS indisponível ao resolver tenant:', (err as Error).message)
-    return hit?.tenant ?? null
-  }
-  cache.set(host, { tenant, expira: agora + TTL_MS })
-  return tenant
-}
+/**
+ * PRD 24 RF10.10 — a resolução em si (achou, não achou, CMS fora) mora em `lib/resolve-tenant`,
+ * pura e testável sem o CMS de verdade. Aqui só se pluga a busca real e a config do site.
+ */
+const resolveTenant = criaResolveTenant({
+  buscaPorHost: getTenantByHost,
+  buscaPorSlug: getTenantBySlug,
+  isLocalhost,
+  slugPeloSufixo: (host) => slugPeloSufixo(host, config),
+  tenantPadrao: () => tenantPadrao(config),
+})
 
 /**
  * `Vary: Accept` nas rotas que negociam formato — e vai nas DUAS variantes, não só na
@@ -164,11 +156,25 @@ export const onRequest = defineMiddleware(async (context, next) => {
     // 301 como o WP: é a mesma canonicalização que o acervo já tem indexada
     return varia(context.redirect(destino.toString(), 301), metodo)
   }
-  const tenant = await resolveTenant(context.request.headers.get('host') ?? '')
-  if (!tenant) {
+  const resolucao = await resolveTenant(context.request.headers.get('host') ?? '')
+  if (resolucao.tipo === 'cms-fora') {
+    // NUNCA 404: um 404 é resposta válida pra Cloudflare e substitui a cópia boa que a
+    // borda já tinha guardada (`stale-if-error` só serve a cópia velha quando o Worker
+    // lança, esgota o tempo ou devolve 5xx — RF10.10). `no-store` nos dois nomes de cache
+    // control garante que este 503 nunca fica guardado como se fosse a resposta certa.
+    return new Response('CMS indisponível.', {
+      status: 503,
+      headers: {
+        'retry-after': '30',
+        'cache-control': 'no-store',
+        'cloudflare-cdn-cache-control': 'no-store',
+      },
+    })
+  }
+  if (resolucao.tipo === 'inexistente') {
     return varia(new Response('Tenant não encontrado para este host.', { status: 404 }), metodo)
   }
-  context.locals.tenant = tenant
+  context.locals.tenant = resolucao.tenant
   const resposta = await next()
   if (!negociavel) return varia(resposta, metodo)
   return comAlternate(varia(resposta, metodo, ['Accept']), caminhoDoMd(context.url.pathname))
