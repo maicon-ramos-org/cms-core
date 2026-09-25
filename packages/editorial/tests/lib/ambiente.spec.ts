@@ -4,6 +4,10 @@
  * de quem pede, e como se purga o cache da borda. Em Node, o comportamento tem que ser o de
  * antes, byte a byte.
  */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ipDoCliente, leDasFontes, purgaDaCloudflare, variavel } from '../../src/lib/ambiente'
@@ -89,6 +93,51 @@ describe('ipDoCliente', () => {
     expect(ipDoCliente(contexto(() => undefined))).toBeUndefined()
   })
 })
+
+/**
+ * PRD 24 (item menor da revisão): o CUIDADO no topo de `ambiente.ts` explica por quê — o
+ * plugin de ambiente do Astro embute no bundle, em tempo de build, o valor de toda variável
+ * privada cujo NOME aparece como texto no arquivo (mesmo em comentário). Se alguém escrever
+ * ali o nome de um segredo — `PAYLOAD_SECRET`, por exemplo — o valor dele vaza pro código
+ * publicado. Este teste lê os nomes de verdade usados em `variavel(...)`/`le(...)` nos
+ * consumidores (a lista fechada do RF3) e reprova se qualquer um deles aparecer no texto de
+ * `ambiente.ts`.
+ */
+describe('nenhum nome de variável de ambiente escrito no texto de ambiente.ts', () => {
+  const raizEditorial = fileURLToPath(new URL('../../', import.meta.url))
+  const raizPackages = join(raizEditorial, '..')
+
+  const CONSUMIDORES = [
+    join(raizEditorial, 'src/regras-de-url.ts'),
+    join(raizEditorial, 'src/rotas/api/revalidate.ts'),
+    join(raizEditorial, 'src/lib/hash.ts'),
+    join(raizEditorial, 'src/lib/cms.ts'),
+    join(raizPackages, 'afiliado/src/web/lib/catalogo.ts'),
+  ]
+
+  it('a lista de nomes usados de verdade não está vazia (o teste não pode ficar cego)', () => {
+    const nomes = nomesDeVariavelUsados(CONSUMIDORES)
+    expect(nomes.size).toBeGreaterThan(0)
+  })
+
+  it('nenhum desses nomes aparece como texto em ambiente.ts', () => {
+    const textoAmbiente = readFileSync(join(raizEditorial, 'src/lib/ambiente.ts'), 'utf8')
+    const nomes = nomesDeVariavelUsados(CONSUMIDORES)
+    const achados = [...nomes].filter((nome) => textoAmbiente.includes(nome))
+    expect(achados).toEqual([])
+  })
+})
+
+/** Os nomes literais passados para `variavel('NOME')`/`le('NOME', …)` nos arquivos dados. */
+function nomesDeVariavelUsados(arquivos: string[]): Set<string> {
+  const nomes = new Set<string>()
+  const padrao = /\b(?:variavel|le)\(\s*['"]([A-Z][A-Z0-9_]*)['"]/g
+  for (const arquivo of arquivos) {
+    const texto = readFileSync(arquivo, 'utf8')
+    for (const m of texto.matchAll(padrao)) nomes.add(m[1]!)
+  }
+  return nomes
+}
 
 describe('purgaDaCloudflare', () => {
   it('em Node não existe: null, sem tentar importar nada da Cloudflare', async () => {

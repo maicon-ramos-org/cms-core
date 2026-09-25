@@ -18,7 +18,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('astro:middleware', () => ({ defineMiddleware: (f: unknown) => f }))
 vi.mock('virtual:editorial/config', () => ({
-  default: { tenantPadrao: 'principal', sufixosDeHost: ['.exemplo.local'], semBarra: ['r'], pastasComMd: ['ofertas'] },
+  default: {
+    tenantPadrao: 'principal',
+    sufixosDeHost: ['.exemplo.local'],
+    semBarra: ['r'],
+    pastasComMd: ['ofertas'],
+    semTenant: ['/wp-content/uploads'],
+  },
 }))
 vi.mock('../src/lib/cms', () => ({
   getTenantByHost: async (host: string) => (host === 'exemplo.test' ? { id: 1, slug: 'principal' } : null),
@@ -118,6 +124,16 @@ describe('o que não vai para cache fica sem Host', () => {
     expect(vary(r)).not.toContain('host')
   })
 
+  it('Cloudflare-CDN-Cache-Control: public vence o Cache-Control: private da origem (PRD 24)', async () => {
+    const { r } = await pede('https://exemplo.test/blog/', {
+      resposta: () =>
+        new Response('x', {
+          headers: { 'content-type': 'text/html', 'cache-control': 'private', 'cloudflare-cdn-cache-control': 'public, max-age=3600' },
+        }),
+    })
+    expect(vary(r)).toEqual(['host'])
+  })
+
   it('o redirect de afiliado (no-store) sai sem Vary nenhum', async () => {
     const { r } = await pede('https://exemplo.test/r/c1', {
       resposta: () => new Response(null, { status: 302, headers: { location: 'https://loja.test', 'cache-control': 'no-store' } }),
@@ -139,6 +155,21 @@ describe('o que não vai para cache fica sem Host', () => {
       const { r } = await pede(`https://qualquer.test${caminho}`, { resposta: () => original })
       expect(r).toBe(original)
     }
+  })
+
+  it('`semTenant` da config (PRD 24) também passa direto — host desconhecido não vira 404', async () => {
+    const original = new Response('redireciona pro r2', { status: 301 })
+    const { r, next } = await pede('https://host-sem-cms-no-ar.test/wp-content/uploads/2022/foo.jpg', {
+      resposta: () => original,
+    })
+    expect(r).toBe(original)
+    expect(next).toHaveBeenCalledTimes(1)
+  })
+
+  it('`semTenant` também não redireciona por barra final (a regra roda depois do bypass)', async () => {
+    const { r, next } = await pede('https://exemplo.test/wp-content/uploads/sem-extensao-nem-barra')
+    expect(r.status).not.toBe(301)
+    expect(next).toHaveBeenCalledTimes(1)
   })
 })
 

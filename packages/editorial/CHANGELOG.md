@@ -23,6 +23,21 @@ O tema roda em Node e em Workers (PRD 24 RF3). Em Node, o comportamento é o de 
   rota do Astro, como antes.
 - `regras-de-url`: `sufixosDeSlug`, `tenantPadrao` e `slugPeloSufixo` recebem o ambiente
   opcional (sem ele, `variavel`); saem `juntaVary` e `respostaCacheavel`.
+- **`editorial({ config: { semTenant: ['/prefixo', …] } })`** (nova, revisão da RF3): prefixos
+  de caminho que pulam a resolução de tenant E a regra de barra final — o mesmo bypass que
+  `/api/revalidate` e `/healthz` já tinham, generalizado. Resolve o caso do CMS fora do ar:
+  sem ela, um endereço antigo de mídia (redirecionado pro bucket, sem tenant) responde 404
+  "Tenant não encontrado", e um caminho sem extensão nem barra leva 301 antes de chegar na
+  rota que faria o redirect de verdade. Casamento por prefixo (`pathname.startsWith`). Sem
+  a opção na config, o comportamento é idêntico ao de hoje. `RegrasDeUrl` ganha
+  `precisaPularTenant(pathname)`.
+- `respostaCacheavel(metodo, cacheControl, cdnCacheControl?)` ganha um terceiro parâmetro
+  opcional: `Cloudflare-CDN-Cache-Control`/`CDN-Cache-Control` (quem chama resolve a
+  precedência entre os dois antes de passar um valor só) decidem sozinhos a favor do cache
+  quando trazem `public` ou `max-age`, mesmo com `Cache-Control: private` da origem — é a
+  instrução que a Cloudflare de fato obedece na borda. Além disso, `private` só desqualifica
+  quando vem SEM lista de campos (RFC 9111 §5.2.2.7); `private=set-cookie` deixa o resto da
+  resposta guardável (antes, qualquer `private=…` contava como `private` puro).
 
 ## 0.1.0 — 2026-09-24
 

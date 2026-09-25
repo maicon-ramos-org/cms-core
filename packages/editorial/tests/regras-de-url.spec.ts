@@ -39,6 +39,25 @@ describe('precisaDeBarra', () => {
     expect(regrasDeUrl({ tenantPadrao: 'x' }).precisaDeBarra('/r/123')).toBe(true)
     expect(regrasDeUrl({ tenantPadrao: 'x' }).precisaDeBarra('/api/x')).toBe(false)
   })
+  it('`semTenant` também tira a barra final da regra (PRD 24)', () => {
+    const { precisaDeBarra } = regrasDeUrl({ tenantPadrao: 'x', semTenant: ['/wp-content/uploads'] })
+    expect(precisaDeBarra('/wp-content/uploads/2022/foo.jpg')).toBe(false)
+    expect(precisaDeBarra('/wp-content/uploads-sem-extensao')).toBe(false)
+    expect(precisaDeBarra('/outra-coisa')).toBe(true)
+  })
+})
+
+describe('precisaPularTenant (PRD 24: `semTenant` genérico da config)', () => {
+  it('sem `semTenant` na config, nunca pula', () => {
+    expect(regrasDeUrl({ tenantPadrao: 'x' }).precisaPularTenant('/qualquer/coisa')).toBe(false)
+  })
+  it('casa por prefixo, com um ou mais prefixos declarados', () => {
+    const { precisaPularTenant } = regrasDeUrl({ tenantPadrao: 'x', semTenant: ['/wp-content/uploads', '/velho'] })
+    expect(precisaPularTenant('/wp-content/uploads/2022/12/foo.jpg')).toBe(true)
+    expect(precisaPularTenant('/velho/x')).toBe(true)
+    expect(precisaPularTenant('/wp-content/outra-pasta')).toBe(false)
+    expect(precisaPularTenant('/')).toBe(false)
+  })
 })
 
 describe('temGemeoMd', () => {
@@ -138,5 +157,29 @@ describe('respostaCacheavel', () => {
     ['HEAD', 'no-cache, no-store, must-revalidate'],
   ])('%s com Cache-Control %s não vai', (metodo, cc) => {
     expect(respostaCacheavel(metodo, cc)).toBe(false)
+  })
+
+  it('`private` COM lista de campos não desqualifica (RFC 9111 §5.2.2.7): só aqueles campos são privados', () => {
+    expect(respostaCacheavel('GET', 'private=set-cookie')).toBe(true)
+    expect(respostaCacheavel('GET', 'private="set-cookie, x-outro"')).toBe(true)
+  })
+
+  it('`private` SEM lista continua desqualificando', () => {
+    expect(respostaCacheavel('GET', 'private')).toBe(false)
+    expect(respostaCacheavel('GET', 'max-age=60, private')).toBe(false)
+  })
+
+  it('Cloudflare-CDN-Cache-Control com public/max-age guarda mesmo com Cache-Control: private', () => {
+    expect(respostaCacheavel('GET', 'private', 'public, max-age=3600')).toBe(true)
+    expect(respostaCacheavel('GET', 'no-store', 'max-age=60')).toBe(true)
+  })
+
+  it('CDN-Cache-Control (sem o prefixo Cloudflare-) também vale quando é o único presente', () => {
+    expect(respostaCacheavel('GET', null, 'public')).toBe(true)
+  })
+
+  it('sem CDN-Cache-Control nenhum, vale só o Cache-Control (comportamento de antes)', () => {
+    expect(respostaCacheavel('GET', 'private', null)).toBe(false)
+    expect(respostaCacheavel('GET', 'public, max-age=60', undefined)).toBe(true)
   })
 })

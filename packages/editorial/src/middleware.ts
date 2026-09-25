@@ -22,7 +22,7 @@ import {
   tenantPadrao,
 } from './regras-de-url'
 
-const { precisaDeBarra, temGemeoMd } = regrasDeUrl(config)
+const { precisaDeBarra, temGemeoMd, precisaPularTenant } = regrasDeUrl(config)
 
 const cache = new Map<string, { tenant: TenantDTO | null; expira: number }>()
 const TTL_MS = 60_000
@@ -116,13 +116,21 @@ const comVary = (r: Response, nomes: string[]): Response => {
  * da barra final (o destino leva o host) e o 404 de host desconhecido.
  */
 const varia = (r: Response, metodo: string, nomes: string[] = []): Response => {
-  const todos = respostaCacheavel(metodo, r.headers.get('cache-control')) ? [...nomes, 'Host'] : nomes
+  // `Cloudflare-CDN-Cache-Control` vence `CDN-Cache-Control` quando os dois existem (PRD 24)
+  const cdnCacheControl = r.headers.get('cloudflare-cdn-cache-control') ?? r.headers.get('cdn-cache-control')
+  const todos = respostaCacheavel(metodo, r.headers.get('cache-control'), cdnCacheControl) ? [...nomes, 'Host'] : nomes
   return todos.length > 0 ? comVary(r, todos) : r
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  // rota de webhook não depende de tenant (autentica por token próprio)
-  if (context.url.pathname === '/api/revalidate' || context.url.pathname === '/healthz') {
+  // rota de webhook não depende de tenant (autentica por token próprio); `semTenant` da
+  // config generaliza o mesmo bypass pra outros caminhos que também não dependem do CMS
+  // (PRD 24: os endereços antigos de mídia, sem tenant, com o CMS fora do ar)
+  if (
+    context.url.pathname === '/api/revalidate' ||
+    context.url.pathname === '/healthz' ||
+    precisaPularTenant(context.url.pathname)
+  ) {
     return next()
   }
 

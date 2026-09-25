@@ -55,6 +55,12 @@ const escapa = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 export interface RegrasDeUrl {
   precisaDeBarra: (pathname: string) => boolean
   temGemeoMd: (pathname: string) => boolean
+  /**
+   * `pathname` cai num prefixo de `config.semTenant`? Generaliza o bypass que
+   * `/api/revalidate` e `/healthz` já tinham (hardcoded no middleware): pula a resolução de
+   * tenant E a regra de barra final. Sem `semTenant` na config, nunca é `true`.
+   */
+  precisaPularTenant: (pathname: string) => boolean
 }
 
 /** As regras montadas uma vez por processo, a partir da config do site. */
@@ -81,15 +87,20 @@ export function regrasDeUrl(config: ConfigDoEditorial): RegrasDeUrl {
   const fichaDePasta = pastas.length > 0 ? new RegExp(`^/(${pastas.map(escapa).join('|')})/[^/]+/$`) : null
   const semMd = new Set(['/', '/blog/', '/busca/', ...pastas.map((p) => `/${p}/`), ...(config.semMd ?? [])])
 
+  const prefixosSemTenant = config.semTenant ?? []
+  const precisaPularTenant = (pathname: string): boolean => prefixosSemTenant.some((p) => pathname.startsWith(p))
+
   return {
     precisaDeBarra: (pathname) =>
       pathname !== '/' &&
       !pathname.endsWith('/') &&
       !semBarra.test(pathname) &&
       !ehArquivo.test(pathname) &&
-      pathname !== '/healthz',
+      pathname !== '/healthz' &&
+      !precisaPularTenant(pathname),
     /** Rotas que têm gêmeo `.md`. Fora daqui, o header é ignorado e serve HTML. */
     temGemeoMd: (p) => Boolean(fichaDePasta?.test(p)) || (/^\/[^/]+\/$/.test(p) && !semMd.has(p)),
+    precisaPularTenant,
   }
 }
 
@@ -126,21 +137,47 @@ export const juntaVary = (anterior: string | null, nomes: string[]): string => {
   return [...tokens, ...novos].join(', ')
 }
 
+const diretivasDe = (cc: string | null | undefined): string[] =>
+  (cc ?? '')
+    .toLowerCase()
+    .split(',')
+    .map((d) => d.trim())
+    .filter(Boolean)
+
+/** O nome de uma diretiva, sem o valor (`max-age=600` → `max-age`; `private` → `private`). */
+const nomeDaDiretiva = (d: string): string => d.split('=')[0]!.trim()
+
 /**
- * A resposta PODE ir para um cache compartilhado? GET/HEAD sem `no-store` nem `private`.
+ * A resposta PODE ir para um cache compartilhado? GET/HEAD sem `no-store` nem `private`
+ * (sem lista de campos) — a menos que `Cloudflare-CDN-Cache-Control`/`CDN-Cache-Control`
+ * digam o contrário, que é o que a Cloudflare de fato obedece na borda.
  *
  * É de propósito mais largo que "a rota chamou `cache.set`": o cache na frente do Worker
  * segue a RFC 9111, que guarda 301 e 404 sem instrução nenhuma, e rota que manda
  * `Cache-Control: public` sozinha (manifest, robots) também entra. Errar para o lado de
  * pôr `Vary: Host` onde não precisava não custa nada; errar para o outro lado serve a
  * página de um tenant no domínio do outro (PRD 24 RF3).
+ *
+ * Dois ajustes (PRD 24, revisão da RF3):
+ * - `cdnCacheControl` é o header específico da CDN — `Cloudflare-CDN-Cache-Control` vence
+ *   `CDN-Cache-Control` quando os dois existem (quem chama já resolve essa precedência
+ *   antes de passar um valor só); com `public` ou `max-age`, ele decide sozinho a favor do
+ *   cache, mesmo que o `Cache-Control` genérico (pro navegador) diga `private` — é
+ *   exatamente pra isso que a Cloudflare o documenta.
+ * - `private` só desqualifica quando vem SEM lista de campos (RFC 9111 §5.2.2.7):
+ *   `private=set-cookie` só torna aquele campo privado; o resto da resposta pode ser
+ *   guardado. Antes, qualquer `private=...` contava como `private` puro (o valor era
+ *   descartado antes da comparação) e a resposta nunca entrava no cache.
  */
-export const respostaCacheavel = (metodo: string, cacheControl: string | null): boolean => {
+export const respostaCacheavel = (metodo: string, cacheControl: string | null, cdnCacheControl?: string | null): boolean => {
   const m = metodo.toUpperCase()
   if (m !== 'GET' && m !== 'HEAD') return false
-  const diretivas = (cacheControl ?? '')
-    .toLowerCase()
-    .split(',')
-    .map((d) => d.trim().split('=')[0])
-  return !diretivas.includes('no-store') && !diretivas.includes('private')
+
+  const doCdn = diretivasDe(cdnCacheControl)
+  if (doCdn.some((d) => nomeDaDiretiva(d) === 'public' || nomeDaDiretiva(d) === 'max-age')) return true
+
+  const diretivas = diretivasDe(cacheControl)
+  if (diretivas.some((d) => nomeDaDiretiva(d) === 'no-store')) return false
+  if (diretivas.some((d) => d === 'private')) return false
+  return true
 }

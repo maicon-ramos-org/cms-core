@@ -112,6 +112,17 @@ describe('nos Workers (purge da Cloudflare)', () => {
     expect(corpo.erros).toEqual(erros)
   })
 
+  it('`success: false` com um erro que não é de rate-limit também vira 429 (PRD 24, revisão da RF3 / decisão em desvios)', async () => {
+    // A doc da Cloudflare não documenta um `errors[].code` estável e distinto pra "limite
+    // de purge excedido" (ver desvios do PR); por isso TODO `success: false` continua 429,
+    // e não 502 — este teste tranca essa decisão pra não se perder numa próxima revisão.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    cf.purga = async () => ({ success: false, errors: [{ code: 9999, message: 'outra coisa qualquer' }] })
+    const { context } = contexto({ tags: ['tenant:a'] })
+    const r = await POST(context)
+    expect(r.status).toBe(429)
+  })
+
   it('purge que lança não vira 500: 503 com Retry-After', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     cf.purga = async () => {
