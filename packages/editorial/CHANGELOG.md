@@ -1,6 +1,8 @@
 # @maicon-ramos-org/editorial
 
-## Não publicado
+## 0.2.0-next.1 — 2026-09-25 (pré-lançamento, PRD 24 RF3)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.
 
 O tema roda em Node e em Workers (PRD 24 RF3). Em Node, o comportamento é o de antes.
 
