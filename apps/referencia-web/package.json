@@ -15,11 +15,13 @@
     "@astrojs/node": "^11.1.4",
     "@maicon-ramos-org/afiliado": "workspace:*",
     "@maicon-ramos-org/editorial": "workspace:*",
-    "astro": "^7.2.4"
+    "astro": "^7.3.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "typescript": "5.7.3"
+    "@astrojs/cloudflare": "^14.3.3",
+    "typescript": "5.7.3",
+    "wrangler": "^4.139.0"
   },
   "plataforma": {
     "semTestes": "o site de referência não tem regra própria: é provado subindo de verdade no CI, com as rotas do tema e do plugin respondendo"

@@ -1,6 +1,6 @@
 {
   "name": "@maicon-ramos-org/editorial",
-  "version": "0.1.0",
+  "version": "0.2.0-next.2",
   "description": "Tema editorial como integração Astro: rotas injetadas e componentes substituíveis (PRD 17 RF3)",
   "type": "module",
   "main": "./src/index.ts",

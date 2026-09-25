@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" next build",
+    "build:workers": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" ALVO=workers opennextjs-cloudflare build",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
@@ -33,13 +34,14 @@
     "cross-env": "^7.0.3",
     "dotenv": "16.4.7",
     "graphql": "^16.8.1",
-    "next": "16.3.0",
+    "next": "16.3.6",
     "payload": "3.88.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "sharp": "0.34.2"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.6",
     "@types/jsdom": "^30.0.0",
     "@types/node": "22.19.9",
     "@types/react": "19.2.14",
@@ -48,7 +50,8 @@
     "tsx": "4.22.4",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
-    "vitest": "4.0.18"
+    "vitest": "4.0.18",
+    "wrangler": "^4.139.0"
   },
   "plataforma": {
     "semTestes": "o site de referência não tem regra própria: é provado subindo de verdade no CI (migração, semente, build e as rotas do tema e do plugin respondendo)"

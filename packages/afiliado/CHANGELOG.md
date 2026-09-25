@@ -1,6 +1,42 @@
 # @maicon-ramos-org/afiliado
 
-## Não publicado
+## 0.2.0-next.4 — 2026-09-25 (pré-lançamento, PRD 24)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.
+
+### Corrigiu
+
+- CLS do banner da home (PRD 24 — achado do Lighthouse móvel, 0,188 em dev): a caixa que o
+  navegador reserva pro `<picture>` de `Banner.astro` agora usa a proporção de CADA imagem
+  (larga e estreita têm proporções diferentes — a estreita costuma ser 300x250, não um
+  recorte da larga). O `<source>` da estreita ganha `width`/`height` próprios, e o CSS reserva
+  o espaço certo por breakpoint (`aspect-ratio`), em vez de só a proporção da larga aplicada
+  às duas larguras. Sem mudança visual nem no LCP.
+
+## 0.2.0-next.3 — 2026-09-25 (pré-lançamento, PRD 24 RF10.10)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
+`@maicon-ramos-org/editorial` 0.2.0-next.2 (dependência `workspace:*` deste pacote), que
+corrige o CMS fora do ar virando 404 guardável em cache — nenhuma mudança de código neste
+pacote, só o `pnpm pack` fixando a versão nova do tema na dependência.
+
+## 0.2.0-next.2 — 2026-09-25 (pré-lançamento, PRD 24 RF3)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
+`@maicon-ramos-org/editorial` 0.2.0-next.1 (dependência `workspace:*` deste pacote).
+
+### Mudou
+
+- Entrada `web` portável para Workers (PRD 24 RF3): o `/r/{id}` lê o ID de afiliado e o
+  catálogo lê a etiqueta da loja por `variavel` do `@maicon-ramos-org/editorial/lib/ambiente`,
+  e o IP do clique por `ipDoCliente`. Em Node, o comportamento é o de antes.
+
+## 0.2.0-next.1 — 2026-09-24 (pré-lançamento, PRD 24 RF0.10)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
+`@maicon-ramos-org/cms-core` 0.2.0-next.1 (dependência `workspace:*` deste pacote), para o
+`pnpm pack` fixar a mesma versão do núcleo nos dois lugares e o site consumidor não instalar
+duas cópias de `cms-core`.
 
 ### Mudou
 

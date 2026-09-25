@@ -102,3 +102,62 @@ jobs:
             sleep 2
           done
           node scripts/fumaca-referencia.mjs --base=http://127.0.0.1:4321 || { tail -40 cms.log web.log; exit 1; }
+
+  # PRD 24 RF4 — prova que o núcleo monta os DOIS pacotes num Worker da Cloudflare, sem
+  # conta e sem deploy de verdade: só o build (e, no site, um `wrangler deploy --dry-run`,
+  # que compila e confere sem subir nada). O `check` acima já prova o formato Node (VPS/CI);
+  # este job prova o formato Workers (RF6/RF7 de um site real, ADR-0014).
+  workers:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      # o site: adapter @astrojs/cloudflare (RF6 de um site real) + `wrangler deploy --dry-run`.
+      # Este job NUNCA pode ficar vermelho por conta ou token — os dois faltam de propósito.
+      - name: referencia-web nos Workers (astro build + wrangler deploy --dry-run)
+        working-directory: apps/referencia-web
+        run: |
+          ALVO=workers CLOUDFLARE_ENV=ci pnpm exec astro build
+          pnpm exec wrangler deploy --dry-run --outdir dist-workers
+
+      - name: tamanho do bundle do site
+        run: du -sh apps/referencia-web/dist-workers > bundle-referencia-web.txt; cat bundle-referencia-web.txt
+
+      # o CMS: opennextjs-cloudflare build (a RF7 de um site real ainda não existe — este é o
+      # primeiro build real do núcleo nesse formato). Sem `midia.derivados` de verdade
+      # (RF2, PR #5, aguarda decisão do Maicon): só prova que a fábrica monta sem `sharp`.
+      # Pode falhar sem derrubar o job (`continue-on-error`); se falhar, a causa fica
+      # registrada no PR e em pendências — o passo do site acima não tem essa rede.
+      - name: referencia-cms nos Workers (opennextjs-cloudflare build — só build, sem conta)
+        id: cms
+        working-directory: apps/referencia-cms
+        continue-on-error: true
+        run: pnpm run build:workers
+
+      - name: tamanho do bundle do CMS
+        if: always()
+        run: |
+          if [ -d apps/referencia-cms/.open-next ]; then
+            du -sh apps/referencia-cms/.open-next > bundle-referencia-cms.txt
+          else
+            echo "build do CMS nos Workers falhou — sem .open-next (ver o passo acima e o PR)" > bundle-referencia-cms.txt
+          fi
+          cat bundle-referencia-cms.txt
+
+      - name: aviso — CMS nos Workers não fechou
+        if: steps.cms.outcome == 'failure'
+        run: echo "::warning::opennextjs-cloudflare build da referencia-cms falhou nos Workers — pendência RF4/RF7, causa no PR"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bundles-workers
+          path: |
+            bundle-referencia-web.txt
+            bundle-referencia-cms.txt
+          retention-days: 14

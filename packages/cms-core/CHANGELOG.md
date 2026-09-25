@@ -1,6 +1,13 @@
 # @maicon-ramos-org/cms-core
 
-## 0.2.0 — em preparo (PRD 24)
+## 0.2.0-next.1 — 2026-09-24 (pré-lançamento, PRD 24 RF0.10)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0` até a versão estável
+`0.2.0` sair. Publicado junto com `@maicon-ramos-org/afiliado` (que depende deste pacote por
+`workspace:*`) para o `pnpm pack` não fixar `afiliado` numa cópia velha do núcleo — sem isso o
+site consumidor acabaria com duas versões de `cms-core` na árvore. `@maicon-ramos-org/editorial`
+não muda nesta rodada (a RF3 que mexe nele ainda não fechou) e fica em `0.1.0`; como `editorial`
+não depende de `cms-core`, não há duplicação a evitar.
 
 O núcleo passa a montar o CMS nos dois formatos: em Node (VPS, CI, scripts) e num Worker da
 Cloudflare. O que difere entre os dois vem por opção da fábrica; **sem as opções novas, a
