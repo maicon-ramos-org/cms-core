@@ -4,7 +4,15 @@
  * domínio ou nicho de um site — a trava `scripts/confere-core-sem-marca.mjs` confere.
  */
 export { cmsCore, colecoesComSeo, colecoesDoTenant, type OpcoesCmsCore } from './fabrica'
-export type { CustomDaMidia, Derivado, EntradaDoGerador, GeradorDeDerivados } from './midia/derivados'
+export {
+  derivadosViaImages,
+  MIME_REDIMENSIONAVEIS,
+  type BindingImages,
+  type CustomDaMidia,
+  type Derivado,
+  type EntradaDoGerador,
+  type GeradorDeDerivados,
+} from './midia/derivados'
 export { aplicaOrdem, ordenaPor, type Ordem } from './ordem'
 export { acrescentaAoGrupoDoTenant, acrescentaCamposAoTenant, acrescentaDestinosDoAutoLinker, ajustaCampo } from './extensoes'
 export { editorFeatures } from './editor'
