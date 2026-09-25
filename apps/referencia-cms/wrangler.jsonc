@@ -1,0 +1,16 @@
+/**
+ * referencia-cms nos Workers — PRD 24 RF4 (prova o pacote, não um CMS real).
+ *
+ * Nunca é publicado: o job `workers` do `ci.yml` só roda `opennextjs-cloudflare build`
+ * (sem conta, sem deploy). Sem bindings de banco/bucket/imagem — a conexão real (Hyperdrive,
+ * o binding Images) é desenho da RF7 de um site real; aqui a prova é só que o núcleo monta
+ * o Worker.
+ */
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "referencia-cms",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" }
+}

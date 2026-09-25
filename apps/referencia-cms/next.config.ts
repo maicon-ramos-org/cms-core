@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // PRD 24 RF4/RF7 (achado do spike RF0.13): sem isto o webpack embute a saída `default`
+  // (vazia) do `pg-cloudflare` e o Worker falha com `cannot connect to Postgres: h3 is not
+  // a constructor`; `jose` é o mesmo tratamento que o template do Payload para D1 usa.
+  // `sharp` (achado desta RF4): o otimizador de imagem do PRÓPRIO Next.js — não o `sharp`
+  // que a fábrica do núcleo carrega (RF1) — referencia o binário nativo por um chunk
+  // hasheado (`sharp-<hash>`) sempre que o pacote está instalado, mesmo com `sharp: null`
+  // na config do Payload; sem externalizar, o `opennextjs-cloudflare build` falha
+  // ("Could not resolve sharp-<hash>") porque o esbuild tenta empacotar o binário para o
+  // `workerd`, que não o roda.
+  serverExternalPackages: ['jose', 'pg', 'pg-cloudflare', 'sharp'],
   webpack: (webpackConfig) => {
     webpackConfig.resolve.extensionAlias = {
       '.cjs': ['.cts', '.cjs'],

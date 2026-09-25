@@ -1,8 +1,12 @@
 node_modules/
 dist/
+dist-workers/
 build/
 .next/
 .astro/
+.open-next/
+.wrangler/
+.dev.vars
 *.tsbuildinfo
 .env
 .env.local
