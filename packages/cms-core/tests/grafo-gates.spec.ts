@@ -31,6 +31,10 @@ describe('gates determinísticos do grafo', () => {
     const e = entrada(); e.pesquisa!.qualidade = 69
     expect(avaliarGates(e)).toContainEqual(expect.objectContaining({ gate: 'G1' }))
   })
+  it('pesquisa ainda sem avaliação de qualidade permanece bloqueada para publicação', () => {
+    const e = entrada(); delete e.pesquisa!.qualidade
+    expect(avaliarGates(e)).toContainEqual(expect.objectContaining({ gate: 'G1' }))
+  })
   it.each([
     ['texto', 'conclusão não citada'], ['ano_ancora', 2025], ['status', 'refutada'],
   ])('claim sem %s correspondente reprova em claims', (campo, valor) => {

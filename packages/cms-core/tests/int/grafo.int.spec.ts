@@ -80,6 +80,17 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     erroPath(await request('/entidades', 'POST', { tenant: tenantA.id, nome: 'Outra', slug: 'outra', tipo: 'conceito', origem: 'legacy:entity:1' }), 'origem')
     erroPath(await request(`/entidades/${entidadeA.id}`, 'PATCH', { origem: null }), 'origem')
   })
+  it('preserva pesquisa sem avaliação, publisher/pilar ausentes e peso real da origem', async () => {
+    const fonte = await create('fontes', { tenant: tenantA.id, url: 'https://pesquisa.example/sem-publisher', publisher: null, tier: 3 })
+    expect(fonte.publisher).toBeNull()
+    const cluster = await create('clusters', { tenant: tenantA.id, nome: 'Em planejamento', slug: 'em-planejamento', entidade_pilar: null })
+    expect(cluster.entidade_pilar).toBeNull()
+    const pesquisa = await create('pesquisas', { tenant: tenantB.id, entidade: entidadeB.id, corpo_md: 'Ainda sem avaliação', qualidade: null })
+    expect(pesquisa.qualidade).toBeNull()
+    const outra = await create('entidades', { tenant: tenantA.id, nome: 'Relação ponderada', slug: 'relacao-ponderada', tipo: 'conceito' })
+    const relacao = await create('relacoes', { tenant: tenantA.id, de: entidadeA.id, para: outra.id, tipo: 'relacionada', peso: 2.5 })
+    expect(relacao.peso).toBe(2.5)
+  })
   it('relação duplicada reprova e índice composto é gerado', async () => {
     const outra = await create('entidades', { tenant: tenantA.id, nome: 'Outro conceito', slug: 'outro', tipo: 'conceito' })
     const dados = { tenant: tenantA.id, de: entidadeA.id, para: outra.id, tipo: 'relacionada' }

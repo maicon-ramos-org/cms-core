@@ -29,11 +29,11 @@ SSR/cache na Cloudflare.
 | Coleção | Campos da entrega | Identidade/versões |
 | --- | --- | --- |
 | entidades | nome, slug, tipo, resumo, wikidata_qid, ymyl, saude (json) | tenant+slug único, versions |
-| relacoes | de, para, tipo, peso | tenant+de+para+tipo único; de diferente de para |
-| fontes | url, publisher, titulo, tier (1–3), publicado_em, recuperado_em, upstream (fonte) | tenant+url único |
+| relacoes | de, para, tipo, peso (real finito, sem teto) | tenant+de+para+tipo único; de diferente de para |
+| fontes | url, publisher opcional, titulo, tier (1–3), publicado_em, recuperado_em, upstream (fonte) | tenant+url único |
 | claims | entidade, texto, valor (json), ano_ancora, fonte obrigatória, status (vigente/revisar/refutada), revisado_em | versions |
-| pesquisas | entidade, corpo_md, qualidade (0–100), validade_dias (>0) | versions |
-| clusters | nome, slug, entidade_pilar, plano (json), status (planejado/ativo/concluido) | tenant+slug único, versions |
+| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0) | versions; G1 recusa qualidade ausente |
+| clusters | nome, slug, entidade_pilar opcional, plano (json), status (planejado/ativo/concluido) | tenant+slug único, versions |
 | eventos | colecao, doc, acao (create/update), ator (users), campos (nomes alterados) | append-only; hook interno; nenhum valor/segredo no diff |
 
 Excluir registros do grafo não é exposto nesta fase, para preservar referências.
@@ -105,9 +105,9 @@ Fixtures cobrem gates, PATCH com null, fronteira de tenant, draft-first e
 serialização. Integração usa banco de teste separado no Postgres 16 e REST real do
 Payload, além da Local API. `pnpm check` é gate antes de commit/push.
 
-Validação local em 2026-09-25: `pnpm check` verde (47 testes de scripts + 605
-testes Vitest), com Postgres 16 e S3 de teste isolados. Os 42 testes novos cobrem
-18 fixtures de gates, 4 de registro de formatos, 10 de Markdown e 10 de integração
+Validação local em 2026-09-25: `pnpm check` verde (47 testes de scripts + 607
+testes Vitest), com Postgres 16 e S3 de teste isolados. Os 44 testes novos cobrem
+19 fixtures de gates, 4 de registro de formatos, 10 de Markdown e 11 de integração
 real. As cinco sentinelas de ambiente são puladas quando seus serviços estão
 presentes; as integrações de banco e bucket foram executadas. `git diff --check`
 também passou. Nenhuma migration foi aplicada a banco de site, nenhum pacote foi
