@@ -1,6 +1,11 @@
 # @maicon-ramos-org/afiliado
 
-## Não publicado
+## 0.2.0-next.1 — 2026-09-24 (pré-lançamento, PRD 24 RF0.10)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
+`@maicon-ramos-org/cms-core` 0.2.0-next.1 (dependência `workspace:*` deste pacote), para o
+`pnpm pack` fixar a mesma versão do núcleo nos dois lugares e o site consumidor não instalar
+duas cópias de `cms-core`.
 
 ### Mudou
 
