@@ -14,6 +14,10 @@
  * lista desatualizada:
  * - do tenant: toda coleção, menos `tenants` e `users` (`colecoesDoTenant`);
  * - SEO: a que marca `custom.seo` (`colecoesComSeo`).
+ *
+ * PRD 24 RF1 — a fábrica é INJETÁVEL: o mesmo núcleo monta o CMS em Node (VPS, CI, scripts) e
+ * num Worker da Cloudflare. O que difere entre os dois — `sharp`, banco, bucket, gerador de
+ * derivados, GraphQL, logger — vem por opção, e sem a opção tudo fica como era.
  */
 import path from 'node:path'
 
@@ -25,7 +29,6 @@ import { s3Storage } from '@payloadcms/storage-s3'
 import { en } from '@payloadcms/translations/languages/en'
 import { pt } from '@payloadcms/translations/languages/pt'
 import { buildConfig, type CollectionConfig, type Config, type Field, type Plugin, type SanitizedConfig } from 'payload'
-import sharp from 'sharp'
 
 import { LinkRules, LinksGerados } from './collections/AutoLinker'
 import { QueriesLog } from './collections/Logs'
@@ -38,8 +41,10 @@ import { Tenants } from './collections/Tenants'
 import { Users } from './collections/Users'
 import { editorFeatures } from './editor'
 import { copiaProfunda } from './copia'
+import { revalidateAfterOperation, revalidateBeforeOperation, type CustomDaRevalidacao, type EmSegundoPlano } from './hooks/revalidate'
+import type { CustomDaMidia, GeradorDeDerivados } from './midia/derivados'
 import { aplicaOrdem, type Ordem } from './ordem'
-import { configR2DaExecucao, urlPublica } from './r2'
+import { configR2DaExecucao, urlPublica, type ConfigR2 } from './r2'
 
 /** As duas coleções que NÃO são de um tenant: o próprio cadastro e quem administra. */
 const FORA_DO_TENANT = new Set(['tenants', 'users'])
@@ -70,17 +75,53 @@ export interface OpcoesCmsCore {
    * Payload: `src/migrations` a partir da pasta em que o processo roda.
    */
   pastaDeMigracoes?: string
+  /**
+   * O `sharp` que gera os `imageSizes`, o recorte e o ponto focal. Sem a opção, a fábrica o
+   * carrega (é o de sempre, em Node). `null` desliga os três — num Worker não há `sharp`
+   * (binário nativo) —, e quem gera os derivados passa a ser `midia.derivados`. Os
+   * `imageSizes` continuam DECLARADOS: são as colunas de `sizes` no banco, as mesmas nos dois
+   * formatos, e a lista que o gerador recebe.
+   */
+  sharp?: NonNullable<Config['sharp']> | null
+  /**
+   * O Postgres. Sem a opção, `DATABASE_URL`. Num Worker, a string do Hyperdrive e
+   * `maxUses: 1` (uma conexão por requisição: o Hyperdrive é quem guarda o pool).
+   */
+  db?: { connectionString: string; maxUses?: number }
+  midia?: {
+    /** O bucket. Sem a opção, as `R2_*` do ambiente (`configR2DaExecucao`). */
+    r2?: ConfigR2
+    /**
+     * Quem gera os derivados quando a config vem sem `sharp` (o binding Images, num Worker).
+     * A fábrica o entrega à coleção `midia` em `custom.derivados` (`CustomDaMidia`), de onde o
+     * `beforeChange` da coleção o lê.
+     */
+    derivados?: GeradorDeDerivados
+  }
+  /** Sem a opção, o GraphQL do Payload fica como está (ligado). */
+  graphQL?: { disable: boolean }
+  /** Sem a opção, o do Payload (pino). Num Worker, um logger sobre `console`: o `pino-pretty` não roda lá. */
+  logger?: Config['logger']
+  revalidacao?: {
+    /**
+     * Quem segura a promessa do aviso ao site, que o save não espera (`hooks/revalidate.ts`).
+     * Sem a opção, ninguém — em Node, como sempre foi. Num Worker,
+     * `(p) => getCloudflareContext().ctx.waitUntil(p)`: sem isso a promessa morre com a resposta.
+     */
+    emSegundoPlano?: EmSegundoPlano
+  }
 }
 
-/** As coleções do núcleo, com o que o site acrescenta a `tenants` e a `pages`. */
+/** As coleções do núcleo, com o que o site acrescenta a `tenants` e a `pages`, e o gerador de derivados em `midia`. */
 function colecoesDoNucleo(opcoes: OpcoesCmsCore): CollectionConfig[] {
+  const derivados = opcoes.midia?.derivados
   return [
     { ...Tenants, fields: [...Tenants.fields, ...(opcoes.camposDoTenant ?? [])] },
     Users,
     Posts,
     paginas(opcoes.templatesDePagina),
     Mensagens,
-    Midia,
+    derivados ? { ...Midia, custom: { ...Midia.custom, derivados } satisfies CustomDaMidia } : Midia,
     Categorias,
     Tags,
     Autores,
@@ -118,14 +159,65 @@ const comAsColecoes =
   (config) =>
     monta(config.collections ?? [])(config)
 
-export function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
+/** Aplica `muda` a cada coleção que existe naquele ponto da cadeia de plugins. */
+const emCadaColecao =
+  (muda: (colecao: CollectionConfig) => CollectionConfig): Plugin =>
+  (config) => ({ ...config, collections: (config.collections ?? []).map(muda) })
+
+/**
+ * Sem `sharp`, o Payload não gera `imageSizes` nem aplica recorte (`createImageSizes` e
+ * `generateFileData`, Payload 3.88, pulam sem `config.sharp`); o que sobra é o admin
+ * oferecendo recorte e ponto focal que não teriam efeito. Os dois saem de toda coleção de
+ * upload, como no template do Payload para a Cloudflare. As colunas `focal_x`/`focal_y`
+ * continuam (o Payload as cria enquanto houver `imageSizes`): o schema não muda.
+ */
+const semRecorteNemPontoFocal = emCadaColecao((c) =>
+  c.upload ? { ...c, upload: { ...(typeof c.upload === 'object' ? c.upload : {}), crop: false, focalPoint: false } } : c,
+)
+
+/**
+ * O quadro de cada operação de escrita, onde as tags de revalidação se acumulam, e o envio
+ * delas quando a operação de fora termina (`hooks/revalidate.ts`). Os dois por último: o
+ * `beforeOperation` marca os `args` que o `afterOperation` recebe.
+ */
+const comEnvioDaRevalidacao = emCadaColecao((c) => ({
+  ...c,
+  hooks: {
+    ...c.hooks,
+    beforeOperation: [...(c.hooks?.beforeOperation ?? []), revalidateBeforeOperation],
+    afterOperation: [...(c.hooks?.afterOperation ?? []), revalidateAfterOperation],
+  },
+}))
+
+/**
+ * O `sharp` da config. Sem a opção, o de sempre — carregado aqui, sob demanda, e não por
+ * `import` estático: o módulo nem é avaliado quando o site passa o dele ou `null` (num Worker,
+ * avaliar o `sharp` falha, porque ele carrega um binário nativo).
+ */
+async function sharpDaConfig(opcao: OpcoesCmsCore['sharp']): Promise<Config['sharp']> {
+  if (opcao === null) return undefined
+  if (opcao) return opcao
+  try {
+    return (await import('sharp')).default
+  } catch (err) {
+    throw new Error(
+      'cmsCore: o sharp não carregou. Instale `sharp` (gera os derivados da mídia) ou passe `sharp: null` ' +
+        'para montar o CMS sem ele (com `midia.derivados` gerando os derivados).',
+      { cause: err },
+    )
+  }
+}
+
+export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
   /*
    * PRD 18 RF1 — a mídia mora no bucket R2 da instância (ADR-0012). Sem as cinco `R2_*`, o
    * CMS NÃO sobe: `configR2DaExecucao` lança com o nome de cada variável que falta. Degradar
    * para o disco em silêncio esconderia um acervo partido entre disco e bucket. A única
-   * exceção é o `next build`, onde as variáveis não existem (ver `r2.ts`).
+   * exceção é o `next build`, onde as variáveis não existem (ver `r2.ts`). Quem passa
+   * `midia.r2` (PRD 24 RF1) dispensa as variáveis.
    */
-  const r2 = configR2DaExecucao(process.env)
+  const r2 = opcoes.midia?.r2 ?? configR2DaExecucao(process.env)
+  const sharp = await sharpDaConfig(opcoes.sharp)
 
   return buildConfig({
     admin: {
@@ -139,15 +231,26 @@ export function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
     secret: process.env.PAYLOAD_SECRET || '',
     typescript: { outputFile: path.resolve(opcoes.raiz, 'payload-types.ts') },
     db: postgresAdapter({
-      pool: { connectionString: process.env.DATABASE_URL || '' },
+      pool: opcoes.db
+        ? {
+            connectionString: opcoes.db.connectionString,
+            ...(opcoes.db.maxUses !== undefined ? { maxUses: opcoes.db.maxUses } : {}),
+          }
+        : { connectionString: process.env.DATABASE_URL || '' },
       // ADR-0006: push só em dev interativo, e por env explícita. Em CI/staging/produção
       // o schema vem de migration versionada — nunca de push, que além de não-determinístico
       // trava em prompt quando não há TTY.
       push: process.env.PAYLOAD_DB_PUSH === '1',
       ...(opcoes.pastaDeMigracoes ? { migrationDir: opcoes.pastaDeMigracoes } : {}),
     }),
-    sharp,
+    ...(sharp ? { sharp } : {}),
+    ...(opcoes.graphQL ? { graphQL: { disable: opcoes.graphQL.disable } } : {}),
+    ...(opcoes.logger ? { logger: opcoes.logger } : {}),
     ...(opcoes.jobs ? { jobs: opcoes.jobs } : {}),
+    // `custom` da raiz é só do servidor (não vai à config do admin)
+    ...(opcoes.revalidacao?.emSegundoPlano
+      ? { custom: { revalidacao: { emSegundoPlano: opcoes.revalidacao.emSegundoPlano } } satisfies CustomDaRevalidacao }
+      : {}),
     plugins: [
       ...(opcoes.plugins ?? []),
       /*
@@ -198,6 +301,9 @@ export function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
       ),
       // PENDENTE F0-E2 (ver docs/backlog.md): plugin-redirects, plugin-import-export,
       // plugin-mcp (interno), plugin-sentry, dashboard widgets (RF7), jobs queue (RF9).
+      ...(sharp ? [] : [semRecorteNemPontoFocal]),
+      // por último: vale para toda coleção, venha do núcleo, de um plugin ou do site
+      comEnvioDaRevalidacao,
     ],
   })
 }

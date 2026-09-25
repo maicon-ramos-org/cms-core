@@ -6,7 +6,7 @@ import './env'
 
 import path from 'node:path'
 
-import { confereSchema, mantemVivo, sair } from '@maicon-ramos-org/cms-core'
+import { confereSchema, mantemVivo, sair } from '@maicon-ramos-org/cms-core/scripts'
 
 const encerra = mantemVivo()
 

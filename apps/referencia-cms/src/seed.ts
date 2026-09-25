@@ -9,7 +9,7 @@
  */
 import './scripts/env'
 
-import { mantemVivo, sair, semeia, upsert, type ContextoDoConteudo, type Semente } from '@maicon-ramos-org/cms-core'
+import { mantemVivo, sair, semeia, upsert, type ContextoDoConteudo, type Semente } from '@maicon-ramos-org/cms-core/scripts'
 
 import config from './payload.config'
 

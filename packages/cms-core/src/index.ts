@@ -4,6 +4,7 @@
  * domínio ou nicho de um site — a trava `scripts/confere-core-sem-marca.mjs` confere.
  */
 export { cmsCore, colecoesComSeo, colecoesDoTenant, type OpcoesCmsCore } from './fabrica'
+export type { CustomDaMidia, Derivado, EntradaDoGerador, GeradorDeDerivados } from './midia/derivados'
 export { aplicaOrdem, ordenaPor, type Ordem } from './ordem'
 export { acrescentaAoGrupoDoTenant, acrescentaCamposAoTenant, acrescentaDestinosDoAutoLinker, ajustaCampo } from './extensoes'
 export { editorFeatures } from './editor'
@@ -13,39 +14,20 @@ export { Midia } from './collections/Midia'
 // o que as coleções de um site ou plugin usam (acesso, validação, revalidação, campos)
 export * from './access/roles'
 export * from './hooks/validations'
-export { revalidateAfterChange, revalidateAfterDelete, slugDeRelacao, type OpcoesRevalidacao, type TagsExtras } from './hooks/revalidate'
+export {
+  revalidateAfterChange,
+  revalidateAfterDelete,
+  revalidateAfterOperation,
+  revalidateBeforeOperation,
+  slugDeRelacao,
+  TAGS_POR_POST,
+  type CustomDaRevalidacao,
+  type EmSegundoPlano,
+  type OpcoesRevalidacao,
+  type TagsExtras,
+} from './hooks/revalidate'
 export { chaveDeOrigem } from './fields/origem'
 export * from './lib/nome-midia'
 export * from './lib/contraste'
-// para os scripts de um site (PRD 17 RF5): ciclo de vida, pool, portão de migração, semente e mídia
-export { mantemVivo, SaidaInesperada, sair, semSaidaDoProcesso } from './scripts/sair'
+// puro: serve ao CMS e aos scripts (os de Node moram em `@maicon-ramos-org/cms-core/scripts`, PRD 24 RF1)
 export { emPool } from './scripts/pool'
-export { portaoDeMigracao, type OpcoesDoPortao } from './scripts/portao'
-export {
-  aplicaSemente,
-  semeia,
-  upsert,
-  type ContextoDoConteudo,
-  type ResultadoDaSemente,
-  type Semente,
-  type TenantDaSemente,
-  type UsuarioDaSemente,
-} from './scripts/semeia'
-export {
-  chavesDaMidia,
-  clienteR2,
-  copiaAcervo,
-  type BucketS3,
-  type MidiaParaCopia,
-  type Relatorio as RelatorioDaCopia,
-} from './midia/copia-r2'
-export {
-  DERIVADOS,
-  regeneraAcervo,
-  temTodosOsDerivados,
-  type BucketRegenera,
-  type MidiaDoAcervo,
-  type Relatorio as RelatorioDaRegeneracao,
-} from './midia/regenera'
-// a trava do ADR-0006 (coleção mudou sem migration), dentro do processo
-export { confereSchema, confereSchemaNoPayload } from './scripts/confere-schema'
