@@ -149,21 +149,30 @@ describe('o que não vai para cache fica sem Host', () => {
     expect(vary(r)).not.toContain('host')
   })
 
-  it('/api/revalidate e /healthz passam direto, sem tenant e sem mexer na resposta', async () => {
+  it('/api/revalidate e /healthz passam direto, sem tenant — mas levam Vary: Host como qualquer resposta cacheável', async () => {
     for (const caminho of ['/api/revalidate', '/healthz']) {
       const original = new Response('{}')
       const { r } = await pede(`https://qualquer.test${caminho}`, { resposta: () => original })
-      expect(r).toBe(original)
+      expect(await r.text()).toBe('{}')
+      expect(vary(r)).toEqual(['host'])
     }
   })
 
-  it('`semTenant` da config (PRD 24) também passa direto — host desconhecido não vira 404', async () => {
+  it('/api/revalidate e /healthz sem Vary quando a resposta não é cacheável (POST, no-store)', async () => {
+    const original = new Response(null, { status: 303, headers: { 'cache-control': 'no-store' } })
+    const { r } = await pede('https://qualquer.test/api/revalidate', { metodo: 'POST', resposta: () => original })
+    expect(r).toBe(original)
+  })
+
+  it('`semTenant` da config (PRD 24) também passa direto — host desconhecido não vira 404, e leva Vary: Host', async () => {
     const original = new Response('redireciona pro r2', { status: 301 })
     const { r, next } = await pede('https://host-sem-cms-no-ar.test/wp-content/uploads/2022/foo.jpg', {
       resposta: () => original,
     })
-    expect(r).toBe(original)
+    expect(await r.text()).toBe('redireciona pro r2')
+    expect(r.status).toBe(301)
     expect(next).toHaveBeenCalledTimes(1)
+    expect(vary(r)).toEqual(['host'])
   })
 
   it('`semTenant` também não redireciona por barra final (a regra roda depois do bypass)', async () => {

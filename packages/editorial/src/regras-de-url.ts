@@ -59,6 +59,10 @@ export interface RegrasDeUrl {
    * `pathname` cai num prefixo de `config.semTenant`? Generaliza o bypass que
    * `/api/revalidate` e `/healthz` já tinham (hardcoded no middleware): pula a resolução de
    * tenant E a regra de barra final. Sem `semTenant` na config, nunca é `true`.
+   *
+   * Casamento por SEGMENTO, não por texto cru: `/velho` casa `/velho` e `/velho/x`, nunca
+   * `/velhote` — um `pathname.startsWith(p)` ingênuo pularia o tenant de qualquer rota que
+   * por acaso começasse com as mesmas letras.
    */
   precisaPularTenant: (pathname: string) => boolean
 }
@@ -88,7 +92,13 @@ export function regrasDeUrl(config: ConfigDoEditorial): RegrasDeUrl {
   const semMd = new Set(['/', '/blog/', '/busca/', ...pastas.map((p) => `/${p}/`), ...(config.semMd ?? [])])
 
   const prefixosSemTenant = config.semTenant ?? []
-  const precisaPularTenant = (pathname: string): boolean => prefixosSemTenant.some((p) => pathname.startsWith(p))
+  for (const p of prefixosSemTenant) {
+    if (p === '' || p === '/') {
+      throw new Error(`semTenant: prefixo "${p}" pularia o tenant do site inteiro — configure um prefixo real, não "" nem "/"`)
+    }
+  }
+  const precisaPularTenant = (pathname: string): boolean =>
+    prefixosSemTenant.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 
   return {
     precisaDeBarra: (pathname) =>

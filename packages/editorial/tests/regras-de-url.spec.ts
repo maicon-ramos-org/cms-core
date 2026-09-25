@@ -42,7 +42,9 @@ describe('precisaDeBarra', () => {
   it('`semTenant` também tira a barra final da regra (PRD 24)', () => {
     const { precisaDeBarra } = regrasDeUrl({ tenantPadrao: 'x', semTenant: ['/wp-content/uploads'] })
     expect(precisaDeBarra('/wp-content/uploads/2022/foo.jpg')).toBe(false)
-    expect(precisaDeBarra('/wp-content/uploads-sem-extensao')).toBe(false)
+    expect(precisaDeBarra('/wp-content/uploads/sem-extensao')).toBe(false)
+    // sem barra depois do prefixo não é filho dele (segmento, não texto cru — revisão do PRD 24 RF3)
+    expect(precisaDeBarra('/wp-content/uploads-sem-extensao')).toBe(true)
     expect(precisaDeBarra('/outra-coisa')).toBe(true)
   })
 })
@@ -57,6 +59,16 @@ describe('precisaPularTenant (PRD 24: `semTenant` genérico da config)', () => {
     expect(precisaPularTenant('/velho/x')).toBe(true)
     expect(precisaPularTenant('/wp-content/outra-pasta')).toBe(false)
     expect(precisaPularTenant('/')).toBe(false)
+  })
+  it('casa por SEGMENTO, não por texto cru: o próprio prefixo e filhos casam, um nome parecido não (revisão do PRD 24 RF3)', () => {
+    const { precisaPularTenant } = regrasDeUrl({ tenantPadrao: 'x', semTenant: ['/velho'] })
+    expect(precisaPularTenant('/velho')).toBe(true)
+    expect(precisaPularTenant('/velho/x')).toBe(true)
+    expect(precisaPularTenant('/velhote')).toBe(false)
+  })
+  it('prefixo "" ou "/" pularia o tenant do site inteiro: erro claro na configuração, não silêncio (revisão do PRD 24 RF3)', () => {
+    expect(() => regrasDeUrl({ tenantPadrao: 'x', semTenant: ['/ok', ''] })).toThrow(/semTenant/)
+    expect(() => regrasDeUrl({ tenantPadrao: 'x', semTenant: ['/'] })).toThrow(/semTenant/)
   })
 })
 

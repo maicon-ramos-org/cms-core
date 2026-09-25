@@ -126,15 +126,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // rota de webhook não depende de tenant (autentica por token próprio); `semTenant` da
   // config generaliza o mesmo bypass pra outros caminhos que também não dependem do CMS
   // (PRD 24: os endereços antigos de mídia, sem tenant, com o CMS fora do ar)
+  const metodo = context.request.method
+
   if (
     context.url.pathname === '/api/revalidate' ||
     context.url.pathname === '/healthz' ||
     precisaPularTenant(context.url.pathname)
   ) {
-    return next()
+    return varia(await next(), metodo)
   }
-
-  const metodo = context.request.method
 
   // /feed/ é a URL do WP; internamente a rota é feed.xml
   if (context.url.pathname === '/feed' || context.url.pathname === '/feed/') {
