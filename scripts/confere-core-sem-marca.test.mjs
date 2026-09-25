@@ -103,3 +103,17 @@ test('node_modules e dist ficam fora', () => {
   })
   assert.deepEqual(r, [])
 })
+
+test('scripts/ também é varrido (PRD 24 RF3: o comentário do topo de outra trava citava a marca)', () => {
+  const r = achados({ 'scripts/confere-core-sem-node.mjs': '// Workers no Runzos' })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^scripts\/confere-core-sem-node\.mjs:1 /)
+})
+
+test('esta própria trava e o teste dela ficam fora da varredura de scripts/ — eles CITAM a marca de propósito', () => {
+  const r = achados({
+    'scripts/confere-core-sem-marca.mjs': "const MARCAS = [{ nome: 'runzos', re: /runzos/gi }]",
+    'scripts/confere-core-sem-marca.test.mjs': "test('runzos', () => {})",
+  })
+  assert.deepEqual(r, [])
+})

@@ -9,15 +9,18 @@
  *
  * Duas regras:
  *
- * 1. Em TODO `packages/` e `apps/`: nenhuma marca ou domínio de site nosso. Comentário e
- *    teste contam, e o núcleo se prova com dado de exemplo (ADR-0011 §4, o site de
- *    referência em `apps/`).
+ * 1. Em TODO `packages/`, `apps/` e `scripts/`: nenhuma marca ou domínio de site nosso.
+ *    Comentário e teste contam, e o núcleo se prova com dado de exemplo (ADR-0011 §4, o
+ *    site de referência em `apps/`).
  * 2. Em `packages/cms-core` e `packages/editorial`: nenhum nome de programa de afiliado.
  *    Esses nomes só podem morar no plugin `afiliado` (ADR-0011 §5); a instância editorial
  *    não tem programa nenhum.
  *
  * Sem exceção: o escopo npm é o dono do repositório (`@maicon-ramos-org/`, exigência do
  * GitHub Packages), e o escopo antigo saiu na mudança de casa (PRD 17 RF9).
+ *
+ * Uma exceção só de arquivo (não de conteúdo): esta trava e o teste dela CITAM as marcas —
+ * é o dado que eles verificam —, então ficam fora da varredura de `scripts/` (PRD 24 RF3).
  *
  * `node scripts/confere-core-sem-marca.mjs`
  */
@@ -41,6 +44,15 @@ const MARCAS = [
 const PROGRAMAS = /\b(hostinger|cloudways|amazon|awin|impact|shopee|mercado\s?livre|hotmart)\b/gi
 const SO_NO_PLUGIN = ['packages/cms-core/', 'packages/editorial/']
 
+/** Pastas que a trava varre, além da raiz do repositório em si. */
+const PASTAS = ['packages', 'apps', 'scripts']
+
+/**
+ * Arquivo excluído da varredura por INTEIRO — não por conteúdo. Só esta trava e o teste
+ * dela: precisam citar as marcas para testá-las e documentá-las (ver comentário do topo).
+ */
+const SEM_VARREDURA = new Set(['scripts/confere-core-sem-marca.mjs', 'scripts/confere-core-sem-marca.test.mjs'])
+
 const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo', '.next'])
 
 function arquivos(dir) {
@@ -63,11 +75,12 @@ function arquivos(dir) {
 /** Binário (imagem, fonte) não tem "menção"; o byte zero denuncia. */
 const ehTexto = (buf) => !buf.subarray(0, 8192).includes(0)
 
-/** Tudo o que a trava encontrou em `packages/` e `apps/`, como `caminho:linha — motivo`. */
+/** Tudo o que a trava encontrou em `packages/`, `apps/` e `scripts/`, como `caminho:linha — motivo`. */
 export function procuraMarcas(raiz) {
   const achados = []
-  for (const arq of ['packages', 'apps'].flatMap((d) => arquivos(join(raiz, d)))) {
+  for (const arq of PASTAS.flatMap((d) => arquivos(join(raiz, d)))) {
     const rel = relative(raiz, arq).split(sep).join('/')
+    if (SEM_VARREDURA.has(rel)) continue
     const buf = readFileSync(arq)
     if (!ehTexto(buf)) continue
     const soNoPlugin = SO_NO_PLUGIN.some((p) => rel.startsWith(p))
@@ -101,5 +114,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     )
     process.exit(1)
   }
-  console.log('confere-core-sem-marca: ok (packages/ e apps/ sem marca de site; cms-core e editorial sem programa de afiliado)')
+  console.log(
+    'confere-core-sem-marca: ok (packages/, apps/ e scripts/ sem marca de site; cms-core e editorial sem programa de afiliado)',
+  )
 }

@@ -2,7 +2,7 @@
  * PRD 24 RF3 — nada de `node:fs`/`node:os` no caminho que o Worker web carrega.
  *
  * O núcleo roda nos dois formatos até a virada terminar: Node na VPS e no CI, Workers no
- * Runzos. Nos Workers, a compatibilidade com Node cobre `node:crypto`, `node:path` e
+ * site que o consome. Nos Workers, a compatibilidade com Node cobre `node:crypto`, `node:path` e
  * `node:url`, mas o disco e o sistema operacional não existem — um `readFileSync` que
  * escapa para uma rota passa em todo teste de Node e só quebra no Worker, em produção.
  *
