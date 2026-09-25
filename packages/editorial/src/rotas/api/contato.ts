@@ -15,6 +15,7 @@
  */
 import type { APIRoute } from 'astro'
 
+import { ipDoCliente } from '../../lib/ambiente'
 import { cmsFetch } from '../../lib/cms'
 import { ipHash } from '../../lib/hash'
 
@@ -53,7 +54,7 @@ export const POST: APIRoute = async (context) => {
   if (!nome || !email || !mensagem) return volta(destino, { erro: 'campos' })
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return volta(destino, { erro: 'email' })
 
-  const hash = ipHash(context.clientAddress)
+  const hash = ipHash(ipDoCliente(context))
 
   try {
     if (hash) {

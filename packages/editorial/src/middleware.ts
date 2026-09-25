@@ -11,9 +11,18 @@ import { defineMiddleware } from 'astro:middleware'
 import config from 'virtual:editorial/config'
 
 import { getTenantByHost, getTenantBySlug, type TenantDTO } from './lib/cms'
-import { caminhoDoMd, isLocalhost, querMarkdown, regrasDeUrl, slugPeloSufixo, tenantPadrao } from './regras-de-url'
+import {
+  caminhoDoMd,
+  isLocalhost,
+  juntaVary,
+  querMarkdown,
+  regrasDeUrl,
+  respostaCacheavel,
+  slugPeloSufixo,
+  tenantPadrao,
+} from './regras-de-url'
 
-const { precisaDeBarra, temGemeoMd } = regrasDeUrl(config)
+const { precisaDeBarra, temGemeoMd, precisaPularTenant } = regrasDeUrl(config)
 
 const cache = new Map<string, { tenant: TenantDTO | null; expira: number }>()
 const TTL_MS = 60_000
@@ -76,23 +85,60 @@ const comAlternate = (r: Response, url: string): Response => {
   return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
 }
 
-const comVary = (r: Response): Response => {
+const comVary = (r: Response, nomes: string[]): Response => {
   const anterior = r.headers.get('vary')
-  if (anterior?.toLowerCase().includes('accept')) return r
+  const valor = juntaVary(anterior, nomes)
+  if (valor === (anterior ?? '')) return r
   const h = new Headers(r.headers)
-  h.set('vary', anterior ? `${anterior}, Accept` : 'Accept')
+  h.set('vary', valor)
   return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
 }
 
+/**
+ * `Vary: Host` em toda resposta que pode ir para cache (PRD 24 RF3).
+ *
+ * Um Worker serve os dois tenants, e a chave do cache da Cloudflare na frente dele é o
+ * caminho — o host fica de fora. Sem o `Vary: Host`, a home de um tenant, guardada
+ * primeiro, seria servida no domínio do outro. Com ele, a LEITURA fica separada: o cache
+ * guarda uma variante por host. Em Node, o cache em memória do Astro já tinha o host na
+ * chave e continua igual.
+ *
+ * O `Vary: Host` NÃO basta para a LIMPEZA. No cache dos Workers as variantes de uma URL
+ * dividem uma identidade de purge só: "all variants must use the same Cache-Tag values —
+ * assigning different tags to different variants results in inconsistent purges"
+ * (developers.cloudflare.com/workers/cache/configuration/). Aqui as variantes de `/`,
+ * `/blog/`, do feed, do sitemap, do robots etc. levam `tenant:{slug}` diferentes, então
+ * limpar `tenant:3d` pode não pegar a variante do `3d` e a página velha fica até o
+ * `maxAge`. Tags iguais entre variantes ou um Worker por domínio (plano B da decisão 11
+ * do PRD 24) é decisão pendente, registrada no ADR-0014; a prova é da RF0.12/RF10.
+ *
+ * "Pode ir para cache" é a regra de `respostaCacheavel`, de propósito larga: inclui o 301
+ * da barra final (o destino leva o host) e o 404 de host desconhecido.
+ */
+const varia = (r: Response, metodo: string, nomes: string[] = []): Response => {
+  // `Cloudflare-CDN-Cache-Control` vence `CDN-Cache-Control` quando os dois existem (PRD 24)
+  const cdnCacheControl = r.headers.get('cloudflare-cdn-cache-control') ?? r.headers.get('cdn-cache-control')
+  const todos = respostaCacheavel(metodo, r.headers.get('cache-control'), cdnCacheControl) ? [...nomes, 'Host'] : nomes
+  return todos.length > 0 ? comVary(r, todos) : r
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
-  // rota de webhook não depende de tenant (autentica por token próprio)
-  if (context.url.pathname === '/api/revalidate' || context.url.pathname === '/healthz') {
-    return next()
+  // rota de webhook não depende de tenant (autentica por token próprio); `semTenant` da
+  // config generaliza o mesmo bypass pra outros caminhos que também não dependem do CMS
+  // (PRD 24: os endereços antigos de mídia, sem tenant, com o CMS fora do ar)
+  const metodo = context.request.method
+
+  if (
+    context.url.pathname === '/api/revalidate' ||
+    context.url.pathname === '/healthz' ||
+    precisaPularTenant(context.url.pathname)
+  ) {
+    return varia(await next(), metodo)
   }
 
   // /feed/ é a URL do WP; internamente a rota é feed.xml
   if (context.url.pathname === '/feed' || context.url.pathname === '/feed/') {
-    return context.rewrite('/feed.xml')
+    return varia(await context.rewrite('/feed.xml'), metodo)
   }
 
   /*
@@ -109,21 +155,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const negociavel = temGemeoMd(context.url.pathname)
   if (querMarkdown(aceita) && negociavel) {
     const r = await context.rewrite(caminhoDoMd(context.url.pathname))
-    return comVary(r)
+    return varia(r, metodo, ['Accept'])
   }
 
   if (precisaDeBarra(context.url.pathname)) {
     const destino = new URL(context.url)
     destino.pathname = `${context.url.pathname}/`
     // 301 como o WP: é a mesma canonicalização que o acervo já tem indexada
-    return context.redirect(destino.toString(), 301)
+    return varia(context.redirect(destino.toString(), 301), metodo)
   }
   const tenant = await resolveTenant(context.request.headers.get('host') ?? '')
   if (!tenant) {
-    return new Response('Tenant não encontrado para este host.', { status: 404 })
+    return varia(new Response('Tenant não encontrado para este host.', { status: 404 }), metodo)
   }
   context.locals.tenant = tenant
   const resposta = await next()
-  if (!negociavel) return resposta
-  return comAlternate(comVary(resposta), caminhoDoMd(context.url.pathname))
+  if (!negociavel) return varia(resposta, metodo)
+  return comAlternate(varia(resposta, metodo, ['Accept']), caminhoDoMd(context.url.pathname))
 })

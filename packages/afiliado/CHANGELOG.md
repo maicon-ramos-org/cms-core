@@ -25,6 +25,9 @@ duas cópias de `cms-core`.
   apagar) os jobs agendados da task em `processing` parados há mais de 6 h
   (`JOB_PRESO_DEPOIS_DE_MS`, `soltaJobsPresos`, exportados) e avisa no log. No dia seguinte o
   snapshot volta a rodar uma vez.
+- Entrada `web` portável para Workers (PRD 24 RF3): o `/r/{id}` lê o ID de afiliado e o
+  catálogo lê a etiqueta da loja por `variavel` do `@maicon-ramos-org/editorial/lib/ambiente`,
+  e o IP do clique por `ipDoCliente`. Em Node, o comportamento é o de antes.
 
 ### Migração no site
 

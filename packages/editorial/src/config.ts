@@ -15,6 +15,14 @@ export interface ConfigDoEditorial {
   sufixosDeHost?: string[]
   /** Primeiros segmentos de caminho que não levam barra final, além de `api`. */
   semBarra?: string[]
+  /**
+   * Prefixos de caminho que pulam a resolução de tenant E a regra de barra final — o mesmo
+   * bypass que `/api/revalidate` e `/healthz` já têm, generalizado (PRD 24: os endereços
+   * antigos de mídia, redirecionados pro bucket sem tenant, e outros caminhos sem extensão
+   * que não dependem do CMS). Casamento por prefixo (`pathname.startsWith(prefixo)`). Sem
+   * a opção, o comportamento é idêntico ao de hoje.
+   */
+  semTenant?: string[]
   /** Pastas cujas fichas (`/pasta/slug/`) têm gêmeo `.md`; o hub da pasta não tem. */
   pastasComMd?: string[]
   /** Páginas de raiz sem gêmeo `.md`, além de `/`, `/blog/`, `/busca/` e os hubs das pastas. */
