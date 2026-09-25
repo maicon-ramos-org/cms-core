@@ -92,8 +92,12 @@ envia uma vez, em lotes de até 100 tags por POST (`TAGS_POR_POST`), cada tag um
   omitiria é omitido; `cover` recorta e amplia; um lado só mantém a proporção; sem `quality`,
   a padrão do `sharp`; JPEG sobre branco; nome `{base}-{largura}x{altura}.{extensão}`). O que
   não tem tradução (`withoutReduction`, `trimOptions`, `fit: 'outside'`) falha no upload
-  dizendo qual tamanho. Tipos novos: `BindingImages` (o subconjunto do binding que o gerador
-  usa; o `env.IMAGES` cabe nele sem conversão) e `MIME_REDIMENSIONAVEIS`.
+  dizendo qual tamanho. Original TIFF ou AVIF — que o `sharp` redimensiona, mas o binding não
+  aceita como entrada fora do plano Enterprise — falha no upload dizendo o tipo, e o erro do
+  binding sai com o tipo, o arquivo e o tamanho (o original em `cause`). Tipos novos:
+  `BindingImages` (o subconjunto do binding que o gerador usa; o `env.IMAGES` cabe nele sem
+  conversão), `MIME_REDIMENSIONAVEIS` (a lista do `sharp`) e `MIME_DO_BINDING_IMAGES` (a
+  entrada do binding: JPEG, PNG, GIF, WebP).
 - A coleção `midia` ganha um `beforeChange` (`midia/derivados-sem-sharp.ts`) que, **só quando
   a config vem sem `sharp`**, chama o gerador de `custom.derivados` e preenche `data.sizes` e
   `req.payloadUploadSizes` — o que o `storage-s3` sobe. Com `sharp`, não faz nada.

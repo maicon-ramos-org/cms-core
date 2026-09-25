@@ -6,6 +6,7 @@
 export { cmsCore, colecoesComSeo, colecoesDoTenant, type OpcoesCmsCore } from './fabrica'
 export {
   derivadosViaImages,
+  MIME_DO_BINDING_IMAGES,
   MIME_REDIMENSIONAVEIS,
   type BindingImages,
   type CustomDaMidia,

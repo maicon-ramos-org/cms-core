@@ -13,10 +13,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { Midia } from '../src/collections/Midia'
 import {
   derivadosViaImages,
+  MIME_DO_BINDING_IMAGES,
+  MIME_REDIMENSIONAVEIS,
   type BindingImages,
   type GeradorDeDerivados,
   type SaidaDeImagem,
   type TransformacaoDeImagem,
+  type TransformadorDeImagem,
 } from '../src/midia/derivados'
 import { derivadosSemSharp } from '../src/midia/derivados-sem-sharp'
 
@@ -171,6 +174,62 @@ describe('derivadosViaImages: os imageSizes da coleção midia pelo binding Imag
     await expect(gera({ name: 'tiff', width: 100, withoutEnlargement: false, formatOptions: { format: 'tiff', options: {} } })).rejects.toThrow(
       /`tiff`.*formato/,
     )
+  })
+
+  /*
+   * O `sharp` redimensiona TIFF e AVIF (`canResizeImage` do Payload), mas o binding Images não
+   * os aceita como entrada no plano do projeto: TIFF não está na lista, e AVIF é "Available
+   * on an Enterprise plan" (https://developers.cloudflare.com/images/get-started/limits/,
+   * consultada em 2026-09-24). O upload falha dizendo o tipo — nem sai sem derivado (o que
+   * em Node teria os três), nem vaza o erro cru do binding.
+   */
+  it('TIFF e AVIF como original: falha dizendo o tipo, o arquivo e os tamanhos, sem chamar o binding', async () => {
+    const { binding, chamadas, infos } = bindingFalso()
+    const gerador = derivadosViaImages(binding)
+    for (const [mimeType, filename] of [
+      ['image/tiff', 'scan.tiff'],
+      ['image/avif', 'capa.avif'],
+    ] as const) {
+      await expect(gerador.gera({ bytes: imagem(1280, 720), mimeType, filename, imageSizes: TAMANHOS })).rejects.toThrow(
+        new RegExp(`${mimeType.replace('/', '\\/')}.*${filename.replace('.', '\\.')}.*não é entrada do binding Images.*cartao.*capa.*og`),
+      )
+    }
+    expect(chamadas).toEqual([])
+    expect(infos).toEqual([])
+  })
+
+  it('só JPEG, PNG, GIF e WebP vão ao binding (a interseção do sharp com a entrada da Cloudflare fora do Enterprise)', () => {
+    expect(MIME_DO_BINDING_IMAGES).toEqual(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+    for (const mime of MIME_DO_BINDING_IMAGES) expect(MIME_REDIMENSIONAVEIS).toContain(mime)
+  })
+
+  it('o binding recusa o original (ex.: tipo declarado errado): o erro diz o tipo e o arquivo e guarda o original em `cause`', async () => {
+    const recusa = new Error('ImagesError: 9412 unsupported image format')
+    const { binding } = bindingFalso()
+    binding.info = async () => {
+      throw recusa
+    }
+    const erro = await derivadosViaImages(binding)
+      .gera({ bytes: imagem(1280, 720), mimeType: 'image/png', filename: 'na-verdade-tiff.png', imageSizes: TAMANHOS })
+      .then(() => undefined, (e: unknown) => e as Error)
+    if (!erro) throw new Error('era para falhar')
+    expect(erro.message).toMatch(/image\/png.*na-verdade-tiff\.png.*9412 unsupported image format/)
+    expect(erro.cause).toBe(recusa)
+  })
+
+  it('o binding falha num tamanho: o erro diz o tamanho, o tipo e o arquivo e guarda o original em `cause`', async () => {
+    const recusa = new Error('ImagesError: 9413 image too large')
+    const { binding } = bindingFalso()
+    binding.input = () => {
+      const transformador: TransformadorDeImagem = { transform: () => transformador, output: () => Promise.reject(recusa) }
+      return transformador
+    }
+    const erro = await derivadosViaImages(binding)
+      .gera({ bytes: imagem(1280, 720), mimeType: 'image/jpeg', filename: 'foto.jpg', imageSizes: TAMANHOS.slice(0, 1) })
+      .then(() => undefined, (e: unknown) => e as Error)
+    if (!erro) throw new Error('era para falhar')
+    expect(erro.message).toMatch(/`cartao`.*image\/jpeg.*foto\.jpg.*9413 image too large/)
+    expect(erro.cause).toBe(recusa)
   })
 })
 

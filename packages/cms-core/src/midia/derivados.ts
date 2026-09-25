@@ -59,10 +59,19 @@ export interface CustomDaMidia {
 }
 
 /**
- * Os tipos que o Payload redimensiona (`canResizeImage`, Payload 3.88). Fora deles — PDF, SVG —
- * o Payload não gera derivado nem com `sharp`, e o gerador também não.
+ * Os tipos que o Payload redimensiona (`canResizeImage`, Payload 3.88) — é a lista do `sharp`.
+ * Fora deles — PDF, SVG — o Payload não gera derivado nem com `sharp`, e o gerador também não.
  */
 export const MIME_REDIMENSIONAVEIS: readonly string[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff', 'image/avif']
+
+/**
+ * Os tipos que o binding Images aceita como ENTRADA, dentre os de `MIME_REDIMENSIONAVEIS`, fora
+ * do plano Enterprise: TIFF não é entrada da Cloudflare, e AVIF é "Available on an Enterprise
+ * plan" (https://developers.cloudflare.com/images/get-started/limits/, consultada em
+ * 2026-09-24). HEIC a Cloudflare aceita, mas o Payload não redimensiona — fica de fora, como
+ * em Node. Um original TIFF ou AVIF faz o `derivadosViaImages` falhar dizendo o tipo.
+ */
+export const MIME_DO_BINDING_IMAGES: readonly string[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
 /*
  * O binding Images da Cloudflare, só no que o gerador usa. É um subconjunto estrutural dos
@@ -137,13 +146,24 @@ export interface BindingImages {
  *
  * Não traduz o que o núcleo não usa e a Cloudflare não tem igual — `withoutReduction`,
  * `trimOptions`, `fit: 'outside'`: o tamanho que pedir isso falha no upload, dizendo qual,
- * em vez de sair diferente do que sairia em Node.
+ * em vez de sair diferente do que sairia em Node. Pelo mesmo motivo, o original TIFF ou AVIF
+ * (que o `sharp` redimensiona e o binding não aceita fora do Enterprise —
+ * `MIME_DO_BINDING_IMAGES`) falha dizendo o tipo, e o erro que o binding lançar sai com o
+ * tipo, o arquivo e o tamanho na mensagem (o original em `cause`).
  */
 export function derivadosViaImages(binding: BindingImages): GeradorDeDerivados {
   return {
     async gera({ bytes, mimeType, filename, imageSizes }) {
       if (!MIME_REDIMENSIONAVEIS.includes(mimeType) || imageSizes.length === 0) return []
-      const original = await binding.info(fluxo(bytes))
+      const doArquivo = `o original ${mimeType} (${filename})`
+      if (!MIME_DO_BINDING_IMAGES.includes(mimeType)) {
+        throw new Error(
+          `derivadosViaImages: ${doArquivo} não é entrada do binding Images fora do plano Enterprise, ` +
+            `e em Node (sharp) geraria os tamanhos ${imageSizes.map((t) => `\`${t.name}\``).join(', ')}. ` +
+            `Envie o arquivo em ${MIME_DO_BINDING_IMAGES.join(', ')}`,
+        )
+      }
+      const original = await recusado(binding.info(fluxo(bytes)), `o binding Images recusou ${doArquivo}`)
       if (!('width' in original)) return []
       const { nome: base, extensao: extensaoOriginal } = partesDoNome(filename)
 
@@ -151,12 +171,18 @@ export function derivadosViaImages(binding: BindingImages): GeradorDeDerivados {
         imageSizes.map(async (tamanho): Promise<Derivado | undefined> => {
           if (omitido(tamanho, original)) return undefined
           const formato = formatoDeSaida(tamanho, mimeType)
-          const resultado = await binding
-            .input(fluxo(bytes))
-            .transform(transformacao(tamanho, formato))
-            .output({ format: formato, quality: qualidade(tamanho, formato) })
-          const saida = new Uint8Array(await new Response(resultado.image()).arrayBuffer())
-          const medidas = await binding.info(fluxo(saida))
+          const passos = transformacao(tamanho, formato)
+          const { saida, resultado, medidas } = await recusado(
+            (async () => {
+              const resultado = await binding
+                .input(fluxo(bytes))
+                .transform(passos)
+                .output({ format: formato, quality: qualidade(tamanho, formato) })
+              const saida = new Uint8Array(await new Response(resultado.image()).arrayBuffer())
+              return { saida, resultado, medidas: await binding.info(fluxo(saida)) }
+            })(),
+            `o binding Images falhou no tamanho \`${tamanho.name}\` de ${doArquivo}`,
+          )
           if (!('width' in medidas)) throw new Error(`derivadosViaImages: o tamanho \`${tamanho.name}\` saiu sem medidas (${medidas.format})`)
 
           const tipo = resultado.contentType() || formato
@@ -183,6 +209,19 @@ export function derivadosViaImages(binding: BindingImages): GeradorDeDerivados {
       )
       return derivados.filter((d): d is Derivado => d !== undefined)
     },
+  }
+}
+
+/**
+ * O erro do binding chega cru ("ImagesError: 9412 …"): relança dizendo o que se pedia, com o
+ * original em `cause` — o mesmo padrão de `naoSuportado`.
+ */
+async function recusado<T>(promessa: Promise<T>, contexto: string): Promise<T> {
+  try {
+    return await promessa
+  } catch (erro) {
+    const motivo = erro instanceof Error ? erro.message : String(erro)
+    throw new Error(`derivadosViaImages: ${contexto}: ${motivo}`, { cause: erro })
   }
 }
 
