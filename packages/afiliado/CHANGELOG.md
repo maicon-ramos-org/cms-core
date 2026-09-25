@@ -1,6 +1,8 @@
 # @maicon-ramos-org/afiliado
 
-## Não publicado
+## 0.2.0-next.4 — 2026-09-25 (pré-lançamento, PRD 24)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.
 
 ### Corrigiu
 
