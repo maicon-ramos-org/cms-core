@@ -77,16 +77,48 @@ function arquivosDe(caminho) {
 }
 
 /**
+ * Onde o frontmatter de um `.astro` abre, como o compilador do Astro o reconhece
+ * (`@astrojs/compiler-rs` 0.5.0, conferido com `transform()`): no primeiro `---` do arquivo,
+ * desde que antes dele só haja espaço, texto sem `<` nem `{`, e comentários HTML fechados —
+ * linha em branco, comentário de licença ou BOM antes da cerca NÃO impedem o compilador de
+ * levar o import para o bundle (achado real da revisão do PRD 24 RF3: a regex antiga,
+ * ancorada em `^---`, devolvia vazio nesses casos). Onde o compilador é mais estrito (um
+ * comentário de várias linhas antes da cerca, que ele deixa como template), a trava ainda
+ * enxerga frontmatter: erra a favor de reprovar.
+ */
+const ABERTURA_DO_FRONTMATTER = /^(?:[^<{]|<!--[\s\S]*?-->)*?---/
+
+/**
  * O código de JS/TS de um arquivo, pronto para o parser, e a linha (0-based) em que ele
- * começa no arquivo original. Para `.astro` é só o miolo do frontmatter — entre os `---` —,
- * porque o resto é template, não JS; sem frontmatter, não há código para seguir.
+ * começa no arquivo original. Para `.astro` é o que vem depois da cerca que abre o
+ * frontmatter; sem frontmatter, não há código para seguir.
+ *
+ * Vai até o FIM do arquivo, não até a próxima linha `---`: o compilador fecha o frontmatter
+ * no primeiro `---` fora de string, comentário e template literal, e uma regex que corta na
+ * primeira linha `---` corta cedo demais quando um template literal tem essa linha dentro — o
+ * import que vem depois sumia. Parsear o template junto nunca esconde import do frontmatter
+ * (o frontmatter é código válido, e o parser o lê igual com ou sem o que vem depois); no
+ * máximo acha algo no template, e aí a trava reprova a mais, que é o lado certo do erro.
  */
 function codigoEOffset(caminho, textoOriginal) {
   if (!caminho.endsWith('.astro')) return { codigo: textoOriginal, offset: 0 }
-  const m = textoOriginal.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  const m = textoOriginal.match(ABERTURA_DO_FRONTMATTER)
   if (!m) return { codigo: '', offset: 0 }
-  const inicioDoCodigo = m.index + m[0].indexOf(m[1])
-  return { codigo: m[1], offset: textoOriginal.slice(0, inicioDoCodigo).split('\n').length - 1 }
+  const inicioDoCodigo = m.index + m[0].length
+  return { codigo: textoOriginal.slice(inicioDoCodigo), offset: textoOriginal.slice(0, inicioDoCodigo).split('\n').length - 1 }
+}
+
+/**
+ * Falha fechada: um `.astro` com uma linha que começa com `---` em que a trava NÃO reconheceu
+ * frontmatter é um formato que ela não sabe ler — devolve a linha (1-based) para reprovar, em
+ * vez de seguir sem olhar. Na prática é uma cerca depois de uma tag ou de `{…}`, que o
+ * compilador trata como template; se for mesmo template, `<hr>` ou um frontmatter vazio no
+ * topo resolvem.
+ */
+export function cercaNaoReconhecida(textoOriginal, caminho) {
+  if (!caminho.endsWith('.astro') || ABERTURA_DO_FRONTMATTER.test(textoOriginal)) return null
+  const m = textoOriginal.match(/^[ \t]*---/m)
+  return m ? textoOriginal.slice(0, m.index).split('\n').length : null
 }
 
 /** O texto fixo de um literal — string comum ou template SEM `${…}` — ou `null`. */
@@ -207,7 +239,13 @@ export function procuraNodeNoWorker(raiz, entradas = ENTRADAS) {
     if (visto.has(arquivo)) continue
     visto.add(arquivo)
     const rel = paraBarra(relative(raiz, arquivo))
-    for (const { especificador, linha } of importsDe(readFileSync(arquivo, 'utf8'), arquivo)) {
+    const texto = readFileSync(arquivo, 'utf8')
+    const cerca = cercaNaoReconhecida(texto, arquivo)
+    if (cerca !== null) {
+      const via = origem === rel ? '' : ` (alcançado a partir de ${origem})`
+      achados.push(`${rel}:${cerca} — frontmatter que a trava não reconhece (cerca --- depois de tag ou de {…})${via}`)
+    }
+    for (const { especificador, linha } of importsDe(texto, arquivo)) {
       const semPrefixo = especificador.replace(/^node:/, '')
       const base = semPrefixo.split('/')[0]
       if (especificador.startsWith('node:') || DO_NODE.has(semPrefixo) || DO_NODE.has(base)) {

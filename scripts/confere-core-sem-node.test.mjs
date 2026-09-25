@@ -244,6 +244,80 @@ test('BLOQUEANTE (revisão): a mesma classe de erro com template literal no luga
   assert.match(r[0], /^packages\/editorial\/src\/lib\/x\.ts:2 — node:fs/)
 })
 
+/**
+ * O compilador do Astro (`@astrojs/compiler-rs` 0.5.0, conferido com `transform()`) abre o
+ * frontmatter no primeiro `---` do arquivo desde que antes dele só haja espaço, texto sem
+ * `<`/`{` e comentário HTML fechado — e o fecha no primeiro `---` fora de string, comentário
+ * e template literal. A trava tem que ver o import em todos esses casos. Onde o compilador é
+ * mais estrito que ela (comentário de várias linhas ou com acento antes da cerca, que ele
+ * deixa como template), a trava reconhece frontmatter mesmo assim: erra a favor de reprovar.
+ */
+const FS_NO_FRONTMATTER = "---\nimport { readFileSync } from 'node:fs'\n---\n<p>{readFileSync}</p>"
+
+test('BLOQUEANTE (revisão): .astro com linha em branco antes do frontmatter — o import conta', () => {
+  const r = achados({ 'packages/editorial/src/componentes/Zz.astro': `\n${FS_NO_FRONTMATTER}` })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/componentes\/Zz\.astro:3 — node:fs$/)
+})
+
+test('BLOQUEANTE (revisão): .astro com espaços antes do frontmatter — o import conta', () => {
+  const r = achados({ 'packages/editorial/src/componentes/Zz.astro': `  \n${FS_NO_FRONTMATTER}` })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/componentes\/Zz\.astro:3 — node:fs$/)
+})
+
+test('BLOQUEANTE (revisão): .astro com comentário HTML antes do frontmatter — o import conta', () => {
+  const r = achados({ 'packages/editorial/src/componentes/Zz.astro': `<!-- c -->\n${FS_NO_FRONTMATTER}` })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/componentes\/Zz\.astro:3 — node:fs$/)
+})
+
+test('.astro com comentário de licença de várias linhas (a favor de reprovar), texto solto e BOM antes da cerca — o import conta', () => {
+  const r = achados({
+    'packages/editorial/src/componentes/A.astro': `<!--\n  licença\n-->\n<!-- b -->\n${FS_NO_FRONTMATTER}`,
+    'packages/editorial/src/componentes/B.astro': `oi\n${FS_NO_FRONTMATTER}`,
+    'packages/editorial/src/componentes/C.astro': `﻿${FS_NO_FRONTMATTER}`,
+  })
+  assert.equal(r.length, 3)
+  assert.match(r.join('\n'), /A\.astro:6 — node:fs/)
+  assert.match(r.join('\n'), /B\.astro:3 — node:fs/)
+  assert.match(r.join('\n'), /C\.astro:2 — node:fs/)
+})
+
+test('.astro com CRLF e com o código colado na cerca (---import …) — o import conta', () => {
+  const r = achados({
+    'packages/editorial/src/componentes/A.astro': "\r\n---\r\nimport { readFileSync } from 'node:fs'\r\n---\r\n<p/>",
+    'packages/editorial/src/componentes/B.astro': "---import { readFileSync } from 'node:fs'\n---\n<p/>",
+  })
+  assert.equal(r.length, 2)
+  assert.match(r.join('\n'), /A\.astro:3 — node:fs/)
+  assert.match(r.join('\n'), /B\.astro:1 — node:fs/)
+})
+
+test('.astro: um "---" numa linha DENTRO de template literal não fecha o frontmatter antes da hora', () => {
+  const r = achados({
+    'packages/editorial/src/componentes/Zz.astro': "---\nconst t = `\n---\n`\nimport { readFileSync } from 'node:fs'\n---\n<p>{t}</p>",
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /Zz\.astro:5 — node:fs$/)
+})
+
+test('.astro com "---" que a trava não reconhece como frontmatter reprova (falha fechada), não passa calado', () => {
+  const r = achados({
+    'packages/editorial/src/componentes/Zz.astro': "<p/>\n---\nimport { readFileSync } from 'node:fs'\n---\n<p/>",
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/componentes\/Zz\.astro:2 — frontmatter/)
+})
+
+test('.astro sem frontmatter e sem "---" não reprova; frontmatter legítimo com "---" no template também não', () => {
+  const r = achados({
+    'packages/editorial/src/componentes/A.astro': '<p>só template</p>',
+    'packages/editorial/src/componentes/B.astro': "---\nimport { join } from 'node:path'\nconst a = join('x')\n---\n<p>{a}</p>\n---\n<p>b</p>",
+  })
+  assert.deepEqual(r, [])
+})
+
 test('o repositório de verdade passa', () => {
   const raiz = fileURLToPath(new URL('..', import.meta.url))
   assert.deepEqual(procuraNodeNoWorker(raiz), [])
