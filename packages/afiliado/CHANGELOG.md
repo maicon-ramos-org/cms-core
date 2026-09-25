@@ -1,5 +1,12 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.3 — 2026-09-25 (pré-lançamento, PRD 24 RF10.10)
+
+Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
+`@maicon-ramos-org/editorial` 0.2.0-next.2 (dependência `workspace:*` deste pacote), que
+corrige o CMS fora do ar virando 404 guardável em cache — nenhuma mudança de código neste
+pacote, só o `pnpm pack` fixando a versão nova do tema na dependência.
+
 ## 0.2.0-next.2 — 2026-09-25 (pré-lançamento, PRD 24 RF3)
 
 Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`. Publicado junto com
