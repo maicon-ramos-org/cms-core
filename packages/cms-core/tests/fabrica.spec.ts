@@ -16,7 +16,7 @@ import { getPayload, type CollectionConfig, type SanitizedConfig } from 'payload
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cmsCore, colecoesComSeo, colecoesDoTenant, type OpcoesCmsCore } from '../src/fabrica'
-import { revalidateAfterOperation } from '../src/hooks/revalidate'
+import { revalidateAfterOperation, revalidateBeforeOperation } from '../src/hooks/revalidate'
 import type { CustomDaMidia, GeradorDeDerivados } from '../src/midia/derivados'
 
 const c = (slug: string, custom?: CollectionConfig['custom']): CollectionConfig => ({ slug, fields: [], ...(custom ? { custom } : {}) })
@@ -150,13 +150,26 @@ describe('cmsCore: as opções injetáveis', () => {
   })
 
   describe('revalidação', () => {
-    it('toda coleção ganha o envio das tags pendentes no afterOperation — as do núcleo, as de plugin e as do site', async () => {
+    it('toda coleção ganha o quadro da operação (beforeOperation) e o envio (afterOperation) — as do núcleo, as de plugin e as do site', async () => {
       const doSite: CollectionConfig = { slug: 'notas', fields: [{ name: 'titulo', type: 'text' }] }
       const config = await monta({ colecoes: [doSite] })
       for (const slug of ['posts', 'pages', 'tenants', 'midia', 'notas']) {
-        const hooks = config.collections.find((c) => c.slug === slug)!.hooks?.afterOperation ?? []
-        expect(hooks, slug).toContain(revalidateAfterOperation)
+        const hooks = config.collections.find((c) => c.slug === slug)!.hooks
+        expect(hooks?.afterOperation ?? [], slug).toContain(revalidateAfterOperation)
+        // por último: marca os `args` que o afterOperation recebe (o da midia vem depois do nomeBaseUnico)
+        expect((hooks?.beforeOperation ?? []).at(-1), slug).toBe(revalidateBeforeOperation)
       }
+    })
+
+    it('revalidacao.emSegundoPlano vai para o custom da config (só do servidor), de onde o hook o lê', async () => {
+      const emSegundoPlano = (p: Promise<unknown>) => void p
+      const config = await monta({ revalidacao: { emSegundoPlano } })
+      expect(config.custom?.revalidacao?.emSegundoPlano).toBe(emSegundoPlano)
+    })
+
+    it('sem a opção, a config não ganha custom (em Node, o envio sai solto, como sempre)', async () => {
+      const config = await monta()
+      expect(config.custom?.revalidacao).toBeUndefined()
     })
   })
 })

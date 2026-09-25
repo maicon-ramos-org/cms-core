@@ -57,19 +57,32 @@ sem a opção, a fábrica falha dizendo o que fazer (instalar, ou passar `sharp:
 
 ### Muda: a revalidação agrupa as tags de cada operação
 
-Antes, cada documento salvo disparava um POST ao site, sem esperar. Agora `afterChange` e
-`afterDelete` acumulam as tags em `req.context.tagsPendentes`, e `revalidateAfterOperation`
-— que a fábrica põe em toda coleção, sem nada a fazer no site — envia uma vez por operação
-de escrita, em lotes de até 100 tags por POST (`TAGS_POR_POST`), cada tag uma vez. Um
+Antes, cada documento salvo disparava um POST ao site, sem esperar. Agora a fábrica põe em
+toda coleção — sem nada a fazer no site — um `beforeOperation` (`revalidateBeforeOperation`),
+que abre o quadro da operação de escrita, e um `afterOperation` (`revalidateAfterOperation`),
+que o fecha. `afterChange` e `afterDelete` só acumulam as tags no quadro aberto, e a operação
+envia uma vez, em lotes de até 100 tags por POST (`TAGS_POR_POST`), cada tag uma vez. Um
 `update` em massa de 250 documentos passa de 250 POSTs a 3.
 
-- **O save espera o envio**, com o teto de 3 s de sempre: num Worker, promessa solta morre
-  com a resposta. Com o site fora do ar, o save leva até 3 s a mais, e segue salvando.
+- **O save não espera o envio**, como antes: o Payload roda o `afterOperation` antes do commit
+  da transação, e o site avisado antes do commit re-renderiza a página com o dado anterior e o
+  guarda em cache. O POST sai e a promessa vai para `revalidacao.emSegundoPlano` (opção nova da
+  fábrica, guardada no `custom` da config, que é só do servidor). Sem a opção, a promessa fica
+  solta — em Node, o de sempre. Num Worker, `(p) => getCloudflareContext().ctx.waitUntil(p)`,
+  para ela não morrer com a resposta.
+- **Escrita aninhada não parte o lote.** Um hook que grava em outra coleção com o mesmo `req`
+  (o histórico de preço do catálogo do afiliado, por exemplo) abre um quadro por cima do da
+  operação de fora; ao terminar, entrega as tags a ela, e só a de fora envia. Uma escrita
+  aninhada que falha e é engolida pelo hook não prende as tags da de fora; uma operação que
+  falhou num `req` que segue em uso passa as tags dela para a operação seguinte, quando esta
+  começa noutra transação.
 - Resposta de erro do site (o 429 de purge recusado, por exemplo) vira warning no logger,
-  como a falha de rede já virava.
-- As tags de cada documento não mudam. Hook usado numa config que não veio da fábrica envia
-  na hora, um POST por documento, como antes.
+  como a falha de rede já virava. A promessa do envio nunca rejeita.
+- As tags de cada documento não mudam. Hook usado numa config que não veio da fábrica (ou
+  chamado sem operação aberta) envia na hora, um POST por documento, como antes.
 - Scripts de import continuam com `REVALIDATE_URL=` vazio e um purge geral no fim.
+- Limite conhecido: operações concorrentes com o MESMO `req` (um `Promise.all` de escritas
+  num hook) podem sair em mais de um envio — nenhuma tag se perde, só o agrupamento.
 
 ### Ainda não
 

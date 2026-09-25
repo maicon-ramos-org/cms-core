@@ -18,8 +18,11 @@ export {
   revalidateAfterChange,
   revalidateAfterDelete,
   revalidateAfterOperation,
+  revalidateBeforeOperation,
   slugDeRelacao,
   TAGS_POR_POST,
+  type CustomDaRevalidacao,
+  type EmSegundoPlano,
   type OpcoesRevalidacao,
   type TagsExtras,
 } from './hooks/revalidate'

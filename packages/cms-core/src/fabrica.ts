@@ -41,7 +41,7 @@ import { Tenants } from './collections/Tenants'
 import { Users } from './collections/Users'
 import { editorFeatures } from './editor'
 import { copiaProfunda } from './copia'
-import { revalidateAfterOperation } from './hooks/revalidate'
+import { revalidateAfterOperation, revalidateBeforeOperation, type CustomDaRevalidacao, type EmSegundoPlano } from './hooks/revalidate'
 import type { CustomDaMidia, GeradorDeDerivados } from './midia/derivados'
 import { aplicaOrdem, type Ordem } from './ordem'
 import { configR2DaExecucao, urlPublica, type ConfigR2 } from './r2'
@@ -102,6 +102,14 @@ export interface OpcoesCmsCore {
   graphQL?: { disable: boolean }
   /** Sem a opção, o do Payload (pino). Num Worker, um logger sobre `console`: o `pino-pretty` não roda lá. */
   logger?: Config['logger']
+  revalidacao?: {
+    /**
+     * Quem segura a promessa do aviso ao site, que o save não espera (`hooks/revalidate.ts`).
+     * Sem a opção, ninguém — em Node, como sempre foi. Num Worker,
+     * `(p) => getCloudflareContext().ctx.waitUntil(p)`: sem isso a promessa morre com a resposta.
+     */
+    emSegundoPlano?: EmSegundoPlano
+  }
 }
 
 /** As coleções do núcleo, com o que o site acrescenta a `tenants` e a `pages`, e o gerador de derivados em `midia`. */
@@ -167,10 +175,18 @@ const semRecorteNemPontoFocal = emCadaColecao((c) =>
   c.upload ? { ...c, upload: { ...(typeof c.upload === 'object' ? c.upload : {}), crop: false, focalPoint: false } } : c,
 )
 
-/** O envio das tags de revalidação acumuladas, uma vez por operação (`hooks/revalidate.ts`). */
+/**
+ * O quadro de cada operação de escrita, onde as tags de revalidação se acumulam, e o envio
+ * delas quando a operação de fora termina (`hooks/revalidate.ts`). Os dois por último: o
+ * `beforeOperation` marca os `args` que o `afterOperation` recebe.
+ */
 const comEnvioDaRevalidacao = emCadaColecao((c) => ({
   ...c,
-  hooks: { ...c.hooks, afterOperation: [...(c.hooks?.afterOperation ?? []), revalidateAfterOperation] },
+  hooks: {
+    ...c.hooks,
+    beforeOperation: [...(c.hooks?.beforeOperation ?? []), revalidateBeforeOperation],
+    afterOperation: [...(c.hooks?.afterOperation ?? []), revalidateAfterOperation],
+  },
 }))
 
 /**
@@ -231,6 +247,10 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
     ...(opcoes.graphQL ? { graphQL: { disable: opcoes.graphQL.disable } } : {}),
     ...(opcoes.logger ? { logger: opcoes.logger } : {}),
     ...(opcoes.jobs ? { jobs: opcoes.jobs } : {}),
+    // `custom` da raiz é só do servidor (não vai à config do admin)
+    ...(opcoes.revalidacao?.emSegundoPlano
+      ? { custom: { revalidacao: { emSegundoPlano: opcoes.revalidacao.emSegundoPlano } } satisfies CustomDaRevalidacao }
+      : {}),
     plugins: [
       ...(opcoes.plugins ?? []),
       /*
