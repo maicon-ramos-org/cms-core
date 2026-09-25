@@ -1,6 +1,10 @@
 # @maicon-ramos-org/afiliado
 
-## Não publicado
+## 0.2.0-next.6 — 2026-09-25 (pré-lançamento, PRD 24)
+
+Pré-lançamento na dist-tag `next`; o `latest` continua em `0.1.0`. Fixa
+`@maicon-ramos-org/cms-core@0.2.0-next.2` e `@maicon-ramos-org/editorial@0.2.0-next.2`, os
+mesmos do 0.2.0-next.5.
 
 ### Corrigiu
 
