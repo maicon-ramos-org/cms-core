@@ -19,12 +19,24 @@
  * amanhã tem que ser uma decisão, não uma surpresa no deploy. Para permitir outro, confira
  * que o runtime dos Workers o implementa e acrescente em `PERMITIDOS`, com o motivo.
  *
+ * Os imports são achados pelo parser de verdade do TypeScript (`ts.createSourceFile` +
+ * `forEachChild`), não por regex no texto bruto. Uma heurística anterior tirava comentário
+ * por regex antes de mascarar string, e o início ou o fim de um comentário de bloco dentro
+ * de uma STRING (por exemplo uma string com o valor de dois caracteres "barra-asterisco")
+ * apagava tudo até o próximo fechamento de verdade — um import real no meio, escondido
+ * "atrás" de duas strings, sumia da análise sem avisar (achado real desta revisão, PRD 24
+ * RF3). O parser não erra: ele sabe onde uma string começa e termina, então nunca confunde
+ * o conteúdo dela com comentário ou com outro import — e também não depende de espaço
+ * depois de `import`/`export`/`from`.
+ *
  * `node scripts/confere-core-sem-node.mjs` (entra no `check` na RF4).
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { builtinModules } from 'node:module'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import ts from 'typescript'
 
 /** Os módulos do Node que o runtime dos Workers implementa e o lado web pode usar. */
 export const PERMITIDOS = new Set(['crypto', 'path', 'url'])
@@ -65,47 +77,67 @@ function arquivosDe(caminho) {
 }
 
 /**
- * O texto sem comentários, com as quebras de linha no lugar (a linha do achado continua
- * certa). Sem isso, a palavra "import" num comentário emendaria com o `from` do import de
- * baixo, e um `import type` passaria por import de valor. O `//` só abre comentário depois
- * de espaço ou pontuação: o de `https://` fica.
+ * O código de JS/TS de um arquivo, pronto para o parser, e a linha (0-based) em que ele
+ * começa no arquivo original. Para `.astro` é só o miolo do frontmatter — entre os `---` —,
+ * porque o resto é template, não JS; sem frontmatter, não há código para seguir.
  */
-const semComentarios = (texto) =>
-  texto
-    .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
-    .replace(/(^|[\s;{}(),])\/\/[^\n]*/gm, '$1')
+function codigoEOffset(caminho, textoOriginal) {
+  if (!caminho.endsWith('.astro')) return { codigo: textoOriginal, offset: 0 }
+  const m = textoOriginal.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!m) return { codigo: '', offset: 0 }
+  const inicioDoCodigo = m.index + m[0].indexOf(m[1])
+  return { codigo: m[1], offset: textoOriginal.slice(0, inicioDoCodigo).split('\n').length - 1 }
+}
+
+/** O texto fixo de um literal — string comum ou template SEM `${…}` — ou `null`. */
+function textoFixo(expr) {
+  if (ts.isStringLiteral(expr)) return expr.text
+  if (ts.isNoSubstitutionTemplateLiteral(expr)) return expr.text
+  return null
+}
 
 /**
- * Os imports de VALOR de um arquivo, com a linha. `import type`/`export type` ficam de fora;
- * `import { type A }` conta (o compilador pode manter o import), o que é a favor da trava.
- * Import dinâmico e `require` contam quando o módulo é texto fixo — entre aspas ou em
- * template literal sem `${…}`, que o bundler resolve do mesmo jeito.
+ * Os imports de VALOR de um arquivo, com a linha (1-based, do arquivo original). Pelo
+ * parser do TypeScript: uma string ou template com `/*`, `//` ou `import`/`from` dentro
+ * nunca é confundido com código de verdade, e não importa se falta espaço depois de
+ * `import`/`export` (`import{x}from'm'`, `export*from'm'` são achados do mesmo jeito).
+ *
+ * `import type`/`export type` (a declaração INTEIRA) ficam de fora — não vão para o bundle.
+ * `import { type A } from 'm'` CONTA: o compilador pode manter o import mesmo com o
+ * especificador marcado, o que é a favor da trava (prefere reprovar demais a de menos).
+ * Import dinâmico (`import(...)`) e `require(...)` contam quando o módulo é texto fixo —
+ * string ou template sem interpolação, que o bundler resolve do mesmo jeito; com `${…}` não
+ * há como saber o módulo, e a trava não tem base para reprovar.
  */
-export function importsDe(textoOriginal) {
-  const texto = semComentarios(textoOriginal)
+export function importsDe(textoOriginal, caminho = 'arquivo.ts') {
+  const { codigo, offset } = codigoEOffset(caminho, textoOriginal)
+  if (!codigo.trim()) return []
+
+  const nomeParaOParser = caminho.endsWith('.astro') ? `${caminho}.ts` : caminho
+  const sourceFile = ts.createSourceFile(nomeParaOParser, codigo, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const linhaDe = (pos) => sourceFile.getLineAndCharacterOfPosition(pos).line + 1 + offset
+
   const achados = []
-  const linhaDe = (i) => texto.slice(0, i).split('\n').length
-  const padroes = [
-    // import x from 'm' / import { a } from 'm' / import * as x from 'm' / export … from 'm'
-    /\b(import|export)(\s+type\b)?\s[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/g,
-    // import 'm' (só efeito colateral)
-    /\bimport\s*['"]([^'"]+)['"]/g,
-    // import('m') com texto fixo
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-    // import(`m`) sem interpolação: o bundler resolve igual a uma string, e o módulo entra.
-    // Com `${…}` não há texto fixo, e a trava não tem como saber o módulo.
-    /\bimport\s*\(\s*`([^`$]+)`\s*\)/g,
-    // require('m') / require(`m`): o bundler segue o CommonJS também. Nada no núcleo usa
-    // hoje (é tudo ESM); a trava cobre para que o primeiro não passe calado.
-    /(?<![\w$.])require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-    /(?<![\w$.])require\s*\(\s*`([^`$]+)`\s*\)/g,
-  ]
-  for (const [n, re] of padroes.entries()) {
-    for (const m of texto.matchAll(re)) {
-      if (n === 0 && m[2]) continue
-      achados.push({ especificador: n === 0 ? m[3] : m[1], linha: linhaDe(m.index) })
+  const visita = (node) => {
+    if (ts.isImportDeclaration(node)) {
+      if (!node.importClause?.isTypeOnly && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        achados.push({ especificador: node.moduleSpecifier.text, linha: linhaDe(node.getStart(sourceFile)) })
+      }
+    } else if (ts.isExportDeclaration(node)) {
+      if (!node.isTypeOnly && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        achados.push({ especificador: node.moduleSpecifier.text, linha: linhaDe(node.getStart(sourceFile)) })
+      }
+    } else if (ts.isCallExpression(node)) {
+      const eImportDinamico = node.expression.kind === ts.SyntaxKind.ImportKeyword
+      const eRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
+      if ((eImportDinamico || eRequire) && node.arguments.length > 0) {
+        const modulo = textoFixo(node.arguments[0])
+        if (modulo !== null) achados.push({ especificador: modulo, linha: linhaDe(node.getStart(sourceFile)) })
+      }
     }
+    ts.forEachChild(node, visita)
   }
+  visita(sourceFile)
   return achados
 }
 
@@ -175,7 +207,7 @@ export function procuraNodeNoWorker(raiz, entradas = ENTRADAS) {
     if (visto.has(arquivo)) continue
     visto.add(arquivo)
     const rel = paraBarra(relative(raiz, arquivo))
-    for (const { especificador, linha } of importsDe(readFileSync(arquivo, 'utf8'))) {
+    for (const { especificador, linha } of importsDe(readFileSync(arquivo, 'utf8'), arquivo)) {
       const semPrefixo = especificador.replace(/^node:/, '')
       const base = semPrefixo.split('/')[0]
       if (especificador.startsWith('node:') || DO_NODE.has(semPrefixo) || DO_NODE.has(base)) {

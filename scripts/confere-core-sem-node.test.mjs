@@ -199,6 +199,51 @@ test('as entradas são as do Worker web: middleware, rotas, componentes e lib do
   }
 })
 
+test('BLOQUEANTE (revisão): string tipo /* ... */ ao redor de um import real não some (falso negativo da regex antiga)', () => {
+  const r = achados({
+    'packages/editorial/src/lib/x.ts': [
+      "const a = '/*'",
+      "import { readFileSync } from 'node:fs'",
+      "const b = '*/'",
+      'export const y = [a, readFileSync, b]',
+    ].join('\n'),
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/lib\/x\.ts:2 — node:fs/)
+})
+
+test('BLOQUEANTE (revisão): import sem espaço depois de import/export é achado', () => {
+  const r = achados({
+    'packages/editorial/src/lib/a.ts': "import{readFileSync}from'node:fs'\nexport const f = readFileSync",
+    'packages/editorial/src/lib/b.ts': "export*from'node:os'",
+  })
+  assert.equal(r.length, 2)
+  assert.match(r.join('\n'), /a\.ts:1 — node:fs/)
+  assert.match(r.join('\n'), /b\.ts:1 — node:os/)
+})
+
+test('BLOQUEANTE (revisão): " //" dentro de uma string não apaga o código real que vem depois, na mesma linha', () => {
+  const r = achados({
+    'packages/editorial/src/lib/x.ts':
+      "const nota = \"veja a doc em /x //y\"; import { readFileSync } from 'node:fs'\nexport const f = readFileSync",
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/lib\/x\.ts:1 — node:fs/)
+})
+
+test('BLOQUEANTE (revisão): a mesma classe de erro com template literal no lugar de string', () => {
+  const r = achados({
+    'packages/editorial/src/lib/x.ts': [
+      'const a = `/*`',
+      "import { readFileSync } from 'node:fs'",
+      'const b = `*/`',
+      'export const f = readFileSync',
+    ].join('\n'),
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /^packages\/editorial\/src\/lib\/x\.ts:2 — node:fs/)
+})
+
 test('o repositório de verdade passa', () => {
   const raiz = fileURLToPath(new URL('..', import.meta.url))
   assert.deepEqual(procuraNodeNoWorker(raiz), [])
