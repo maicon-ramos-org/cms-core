@@ -1,5 +1,21 @@
 # @maicon-ramos-org/cms-core
 
+## 0.2.0-next.3 — 2026-09-25 (pré-lançamento preparado, ainda não publicado)
+
+- Entrada opt-in `./grafo`: coleções de entidades, relações, fontes, claims,
+  pesquisas, clusters e eventos. Vínculos de tenant são verificados por hooks,
+  inclusive na Local API; origem de import é imutável e única por tenant.
+- Contexto autenticado e limitado, sem corpo de post; eventos append-only com ator
+  da credencial; novos posts de agente entram em draft.
+- Respostas dos endpoints autenticados declaram `private, no-store`; isolamento
+  também é provado nas rotas REST genéricas e no histórico de versões. Auditoria
+  suporta hooks concorrentes no mesmo request sem perder sua autorização interna.
+- Markdown/Lexical, registro extensível de formatos, avaliação determinística e
+  dry-run dos gates iniciais G1–G4. Ativação por tenant, sempre reavaliada ao salvar
+  conteúdo publicado. Uploads usam IDs de mídia do mesmo tenant.
+- Contrato e limites em `docs/contratos/grafo-editorial.md`: ainda não entrega G5,
+  vetores, fila de pauta, migração de instância ou operação de produção.
+
 ## 0.2.0-next.2 — 2026-09-25 (pré-lançamento, PRD 24 RF2)
 
 Pré-lançamento na dist-tag `next`; o `latest` continua em `0.1.0`. Publicado junto com

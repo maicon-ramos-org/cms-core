@@ -1,12 +1,13 @@
 {
   "name": "@maicon-ramos-org/cms-core",
-  "version": "0.2.0-next.2",
+  "version": "0.2.0-next.3",
   "description": "Núcleo do CMS: a fábrica da config do Payload (PRD 17, ADR-0011)",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./grafo": "./src/grafo/index.ts",
     "./scripts": "./src/scripts/index.ts"
   },
   "files": [
