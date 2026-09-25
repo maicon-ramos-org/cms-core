@@ -23,7 +23,9 @@ import { snapshotDescontoTask } from './jobs/snapshotDesconto'
  * - `lojas`, `ofertas` e `produtos` como destino de link do auto-linker;
  * - a proteção de referência do catálogo físico em TODA coleção — inclusive nas do núcleo,
  *   como `midia` e `tenants`, que o catálogo referencia;
- * - a tarefa do snapshot diário de desconto. QUANDO ela roda é do site (`jobs.autoRun`).
+ * - a tarefa do snapshot diário de desconto, com a agenda (03:10 UTC, fila `diario`). Quem
+ *   passa o relógio é o site: `jobs.autoRun` nessa fila (Node) ou o Cron Trigger chamando
+ *   `/api/payload-jobs/run?queue=diario` (Workers).
  *
  * Acrescenta no fim; a posição final de cada coisa é a `ordem` que o site passa à fábrica.
  */

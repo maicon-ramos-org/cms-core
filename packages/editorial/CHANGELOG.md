@@ -1,6 +1,6 @@
 # @maicon-ramos-org/editorial
 
-## Não lançado
+## Não publicado
 
 O tema roda em Node e em Workers (PRD 24 RF3). Em Node, o comportamento é o de antes.
 
