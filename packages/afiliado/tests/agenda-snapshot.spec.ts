@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { agendaDoSnapshot, primeiraPassadaNaHora, snapshotDescontoTask } from '../src/cms'
+import { agendaDoSnapshot, JOB_PRESO_DEPOIS_DE_MS, primeiraPassadaNaHora, snapshotDescontoTask } from '../src/cms'
 
 /**
  * A agenda do snapshot diário de desconto (PRD 24 RF8). Quem AGENDA o job é a própria task
@@ -17,8 +17,19 @@ type Args = Parameters<AntesDeAgendar>[0]
 
 const WAIT_UNTIL_DO_PAYLOAD = new Date('2026-10-02T03:10:00.000Z')
 
+/** O `req` do hook, com o que ele usa do banco: `db.updateJobs` devolve os jobs liberados. */
+const reqCom = (liberados: unknown[] = []) => {
+  const updateJobs = vi.fn(async () => liberados)
+  const warn = vi.fn()
+  return { req: { payload: { db: { updateJobs }, logger: { warn } } } as unknown as Args['req'], updateJobs, warn }
+}
+
 /** Os argumentos que o `handleSchedules` do Payload 3.88 passa ao hook. */
-const args = (lastScheduledRun: string | undefined, padrao: Awaited<ReturnType<AntesDeAgendar>>): Args => ({
+const args = (
+  lastScheduledRun: string | undefined,
+  padrao: Awaited<ReturnType<AntesDeAgendar>>,
+  req: Args['req'] = reqCom().req,
+): Args => ({
   defaultBeforeSchedule: vi.fn(async () => padrao),
   jobStats: lastScheduledRun
     ? { stats: { scheduledRuns: { queues: { diario: { tasks: { snapshotDesconto: { lastScheduledRun } } } } } } }
@@ -28,7 +39,7 @@ const args = (lastScheduledRun: string | undefined, padrao: Awaited<ReturnType<A
     taskConfig: snapshotDescontoTask as Args['queueable']['taskConfig'],
     waitUntil: WAIT_UNTIL_DO_PAYLOAD,
   },
-  req: {} as Args['req'],
+  req,
 })
 
 describe('a agenda do snapshotDesconto', () => {
@@ -62,5 +73,69 @@ describe('primeiraPassadaNaHora', () => {
     const semVaga = { input: {}, shouldSchedule: false, waitUntil: WAIT_UNTIL_DO_PAYLOAD }
     expect((await primeiraPassadaNaHora(args(undefined, semVaga))).shouldSchedule).toBe(false)
     expect((await primeiraPassadaNaHora(args('2026-10-01T03:10:00.250Z', semVaga))).shouldSchedule).toBe(false)
+  })
+})
+
+/**
+ * O job preso. O `defaultBeforeSchedule` do Payload 3.88 conta como pendente todo job agendado
+ * sem `completedAt` e sem `error` — inclusive o que está em `processing`. O `runJobs` só pega
+ * `processing: false`, e o Payload não tem nada que solte um job que ficou em `processing`
+ * porque o processo morreu no meio (deploy às 03:10, requisição do Worker cortada por CPU).
+ * Sem o hook soltar esse job, a agenda nunca mais agenda e o snapshot para para sempre.
+ */
+describe('primeiraPassadaNaHora solta o job preso em processing', () => {
+  const AGORA = new Date('2026-10-03T03:10:00.250Z')
+
+  it('antes de o Payload contar os pendentes, marca como erro os jobs do snapshot presos há mais de 6 h', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(AGORA)
+    try {
+      const { req, updateJobs } = reqCom()
+      const padrao = { input: {}, shouldSchedule: true, waitUntil: WAIT_UNTIL_DO_PAYLOAD }
+      const a = args('2026-10-01T03:10:00.250Z', padrao, req)
+      await primeiraPassadaNaHora(a)
+
+      expect(JOB_PRESO_DEPOIS_DE_MS).toBe(6 * 60 * 60 * 1000)
+      expect(updateJobs).toHaveBeenCalledOnce()
+      // a ordem importa: soltar primeiro, contar depois — senão o preso ainda bloqueia hoje
+      expect(updateJobs.mock.invocationCallOrder[0]).toBeLessThan(
+        (a.defaultBeforeSchedule as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!,
+      )
+      const chamada = updateJobs.mock.calls[0] as unknown as [
+        { data: Record<string, unknown>; req: unknown; where: { and: Record<string, unknown>[] } },
+      ]
+      const { data, where } = chamada[0]
+      expect(chamada[0].req).toBe(req)
+      // só o job desta agenda: a task, a fila, agendado, em processing, não concluído, parado
+      expect(where.and).toEqual(
+        expect.arrayContaining([
+          { taskSlug: { equals: 'snapshotDesconto' } },
+          { queue: { equals: 'diario' } },
+          { 'meta.scheduled': { equals: true } },
+          { processing: { equals: true } },
+          { completedAt: { exists: false } },
+          { updatedAt: { less_than: new Date(AGORA.getTime() - JOB_PRESO_DEPOIS_DE_MS).toISOString() } },
+        ]),
+      )
+      expect(where.and).toHaveLength(6)
+      // sai da contagem do Payload (`error` existe) e da fila do runJobs (hasError, sem processing)
+      expect(data).toMatchObject({ hasError: true, processing: false })
+      expect(data.error).toMatchObject({ message: expect.stringMatching(/preso/) })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('avisa no log quando soltou algum job (nunca em silêncio)', async () => {
+    const { req, warn } = reqCom([{ id: 7 }])
+    await primeiraPassadaNaHora(args('2026-10-01T03:10:00.250Z', { input: {}, shouldSchedule: true }, req))
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0]!.at(-1))).toMatch(/preso/)
+  })
+
+  it('sem job preso, não avisa nada', async () => {
+    const { req, warn } = reqCom([])
+    await primeiraPassadaNaHora(args('2026-10-01T03:10:00.250Z', { input: {}, shouldSchedule: true }, req))
+    expect(warn).not.toHaveBeenCalled()
   })
 })

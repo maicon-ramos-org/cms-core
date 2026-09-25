@@ -206,4 +206,49 @@ describe.skipIf(semAmbiente)('a agenda do snapshotDesconto contra o Payload e o 
     await tiqueDaVps('2026-10-14T03:10:05.000Z')
     expect(noDia('2026-10-14')).toBe(1)
   }, 60_000)
+
+  it('o job que ficou preso em processing (o processo morreu no meio) não trava a agenda: no dia seguinte volta a rodar uma vez', async () => {
+    await zera()
+    await tiqueDaVps('2026-10-20T03:10:00.250Z')
+    expect(noDia('2026-10-20')).toBe(1)
+
+    // dia 21, 03:10: a agenda põe o job do dia na fila, o runJobs o pega (processing: true) e o
+    // processo morre antes de terminar — deploy ou reinício da VPS, ou a requisição do Worker
+    // cortada por CPU
+    vi.setSystemTime(new Date('2026-10-21T03:10:00.250Z'))
+    await payload.jobs.handleSchedules({ queue: agendaDoSnapshot.queue })
+    const pegos = await payload.db.updateJobs({
+      where: {
+        and: [
+          { queue: { equals: agendaDoSnapshot.queue } },
+          { taskSlug: { equals: 'snapshotDesconto' } },
+          { completedAt: { exists: false } },
+        ],
+      },
+      data: { processing: true },
+    })
+    expect(pegos).toHaveLength(1)
+    const preso = pegos![0]!.id
+
+    // minutos depois, outro tique no mesmo dia: o job pode estar rodando de verdade — não mexe
+    await tiqueDoWorker('2026-10-21T03:15:00.000Z')
+    expect(noDia('2026-10-21')).toBe(0)
+    expect(await payload.findByID({ collection: 'payload-jobs', id: preso, depth: 0 })).toMatchObject({
+      processing: true,
+    })
+
+    // nos dias seguintes o preso é solto e o snapshot volta: uma vez por dia
+    await tiqueDaVps('2026-10-22T03:10:00.250Z')
+    expect(noDia('2026-10-22')).toBe(1)
+    await tiqueDaVps('2026-10-23T03:10:00.250Z')
+    expect(noDia('2026-10-23')).toBe(1)
+    await tiqueDoWorker('2026-10-24T03:10:02.000Z')
+    expect(noDia('2026-10-24')).toBe(1)
+    expect(execucoes).toEqual(['2026-10-20', '2026-10-22', '2026-10-23', '2026-10-24'])
+
+    // o preso não sumiu: ficou como erro, com o motivo, para quem olhar o admin
+    const depois = await payload.findByID({ collection: 'payload-jobs', id: preso, depth: 0 })
+    expect(depois).toMatchObject({ processing: false, hasError: true })
+    expect(JSON.stringify(depois.error)).toMatch(/preso/)
+  }, 60_000)
 })

@@ -13,6 +13,13 @@
   no máximo uma execução por dia — pelo `autoRun` (Node) ou pela rota
   `GET /api/payload-jobs/run?queue=diario` (Cron Trigger dos Workers), mesmo com os dois
   relógios no mesmo banco.
+- Um job do snapshot que fica preso em `processing` (o processo morreu no meio: deploy ou
+  reinício às 03:10, ou a requisição do Cron Trigger cortada por CPU) não trava mais a agenda.
+  O Payload 3.88 conta esse job como pendente para sempre e nunca mais agenda; antes da
+  contagem, o `primeiraPassadaNaHora` marca como erro (`hasError`, `error` com o motivo, sem
+  apagar) os jobs agendados da task em `processing` parados há mais de 6 h
+  (`JOB_PRESO_DEPOIS_DE_MS`, `soltaJobsPresos`, exportados) e avisa no log. No dia seguinte o
+  snapshot volta a rodar uma vez.
 
 ### Migração no site
 

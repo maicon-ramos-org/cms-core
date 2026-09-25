@@ -9,9 +9,11 @@ export { lockListing, observaListing } from './catalogo/hooks'
 export {
   agendaDoSnapshot,
   diaDeHoje,
+  JOB_PRESO_DEPOIS_DE_MS,
   primeiraPassadaNaHora,
   rodaSnapshotDesconto,
   snapshotDescontoTask,
+  soltaJobsPresos,
   type ResumoSnapshot,
 } from './jobs/snapshotDesconto'
 export { tagsDaLoja } from './hooks/tags-loja'
