@@ -1,5 +1,19 @@
 # @maicon-ramos-org/afiliado
 
+## Não publicado
+
+### Corrigiu
+
+- Cliques do `/r/{id}` voltam a ser gravados nos Workers (PRD 24). Lá, o POST de
+  `/api/cliques` ao CMS (também num Worker) leva de 1,3 s a 1,5 s, e o teto de 1,5 s abortava
+  quase todo registro — a coleção `cliques` parou de receber cliques na virada, sem erro
+  visível (a falha só vira aviso no log). Agora, quando o adaptador oferece o `waitUntil` do
+  Worker (`locals.cfContext`, do `@astrojs/cloudflare`), o registro começa antes do redirect
+  e termina depois da resposta, com teto de 10 s: o redirect não espera o CMS. Em Node (sem
+  `waitUntil`) nada muda: o redirect espera o registro, com o teto de 1,5 s.
+- O POST do clique pede `?depth=0`: a resposta não popula mais o tenant e a loja, que
+  ninguém lê.
+
 ## 0.2.0-next.5 — 2026-09-25 (pré-lançamento, PRD 24 RF2)
 
 Pré-lançamento na dist-tag `next`; o `latest` continua em `0.1.0`. Sem mudança de código no
