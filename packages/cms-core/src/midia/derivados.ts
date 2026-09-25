@@ -29,6 +29,17 @@ export interface EntradaDoGerador {
   filename: string
   /** os `imageSizes` da coleção, como o Payload os declara (nome, medidas, `fit`, formato) */
   imageSizes: ImageSize[]
+  /**
+   * opcional — recebe o aviso de `derivadosViaImages` quando o binding devolve um formato
+   * diferente do pedido (o fallback medido acima da RF2). Cabe o `payload.logger` (pino):
+   * `warn(objeto, mensagem)`.
+   */
+  logger?: LoggerDoGerador
+}
+
+/** O suficiente do `payload.logger` (pino) pro aviso de fallback: `warn(objeto, mensagem)`. */
+export interface LoggerDoGerador {
+  warn(objeto: Record<string, unknown>, mensagem: string): void
 }
 
 /** Um derivado pronto: o que entra em `data.sizes[nome]` e em `req.payloadUploadSizes[nome]`. */
@@ -150,10 +161,24 @@ export interface BindingImages {
  * (que o `sharp` redimensiona e o binding não aceita fora do Enterprise —
  * `MIME_DO_BINDING_IMAGES`) falha dizendo o tipo, e o erro que o binding lançar sai com o
  * tipo, o arquivo e o tamanho na mensagem (o original em `cause`).
+ *
+ * **O formato de SAÍDA que vale é o que o binding devolveu, nunca o pedido**: provado com um
+ * Worker de teste (binding de verdade, plano Paid) em 2026-09-25 — de um PNG 3200×1800,
+ * `output({format:'image/avif', quality:55})` em 1600×900 (a `capa` desta coleção) saiu AVIF de
+ * verdade (`ftypavif`, `contentType()` e `info()` concordando em `image/avif`, 38,8KB contra
+ * 45,6KB do mesmo corte em WebP); 1200×675 e 640×360 também saíram AVIF; mas 2400×1350 pedido em
+ * AVIF voltou WebP **silenciosamente** (sem erro; `contentType()` e `info()` já diziam
+ * `image/webp`). Ou seja: a `capa` 1600×900 AVIF funciona no binding, o limite de 1.200px da
+ * página de limites da Cloudflare não vale para este uso, mas o fallback existe acima de
+ * ~1.600–2.400px. Por isso `mimeType`, a extensão do `filename` e o `filesize` do derivado vêm
+ * SEMPRE de `resultado.contentType()`/`info()` (nunca do `formato` pedido — um `.avif` com WebP
+ * dentro corromperia o `og:image` e o `<picture>`), e quando o formato devolvido difere do
+ * pedido o gerador avisa no `logger` (não falha o upload: a imagem grande ainda tem um
+ * derivado, só não no formato ideal).
  */
 export function derivadosViaImages(binding: BindingImages): GeradorDeDerivados {
   return {
-    async gera({ bytes, mimeType, filename, imageSizes }) {
+    async gera({ bytes, mimeType, filename, imageSizes, logger }) {
       if (!MIME_REDIMENSIONAVEIS.includes(mimeType) || imageSizes.length === 0) return []
       const doArquivo = `o original ${mimeType} (${filename})`
       if (!MIME_DO_BINDING_IMAGES.includes(mimeType)) {
@@ -185,7 +210,16 @@ export function derivadosViaImages(binding: BindingImages): GeradorDeDerivados {
           )
           if (!('width' in medidas)) throw new Error(`derivadosViaImages: o tamanho \`${tamanho.name}\` saiu sem medidas (${medidas.format})`)
 
+          // o formato de saída que VALE é o que o binding devolveu — nunca o pedido (o fallback
+          // silencioso de imagem grande demais, medido acima); um `.avif` com WebP dentro
+          // corromperia o `og:image` e o `<picture>`.
           const tipo = resultado.contentType() || formato
+          if (tipo !== formato) {
+            logger?.warn(
+              { arquivo: filename, largura: medidas.width, altura: medidas.height, pedido: formato, saida: tipo, tamanho: tamanho.name },
+              'derivadosViaImages: o binding Images devolveu um formato diferente do pedido (fallback por imagem grande demais?)',
+            )
+          }
           const extensao = EXTENSAO[tipo] ?? extensaoOriginal
           const nomeDoArquivo = tamanho.generateImageName
             ? tamanho.generateImageName({

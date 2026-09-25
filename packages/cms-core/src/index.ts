@@ -13,6 +13,7 @@ export {
   type Derivado,
   type EntradaDoGerador,
   type GeradorDeDerivados,
+  type LoggerDoGerador,
 } from './midia/derivados'
 export { aplicaOrdem, ordenaPor, type Ordem } from './ordem'
 export { acrescentaAoGrupoDoTenant, acrescentaCamposAoTenant, acrescentaDestinosDoAutoLinker, ajustaCampo } from './extensoes'

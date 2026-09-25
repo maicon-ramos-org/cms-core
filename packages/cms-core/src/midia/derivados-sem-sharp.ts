@@ -38,6 +38,7 @@ export const derivadosSemSharp: CollectionBeforeChangeHook = async ({ collection
     mimeType: arquivo.mimetype,
     filename: data.filename,
     imageSizes,
+    logger: req.payload.logger,
   })
   const porNome = new Map(derivados.map((d) => [d.nome, d]))
 

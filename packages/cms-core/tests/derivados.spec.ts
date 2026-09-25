@@ -6,6 +6,12 @@
  * confere é o contrato com o Payload — `data.sizes` e `req.payloadUploadSizes` — e a
  * tradução de cada `imageSizes` da coleção `midia` para as opções do binding. A prova com o
  * binding de verdade (os três derivados no bucket de dev, o `og` com fundo branco) é da RF7.
+ *
+ * O "formato pedido AVIF; o binding volta WebP" abaixo reproduz o fallback medido com um
+ * Worker de teste em 2026-09-25 (binding de verdade, plano Paid): a `capa` 1600×900 AVIF q55
+ * saiu AVIF de verdade, mas um original grande o bastante (testado em 2400×1350) fez o mesmo
+ * pedido voltar WebP silenciosamente. O gerador tem de confiar no formato que o binding
+ * devolveu, não no pedido.
  */
 import type { CollectionBeforeChangeHook, ImageSize, SanitizedCollectionConfig } from 'payload'
 import { describe, expect, it, vi } from 'vitest'
@@ -17,6 +23,7 @@ import {
   MIME_REDIMENSIONAVEIS,
   type BindingImages,
   type GeradorDeDerivados,
+  type LoggerDoGerador,
   type SaidaDeImagem,
   type TransformacaoDeImagem,
   type TransformadorDeImagem,
@@ -114,6 +121,58 @@ describe('derivadosViaImages: os imageSizes da coleção midia pelo binding Imag
         saida: { format: 'image/jpeg', quality: 80 },
       },
     ])
+  })
+
+  it('formato pedido AVIF; o binding volta WebP (imagem grande demais): mimeType, extensão do filename e filesize saem do formato REAL devolvido, e o logger recebe o aviso (sem falhar o upload)', async () => {
+    const { binding: real } = bindingFalso()
+    // simula o fallback medido: pedido `image/avif` na `capa`, o binding devolve WebP sem erro
+    const binding: BindingImages = {
+      info: real.info,
+      input(fluxo) {
+        const interno = real.input(fluxo)
+        const wrapper: TransformadorDeImagem = {
+          transform(t) {
+            interno.transform(t)
+            return wrapper
+          },
+          async output(saida) {
+            const resultado = await interno.output(saida)
+            return saida.format === 'image/avif' ? { image: resultado.image, contentType: () => 'image/webp' } : resultado
+          },
+        }
+        return wrapper
+      },
+    }
+    const avisos: Array<{ objeto: Record<string, unknown>; mensagem: string }> = []
+    const logger: LoggerDoGerador = { warn: (objeto, mensagem) => avisos.push({ objeto, mensagem }) }
+    const tamanhoCapa = TAMANHOS.find((t) => t.name === 'capa')!
+
+    const derivados = await derivadosViaImages(binding).gera({
+      bytes: imagem(3200, 1800),
+      mimeType: 'image/png',
+      filename: 'capa-grande.png',
+      imageSizes: [tamanhoCapa],
+      logger,
+    })
+
+    expect(derivados).toHaveLength(1)
+    const [derivado] = derivados
+    expect({ ...derivado, bytes: undefined }).toMatchObject({ nome: 'capa', mimeType: 'image/webp', filename: 'capa-grande-1600x900.webp' })
+    expect(derivado!.filesize).toBe(derivado!.bytes.byteLength) // nunca um .avif com WebP dentro: filesize também é o real
+    expect(avisos).toEqual([
+      {
+        objeto: { arquivo: 'capa-grande.png', largura: 1600, altura: 900, pedido: 'image/avif', saida: 'image/webp', tamanho: 'capa' },
+        mensagem: 'derivadosViaImages: o binding Images devolveu um formato diferente do pedido (fallback por imagem grande demais?)',
+      },
+    ])
+  })
+
+  it('formato pedido e devolvido iguais: nenhum aviso no logger', async () => {
+    const { binding } = bindingFalso()
+    const avisos: unknown[] = []
+    const logger: LoggerDoGerador = { warn: (...args) => avisos.push(args) }
+    await derivadosViaImages(binding).gera({ bytes: imagem(1280, 720), mimeType: 'image/png', filename: 'x.png', imageSizes: TAMANHOS, logger })
+    expect(avisos).toEqual([])
   })
 
   it('original menor que o cartão: o cartão sai do tamanho do original (sem ampliar), a capa e o og ampliam', async () => {
@@ -250,7 +309,7 @@ function argumentos({ sharp, gerador, arquivo }: { sharp?: unknown; gerador?: Ge
   const req = {
     file: arquivo === null ? undefined : { name: 'capa-do-post.png', size: 0, ...(arquivo ?? { data: imagem(1280, 720), mimetype: 'image/png' }) },
     payloadUploadSizes: {} as Record<string, Buffer>,
-    payload: { config: sharp ? { sharp } : {} },
+    payload: { config: sharp ? { sharp } : {}, logger: { warn: vi.fn() } as unknown as LoggerDoGerador },
   }
   return { collection, data, req } as unknown as Parameters<CollectionBeforeChangeHook>[0] & { data: typeof data; req: typeof req }
 }
@@ -296,11 +355,17 @@ describe('derivadosSemSharp: o beforeChange que preenche data.sizes e req.payloa
     expect(Object.keys(args.req.payloadUploadSizes)).toEqual(['og'])
   })
 
-  it('o gerador recebe os bytes do upload, o tipo, o nome final do registro e os imageSizes da coleção', async () => {
+  it('o gerador recebe os bytes do upload, o tipo, o nome final do registro, os imageSizes da coleção e o logger do payload (o aviso de fallback vai nele)', async () => {
     const gera = vi.fn<GeradorDeDerivados['gera']>(async () => [])
     const args = argumentos({ gerador: { gera } })
     await derivadosSemSharp(args)
-    expect(gera).toHaveBeenCalledWith({ bytes: args.req.file!.data, mimeType: 'image/png', filename: 'capa-do-post.png', imageSizes: TAMANHOS })
+    expect(gera).toHaveBeenCalledWith({
+      bytes: args.req.file!.data,
+      mimeType: 'image/png',
+      filename: 'capa-do-post.png',
+      imageSizes: TAMANHOS,
+      logger: args.req.payload.logger,
+    })
   })
 
   it('COM sharp na config, o hook não roda: o gerador nem é chamado e o registro sai como o Payload deixou (Node, como hoje)', async () => {

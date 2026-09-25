@@ -105,6 +105,17 @@ envia uma vez, em lotes de até 100 tags por POST (`TAGS_POR_POST`), cada tag um
   `BindingImages` (o subconjunto do binding que o gerador usa; o `env.IMAGES` cabe nele sem
   conversão), `MIME_REDIMENSIONAVEIS` (a lista do `sharp`) e `MIME_DO_BINDING_IMAGES` (a
   entrada do binding: JPEG, PNG, GIF, WebP).
+- **O formato de saída vem do binding, nunca do pedido.** Provado com um Worker de teste
+  (binding Images de verdade, plano Paid) em 2026-09-25: de um PNG 3200×1800,
+  `output({format:'image/avif', quality:55})` em 1600×900 (a `capa` desta coleção) saiu AVIF de
+  verdade (`ftypavif`; `contentType()` e `info()` concordando em `image/avif`, 38,8KB contra
+  45,6KB do mesmo corte em WebP) — o limite de 1.200px da página de limites da Cloudflare **não
+  vale** para este uso; 1200×675 e 640×360 também saíram AVIF. Mas 2400×1350 pedido em AVIF
+  voltou WebP **silenciosamente** (sem erro; `contentType()` e `info()` já diziam `image/webp`):
+  o fallback existe acima de ~1.600–2.400px. Por isso `mimeType`, a extensão do `filename` e o
+  `filesize` de cada derivado saem sempre do que `resultado.contentType()`/`info()` devolveram —
+  nunca um `.avif` com WebP dentro — e quando o formato devolvido difere do pedido o gerador
+  avisa no `logger` (`EntradaDoGerador.logger`, o `payload.logger`), sem falhar o upload.
 - A coleção `midia` ganha um `beforeChange` (`midia/derivados-sem-sharp.ts`) que, **só quando
   a config vem sem `sharp`**, chama o gerador de `custom.derivados` e preenche `data.sizes` e
   `req.payloadUploadSizes` — o que o `storage-s3` sobe. Com `sharp`, não faz nada.
