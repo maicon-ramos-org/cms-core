@@ -9,7 +9,9 @@ import { getDestinoFisico } from '../../lib/catalogo'
  * 2. só monetiza estado apto: cupom publicado|expirando|expirado; produto landing|indexavel
  * 3. builder por programa (@maicon-ramos-org/afflinks); sem ID de afiliado configurado → redireciona
  *    a URL fonte CRUA (sem comissão) e loga mesmo assim — nunca 500 pro usuário
- * 4. log ANTES do redirect (falha de log nunca bloqueia)
+ * 4. o registro do clique começa ANTES do redirect, e falha de log nunca bloqueia. Nos
+ *    Workers o redirect não espera a gravação: ela termina depois da resposta, no
+ *    `waitUntil` do Worker (teto de 10 s). Em Node o redirect espera até 1,5 s, como sempre.
  */
 import { AfflinkError, buildAffiliateUrl, normalizaRef, type Programa } from '@maicon-ramos-org/afflinks'
 import type { APIRoute } from 'astro'
@@ -19,6 +21,8 @@ import {
   cmsFindOneNoTenant,
   logClique,
   PRODUTO_MONETIZAVEL,
+  TETO_DO_CLIQUE_EM_SEGUNDO_PLANO_MS,
+  type CliqueInput,
   type CupomDTO,
   type LojaDTO,
   type OfertaDTO,
@@ -67,6 +71,23 @@ async function resolveDestino(idPublico: string, tenantId: string | number): Pro
   }
 }
 
+/**
+ * O `waitUntil` do Worker, ou `null` fora de um Worker.
+ *
+ * O `@astrojs/cloudflare` (13 em diante, com o Astro 6 em diante) põe o `ExecutionContext`
+ * do pedido em `locals.cfContext`; o adaptador de Node não põe nada. O tipo é conferido aqui
+ * pela forma, sem depender do adaptador: o núcleo roda nos dois formatos. O `waitUntil` é
+ * chamado como método do próprio contexto — solto, sem o `this`, o runtime o recusa.
+ */
+function waitUntilDoWorker(locals: object): ((tarefa: Promise<unknown>) => void) | null {
+  const cfContext = (locals as { cfContext?: { waitUntil?: unknown } }).cfContext
+  const waitUntil = cfContext?.waitUntil
+  if (typeof waitUntil !== 'function') return null
+  return (tarefa) => {
+    waitUntil.call(cfContext, tarefa)
+  }
+}
+
 export const GET: APIRoute = async (context) => {
   const { id } = context.params
   const tenant = context.locals.tenant
@@ -110,8 +131,8 @@ export const GET: APIRoute = async (context) => {
     }
   }
 
-  // log ANTES do redirect (contrato) — falha não bloqueia
-  await logClique({
+  // o registro começa ANTES do redirect (contrato) — falha não bloqueia
+  const clique: CliqueInput = {
     tenant: tenant.id,
     tipo_doc: destino.tipo_doc,
     doc_id: id,
@@ -120,7 +141,10 @@ export const GET: APIRoute = async (context) => {
     ref,
     user_agent_class: classificaUserAgent(context.request.headers.get('user-agent')),
     ip_hash: ipHash(ipDoCliente(context)),
-  })
+  }
+  const emSegundoPlano = waitUntilDoWorker(context.locals)
+  if (emSegundoPlano) emSegundoPlano(logClique(clique, TETO_DO_CLIQUE_EM_SEGUNDO_PLANO_MS))
+  else await logClique(clique)
 
   return new Response(null, {
     status: 302,

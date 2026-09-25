@@ -587,13 +587,26 @@ export interface CliqueInput {
   ip_hash?: string
 }
 
-/** Log de clique — contrato redirect-afiliado.md. Nunca bloqueia o redirect por falha. */
-export async function logClique(clique: CliqueInput): Promise<void> {
+/**
+ * Quanto o POST do clique pode levar. Em Node, o redirect espera o registro: o teto é curto
+ * para o usuário não ficar parado. Nos Workers, o registro termina depois da resposta
+ * (`waitUntil`, ver `/r/{id}`) e o teto pode ser folgado — lá o POST ao CMS, também num
+ * Worker, leva de 1,3 s a 1,5 s, e o teto de 1,5 s abortava quase todo clique.
+ */
+export const TETO_DO_CLIQUE_ESPERANDO_MS = 1500
+export const TETO_DO_CLIQUE_EM_SEGUNDO_PLANO_MS = 10_000
+
+/**
+ * Log de clique — contrato redirect-afiliado.md. Nunca lança: falha vira aviso no log, e o
+ * redirect segue. `depth=0`: a resposta do POST não popula o tenant nem a loja (ninguém a
+ * lê, e montar o tenant inteiro só atrasa o registro).
+ */
+export async function logClique(clique: CliqueInput, tetoMs = TETO_DO_CLIQUE_ESPERANDO_MS): Promise<void> {
   try {
-    await cmsFetch('/api/cliques', {
+    await cmsFetch('/api/cliques?depth=0', {
       method: 'POST',
       body: JSON.stringify(clique),
-      signal: AbortSignal.timeout(1500),
+      signal: AbortSignal.timeout(tetoMs),
     })
   } catch (err) {
     console.warn('[cliques] log falhou (segue o redirect):', (err as Error).message)
