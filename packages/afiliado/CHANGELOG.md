@@ -1,5 +1,11 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.5 — 2026-09-25 (pré-lançamento, PRD 24 RF2)
+
+Pré-lançamento na dist-tag `next`; o `latest` continua em `0.1.0`. Sem mudança de código no
+afiliado: sai de novo só para fixar `@maicon-ramos-org/cms-core@0.2.0-next.2` (com os derivados
+sem `sharp` da RF2) no pacote publicado, e o site não ficar com duas cópias do núcleo.
+
 ## 0.2.0-next.4 — 2026-09-25 (pré-lançamento, PRD 24)
 
 Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.
