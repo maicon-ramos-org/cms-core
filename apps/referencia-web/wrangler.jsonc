@@ -1,0 +1,34 @@
+/**
+ * referencia-web nos Workers — PRD 24 RF4 (prova o pacote, não um site real).
+ *
+ * Nunca é publicado de verdade: o job `workers` do `ci.yml` roda
+ * `ALVO=workers CLOUDFLARE_ENV=ci astro build` e depois
+ * `wrangler deploy --dry-run --outdir` — sem conta, sem token, sem upload. O ambiente `ci`
+ * existe só para exercer o mesmo mecanismo que um site real usa de verdade (PRD 24 RF6):
+ * CLOUDFLARE_ENV escolhido NO BUILD, não em `wrangler deploy --env`.
+ */
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "referencia-web",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "cache": { "enabled": true, "cross_version_cache": true },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  "env": {
+    "ci": {
+      "workers_dev": false,
+      "preview_urls": false,
+      "cache": { "enabled": true, "cross_version_cache": true },
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "vars": {
+        "CMS_URL": "http://127.0.0.1:3000",
+        "CMS_PUBLIC_URL": "http://127.0.0.1:3000",
+        "R2_PUBLIC_BASE": "http://127.0.0.1:9000/midia-ci",
+        "DEFAULT_TENANT": "exemplo"
+      }
+    }
+  }
+}
