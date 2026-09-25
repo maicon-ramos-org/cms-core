@@ -8,6 +8,9 @@
  * `no-store`/`private` —, inclusive o 301 da barra e o 404 de host desconhecido, que um
  * cache também guarda. A negociação de markdown continua com `Vary: Accept`.
  *
+ * O que este teste NÃO cobre: o `Vary` separa as cópias, não a limpeza por tag (ver o
+ * comentário de `varia` no middleware). Isso só se prova num Worker de verdade.
+ *
  * O middleware roda de verdade: só o `astro:middleware`, a config virtual e o CMS são de
  * mentira.
  */

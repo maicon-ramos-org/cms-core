@@ -99,9 +99,18 @@ const comVary = (r: Response, nomes: string[]): Response => {
  *
  * Um Worker serve os dois tenants, e a chave do cache da Cloudflare na frente dele é o
  * caminho — o host fica de fora. Sem o `Vary: Host`, a home de um tenant, guardada
- * primeiro, seria servida no domínio do outro. O cache honra o `Vary` (RFC 9111): com ele,
- * cada host tem a sua cópia. Em Node, o cache em memória do Astro já tinha o host na chave
- * e continua igual.
+ * primeiro, seria servida no domínio do outro. Com ele, a LEITURA fica separada: o cache
+ * guarda uma variante por host. Em Node, o cache em memória do Astro já tinha o host na
+ * chave e continua igual.
+ *
+ * O `Vary: Host` NÃO basta para a LIMPEZA. No cache dos Workers as variantes de uma URL
+ * dividem uma identidade de purge só: "all variants must use the same Cache-Tag values —
+ * assigning different tags to different variants results in inconsistent purges"
+ * (developers.cloudflare.com/workers/cache/configuration/). Aqui as variantes de `/`,
+ * `/blog/`, do feed, do sitemap, do robots etc. levam `tenant:{slug}` diferentes, então
+ * limpar `tenant:3d` pode não pegar a variante do `3d` e a página velha fica até o
+ * `maxAge`. Tags iguais entre variantes ou um Worker por domínio (plano B da decisão 11
+ * do PRD 24) é decisão pendente, registrada no ADR-0014; a prova é da RF0.12/RF10.
  *
  * "Pode ir para cache" é a regra de `respostaCacheavel`, de propósito larga: inclui o 301
  * da barra final (o destino leva o host) e o 404 de host desconhecido.
