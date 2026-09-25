@@ -1,5 +1,30 @@
 # @maicon-ramos-org/editorial
 
+## Não publicado
+
+PRD 24 RF10.10 — o middleware distingue "o CMS respondeu que o tenant não existe" de "o CMS
+não respondeu" (rede, DNS, tempo esgotado ou HTTP 5xx — o que `cmsFetch` já lança para
+qualquer `!res.ok`). Antes, os dois casos caíam no mesmo `catch` e viravam o mesmo 404
+"Tenant não encontrado para este host." — inclusive para páginas que já estavam em cache: um
+404 é resposta válida para a Cloudflare e substitui a cópia boa que a borda tinha guardado, em
+vez de acionar `stale-if-error` (que só serve a cópia velha quando o Worker lança, esgota o
+tempo ou devolve 5xx).
+
+- `lib/resolve-tenant.ts` (novo): `criaResolveTenant(deps)`, função pura e injetável
+  (buscas, relógio) que devolve `{ tipo: 'ok' | 'inexistente' | 'cms-fora' }`. Mantém em
+  memória o último tenant ENCONTRADO por host, sem prazo — só um novo acerto o substitui —,
+  para a revalidação por trás do TTL de 60s não trocar a cópia boa por um erro quando o CMS
+  cair no meio dela. Registra a falha por 8s antes de tentar de novo (não bate no CMS a cada
+  request durante a queda).
+- `middleware.ts`: com `cms-fora`, responde **503** (`Retry-After: 30`,
+  `Cache-Control: no-store`, `Cloudflare-CDN-Cache-Control: no-store`, sem `Vary`) — nunca
+  cacheável, e é o status que aciona o `stale-if-error` da borda. Com `inexistente`, o 404
+  continua exatamente como antes.
+- **Desvio em Node (VPS):** o que hoje é 404 com o CMS fora do ar passa a ser **503 sem
+  cache**. Página nenhuma que dependa de tenant fica mais silenciosamente "não encontrada"
+  quando o CMS cai — fica "indisponível", com o corpo e o `Retry-After` avisando que é
+  temporário. Sem mudança para tenant realmente inexistente.
+
 ## 0.2.0-next.1 — 2026-09-25 (pré-lançamento, PRD 24 RF3)
 
 Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.
