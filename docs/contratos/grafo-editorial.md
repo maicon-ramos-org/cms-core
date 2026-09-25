@@ -3,6 +3,9 @@
 Status: implementado e testado localmente; ainda não lançado. O contrato foi
 escrito antes do código. Referências: PRDs 20, 22 e 23 e ADR-0013 do repositório da
 plataforma. Não fecha esses três PRDs.
+Versão preparada: `@maicon-ramos-org/cms-core@0.2.0-next.3`; ainda depende de CI,
+merge e aprovação para tag. Registry e remoto foram conferidos antes do bump:
+essa versão/tag não existiam; `latest` era 0.1.0 e `next` era 0.2.0-next.2.
 
 ## Ativação e compatibilidade
 
@@ -90,6 +93,8 @@ de posts. Só sessão/API key autenticada. Tenant único da credencial é inferi
 credencial com múltiplos tenants escolhe um deles; super-admin deve escolher.
 Tentativa de escolher tenant alheio falha. Consultas sempre filtram tenant.
 Allowlist limita dados e comprimento; paginação truncada é declarada na resposta.
+Os dois endpoints retornam `Cache-Control: private, no-store`. O filtro de tenant
+também é exercitado nas rotas REST das coleções e na leitura de versões.
 Não inclui corpo de post, ofertas ou URL de afiliado. Esta fase suporta profundidade
 1 apenas; outro valor retorna erro 400, sem fingir travessia de duas camadas.
 
@@ -105,10 +110,10 @@ Fixtures cobrem gates, PATCH com null, fronteira de tenant, draft-first e
 serialização. Integração usa banco de teste separado no Postgres 16 e REST real do
 Payload, além da Local API. `pnpm check` é gate antes de commit/push.
 
-Validação local em 2026-09-25: `pnpm check` verde (47 testes de scripts + 607
-testes Vitest), com Postgres 16 e S3 de teste isolados. Os 44 testes novos cobrem
-19 fixtures de gates, 4 de registro de formatos, 10 de Markdown e 11 de integração
-real. As cinco sentinelas de ambiente são puladas quando seus serviços estão
+Validação local em 2026-09-25: `pnpm check` verde (47 testes de scripts + 609
+testes Vitest), com Postgres 16 e S3 de teste isolados. Os 46 testes novos cobrem
+19 fixtures de gates, 4 de registro de formatos, 10 de Markdown, 1 de auditoria
+concorrente e 12 de integração real. As cinco sentinelas de ambiente são puladas quando seus serviços estão
 presentes; as integrações de banco e bucket foram executadas. `git diff --check`
 também passou. Nenhuma migration foi aplicada a banco de site, nenhum pacote foi
 publicado e o build/deploy das instâncias permanece uma etapa posterior.

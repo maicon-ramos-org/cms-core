@@ -21,7 +21,7 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
       request: new Request(`http://teste.local/api${path}`, { method,
         headers: { 'Content-Type': 'application/json', ...(autenticar ? { Authorization: `users API-Key ${key}` } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }) }) })
-    return { status: resposta.status, body: await resposta.json() }
+    return { status: resposta.status, body: await resposta.json(), headers: resposta.headers }
   }
   const create = (collection: string, data: Record<string, unknown>) => payload.create({ collection: collection as never, data: data as never, depth: 0 })
   const erroPath = (r: { status: number; body: any }, path: string) => {
@@ -103,10 +103,25 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     expect((await request(`/grafo/contexto?entidade=conceito&tenant=${tenantB.id}`)).status).toBe(403)
     const r = await request('/grafo/contexto?entidade=conceito')
     expect(r.status).toBe(200)
+    expect(r.headers.get('Cache-Control')).toBe('private, no-store')
     expect(r.body.entidade.id).toBe(entidadeA.id)
     expect(JSON.stringify(r.body)).not.toContain('Conceito B privado')
     expect(r.body.claims[0].fonte.url).toBe(fonteURL)
     expect((await request('/grafo/contexto?entidade=conceito&profundidade=2')).status).toBe(400)
+  })
+  it('REST genérico e versões não deixam a key do A ler o tenant B', async () => {
+    for (const colecao of ['entidades', 'claims', 'eventos']) {
+      const resposta = await request(`/${colecao}?where[tenant][equals]=${tenantB.id}`)
+      expect(resposta.status).toBe(200)
+      expect(resposta.body.docs).toEqual([])
+    }
+    const versoes = await request(`/entidades/versions?where[version.tenant][equals]=${tenantB.id}`)
+    expect(versoes.status).toBe(200)
+    expect(versoes.body.docs).toEqual([])
+    const doB = await payload.findVersions({ collection: 'entidades' as never, where: { parent: { equals: entidadeB.id } } })
+    expect(doB.totalDocs).toBeGreaterThan(0)
+    expect((await request(`/entidades/versions/${doB.docs[0]!.id}`)).status).toBe(403)
+    expect((await request(`/entidades/${entidadeB.id}`)).status).toBe(404)
   })
   it('agente cria draft e Markdown vira Lexical; Lexical explícito vence', async () => {
     const r = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Artigo de teste em rascunho', slug: 'rascunho',
@@ -145,6 +160,7 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     const antes = await versoes()
     const dry = await request(`/posts/${id}/gates`, 'POST')
     expect(dry.status).toBe(200)
+    expect(dry.headers.get('Cache-Control')).toBe('private, no-store')
     expect(dry.body).toContainEqual(expect.objectContaining({ gate: 'G2', path: 'claims' }))
     expect(await versoes()).toBe(antes)
     erroPath(await request(`/posts/${id}`, 'PATCH', { _status: 'published' }), 'claims')

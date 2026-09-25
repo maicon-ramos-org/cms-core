@@ -77,7 +77,7 @@ export const contextoGrafo: Endpoint = {
       pesquisa: pesquisa ? { id: pesquisa.id, qualidade: pesquisa.qualidade, validade_dias: pesquisa.validade_dias,
         atualizado_em: pesquisa.updatedAt, corpo_md: recorta(pesquisa.corpo_md, 8000), corpo_truncado: String(pesquisa.corpo_md ?? '').length > 8000 } : null,
       truncado: { relacoes: relacoes.hasNextPage, claims: claims.hasNextPage, posts: posts.hasNextPage },
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   },
 }
 
@@ -90,6 +90,6 @@ export const endpointGates = (formatos: FormatoEditorial[]): Endpoint => ({
       where: { and: [{ tenant: { equals: tenant } }, { id: { equals: id } }] } })
     const post = posts.docs[0]
     if (!post) throw new APIError('Post não encontrado.', 404)
-    return Response.json(await avaliaPost(req, post, formatos))
+    return Response.json(await avaliaPost(req, post, formatos), { headers: { 'Cache-Control': 'private, no-store' } })
   },
 })
