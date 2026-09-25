@@ -1,5 +1,81 @@
 # @maicon-ramos-org/cms-core
 
+## 0.2.0 — em preparo (PRD 24)
+
+O núcleo passa a montar o CMS nos dois formatos: em Node (VPS, CI, scripts) e num Worker da
+Cloudflare. O que difere entre os dois vem por opção da fábrica; **sem as opções novas, a
+config sai igual à da 0.1.0** (mesmas coleções, mesmo schema, mesmo `payload-types.ts`).
+
+### Quebra: os scripts têm entrada própria (nota de migração)
+
+O que só roda em Node — ciclo de vida do processo, portão de migração, semente, a trava do
+schema e os scripts de acervo da mídia — saiu de `@maicon-ramos-org/cms-core` e mora em
+`@maicon-ramos-org/cms-core/scripts`. A entrada principal é a que o CMS carrega (num Worker,
+inclusive), e ela arrastava `node:fs` e `node:os` por esses scripts.
+
+| Sai de `@maicon-ramos-org/cms-core`, entra em `@maicon-ramos-org/cms-core/scripts` |
+|---|
+| `mantemVivo`, `sair`, `SaidaInesperada`, `semSaidaDoProcesso` |
+| `portaoDeMigracao` (e o tipo `OpcoesDoPortao`) |
+| `semeia`, `aplicaSemente`, `upsert` (e os tipos `Semente`, `ContextoDoConteudo`, `ResultadoDaSemente`, `TenantDaSemente`, `UsuarioDaSemente`) |
+| `confereSchema`, `confereSchemaNoPayload` |
+| `copiaAcervo`, `clienteR2`, `chavesDaMidia` (e os tipos `BucketS3`, `MidiaParaCopia`, `RelatorioDaCopia`) |
+| `regeneraAcervo`, `DERIVADOS`, `temTodosOsDerivados` (e os tipos `BucketRegenera`, `MidiaDoAcervo`, `RelatorioDaRegeneracao`) |
+
+Continuam na entrada principal: `emPool`, `editorFeatures`, `ajustaCampo`, `configR2*`,
+`urlPublica`, as coleções, os hooks e o acesso.
+
+No site, só muda a origem do import:
+
+```ts
+// antes
+import { mantemVivo, sair } from '@maicon-ramos-org/cms-core'
+// depois
+import { mantemVivo, sair } from '@maicon-ramos-org/cms-core/scripts'
+```
+
+### Novo: a fábrica injetável
+
+`OpcoesCmsCore` ganha, todas opcionais e com o padrão igual ao de antes:
+
+- `sharp` — sem a opção, a fábrica carrega o `sharp` (sob demanda, não mais por `import`
+  estático); `null` desliga os `imageSizes` gerados pelo Payload, o recorte e o ponto focal
+  (as coleções de upload saem com `crop: false` e `focalPoint: false`). Os `imageSizes`
+  continuam declarados: são as colunas de `sizes`, as mesmas nos dois formatos — um teste
+  confere que a migração gerada com `sharp: null` é idêntica à de sempre.
+- `db: { connectionString, maxUses? }` — sem a opção, `DATABASE_URL`. Num Worker, a string do
+  Hyperdrive e `maxUses: 1`.
+- `midia.r2` — o bucket; sem a opção, as `R2_*` do ambiente, como antes.
+- `midia.derivados` — um `GeradorDeDerivados` (tipos novos em `midia/derivados.ts`,
+  exportados pela entrada principal), que a fábrica entrega à coleção `midia` em
+  `custom.derivados`. O hook que o usa e a implementação pelo binding Images vêm na RF2 do
+  PRD 24.
+- `graphQL: { disable }` e `logger` — repassados à config do Payload.
+
+O `sharp` virou dependência par **opcional** (`peerDependenciesMeta`). Sem ele instalado e
+sem a opção, a fábrica falha dizendo o que fazer (instalar, ou passar `sharp: null`).
+
+### Muda: a revalidação agrupa as tags de cada operação
+
+Antes, cada documento salvo disparava um POST ao site, sem esperar. Agora `afterChange` e
+`afterDelete` acumulam as tags em `req.context.tagsPendentes`, e `revalidateAfterOperation`
+— que a fábrica põe em toda coleção, sem nada a fazer no site — envia uma vez por operação
+de escrita, em lotes de até 100 tags por POST (`TAGS_POR_POST`), cada tag uma vez. Um
+`update` em massa de 250 documentos passa de 250 POSTs a 3.
+
+- **O save espera o envio**, com o teto de 3 s de sempre: num Worker, promessa solta morre
+  com a resposta. Com o site fora do ar, o save leva até 3 s a mais, e segue salvando.
+- Resposta de erro do site (o 429 de purge recusado, por exemplo) vira warning no logger,
+  como a falha de rede já virava.
+- As tags de cada documento não mudam. Hook usado numa config que não veio da fábrica envia
+  na hora, um POST por documento, como antes.
+- Scripts de import continuam com `REVALIDATE_URL=` vazio e um purge geral no fim.
+
+### Ainda não
+
+`hooks/og-sem-transparencia.ts` (na coleção `midia`) ainda importa `sharp` e `node:fs`
+estaticamente: a entrada principal só fica sem os dois com a RF2 do PRD 24.
+
 ## 0.1.0 — 2026-09-24
 
 Primeira versão publicada. O código veio do repositório do primeiro site da plataforma, com

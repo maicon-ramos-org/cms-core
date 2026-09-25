@@ -6,7 +6,7 @@ import './env'
 
 import path from 'node:path'
 
-import { mantemVivo, portaoDeMigracao, sair } from '@maicon-ramos-org/cms-core'
+import { mantemVivo, portaoDeMigracao, sair } from '@maicon-ramos-org/cms-core/scripts'
 import type { Migration } from 'payload'
 
 const encerra = mantemVivo()
