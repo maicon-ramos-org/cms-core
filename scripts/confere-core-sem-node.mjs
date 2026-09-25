@@ -78,6 +78,8 @@ const semComentarios = (texto) =>
 /**
  * Os imports de VALOR de um arquivo, com a linha. `import type`/`export type` ficam de fora;
  * `import { type A }` conta (o compilador pode manter o import), o que é a favor da trava.
+ * Import dinâmico e `require` contam quando o módulo é texto fixo — entre aspas ou em
+ * template literal sem `${…}`, que o bundler resolve do mesmo jeito.
  */
 export function importsDe(textoOriginal) {
   const texto = semComentarios(textoOriginal)
@@ -90,6 +92,13 @@ export function importsDe(textoOriginal) {
     /\bimport\s*['"]([^'"]+)['"]/g,
     // import('m') com texto fixo
     /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    // import(`m`) sem interpolação: o bundler resolve igual a uma string, e o módulo entra.
+    // Com `${…}` não há texto fixo, e a trava não tem como saber o módulo.
+    /\bimport\s*\(\s*`([^`$]+)`\s*\)/g,
+    // require('m') / require(`m`): o bundler segue o CommonJS também. Nada no núcleo usa
+    // hoje (é tudo ESM); a trava cobre para que o primeiro não passe calado.
+    /(?<![\w$.])require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /(?<![\w$.])require\s*\(\s*`([^`$]+)`\s*\)/g,
   ]
   for (const [n, re] of padroes.entries()) {
     for (const m of texto.matchAll(re)) {

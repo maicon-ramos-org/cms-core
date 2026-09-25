@@ -139,6 +139,39 @@ test('import dinâmico com texto fixo conta', () => {
   assert.equal(r.length, 1)
 })
 
+test('import dinâmico com template literal sem interpolação conta (o bundler o resolve igual)', () => {
+  const r = achados({
+    'packages/afiliado/src/web/extensao.ts': 'export const f = async () => (await import(`node:fs`)).readFileSync',
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /— node:fs$/)
+})
+
+test('template literal COM interpolação não é texto fixo: não dá para saber o módulo, não reprova', () => {
+  const r = achados({
+    'packages/afiliado/src/web/extensao.ts': 'const m = "fs"\nexport const f = async () => (await import(`node:${m}`)).readFileSync',
+  })
+  assert.deepEqual(r, [])
+})
+
+test('require com texto fixo também conta: aspas e template literal', () => {
+  const r = achados({
+    'packages/editorial/src/rotas/x.ts': "const fs = require('node:fs')\nconst os = require(`os`)\nexport const GET = () => [fs, os]",
+  })
+  assert.equal(r.length, 2)
+  assert.match(r[0], /x\.ts:1 — node:fs$/)
+  assert.match(r[1], /x\.ts:2 — os$/)
+})
+
+test('require seguido para dentro do repositório, como o import', () => {
+  const r = achados({
+    'packages/editorial/src/middleware.ts': "const u = require('./interno/util')\nexport const onRequest = u",
+    'packages/editorial/src/interno/util.ts': "export { hostname } from 'node:os'",
+  })
+  assert.equal(r.length, 1)
+  assert.match(r[0], /util\.ts:1 — node:os/)
+})
+
 test('pacote de fora do repositório, módulo virtual e do Astro não são seguidos', () => {
   const r = achados({
     'packages/editorial/src/middleware.ts': [
