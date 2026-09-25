@@ -9,6 +9,11 @@ Cada site é um repositório próprio que consome estes pacotes por **versão fi
 (ADR-0011 §4). Nada aqui conhece marca, domínio ou nicho de um site — a trava
 `scripts/confere-core-sem-marca.mjs` confere a cada `pnpm check`.
 
+O grafo editorial incremental é ativado pelo plugin `grafoEditorial()` da entrada
+`@maicon-ramos-org/cms-core/grafo`. O [contrato](docs/contratos/grafo-editorial.md)
+descreve coleções, formatos, gates, migração por instância e limites desta entrega.
+O plugin ainda não foi lançado; não altere consumidores para uma versão inexistente.
+
 ## Como provar uma mudança
 
 - `pnpm check`: travas, tipos e testes de todos os pacotes (os de integração pedem Postgres

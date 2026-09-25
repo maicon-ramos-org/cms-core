@@ -53,9 +53,9 @@ describe('a entrada ./scripts', () => {
     }
   })
 
-  it('o package.json publica as duas entradas, e o sharp é peer opcional', () => {
+  it('o package.json publica as entradas de núcleo, grafo e scripts, e o sharp é peer opcional', () => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-    expect(pkg.exports).toEqual({ '.': './src/index.ts', './scripts': './src/scripts/index.ts' })
+    expect(pkg.exports).toEqual({ '.': './src/index.ts', './grafo': './src/grafo/index.ts', './scripts': './src/scripts/index.ts' })
     expect(pkg.peerDependenciesMeta?.sharp?.optional).toBe(true)
   })
 })
