@@ -4,7 +4,8 @@ import { acrescentaAoGrupoDoTenant, acrescentaCamposAoTenant, acrescentaDestinos
 
 import { protegeReferencias } from './catalogo/protegeReferencias'
 import { Banners } from './collections/Banners'
-import { catalogoFisico } from './collections/CatalogoFisico'
+import { criaCatalogoFisico } from './collections/CatalogoFisico'
+import { registrarCategorias, type CategoriaCatalogo } from './catalogo/categorias'
 import { CategoriasOferta } from './collections/CategoriasOferta'
 import { Cliques } from './collections/Cliques'
 import { Cupons } from './collections/Cupons'
@@ -56,25 +57,32 @@ const titlePatternLoja: Field = {
   defaultValue: '{n} Cupons {loja} Testados em {mes} {ano}',
 }
 
-export const afiliado = (): Plugin => (config) => {
-  let c: typeof config = {
-    ...config,
-    collections: [
-      ...(config.collections ?? []),
-      Lojas,
-      Cupons,
-      Ofertas,
-      Produtos,
-      Banners,
-      Cliques,
-      HistoricoDesconto,
-      CategoriasOferta,
-      ...catalogoFisico,
-    ],
-    jobs: { ...config.jobs, tasks: [...(config.jobs?.tasks ?? []), snapshotDescontoTask] },
+export interface OpcoesAfiliado {
+  catalogo?: { categoriasAdicionais?: readonly CategoriaCatalogo[] }
+}
+
+export const afiliado = (opcoes: OpcoesAfiliado = {}): Plugin => {
+  const catalogo = criaCatalogoFisico(registrarCategorias(opcoes.catalogo?.categoriasAdicionais))
+  return (config) => {
+    let c: typeof config = {
+      ...config,
+      collections: [
+        ...(config.collections ?? []),
+        Lojas,
+        Cupons,
+        Ofertas,
+        Produtos,
+        Banners,
+        Cliques,
+        HistoricoDesconto,
+        CategoriasOferta,
+        ...catalogo,
+      ],
+      jobs: { ...config.jobs, tasks: [...(config.jobs?.tasks ?? []), snapshotDescontoTask] },
+    }
+    c = acrescentaCamposAoTenant(c, [programasAtivos])
+    c = acrescentaAoGrupoDoTenant(c, 'seo', [titlePatternLoja])
+    c = acrescentaDestinosDoAutoLinker(c, ['lojas', 'ofertas', 'produtos'])
+    return { ...c, collections: (c.collections ?? []).map(protegeReferencias) }
   }
-  c = acrescentaCamposAoTenant(c, [programasAtivos])
-  c = acrescentaAoGrupoDoTenant(c, 'seo', [titlePatternLoja])
-  c = acrescentaDestinosDoAutoLinker(c, ['lojas', 'ofertas', 'produtos'])
-  return { ...c, collections: (c.collections ?? []).map(protegeReferencias) }
 }

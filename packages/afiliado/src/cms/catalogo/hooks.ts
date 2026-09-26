@@ -1,7 +1,8 @@
 import { validaSiteStripe, validaAmazonLink } from '@maicon-ramos-org/afflinks'
 import { sql } from '@payloadcms/db-postgres'
 import { ValidationError, type CollectionBeforeChangeHook, type CollectionAfterChangeHook, type PayloadRequest, type CollectionSlug } from 'payload'
-import { avaliaMatch, atributosFilamento, chaveVariante, idRel, identidadeListing, normaliza } from './regras'
+import { avaliaMatch, chaveVariante, idRel, identidadeListing, normaliza } from './regras'
+import { categoriaRegistrada, REGISTRO_CATEGORIAS_PADRAO, valorComparavel, valorDoAtributo, type RegistroCategorias } from './categorias'
 import { hasRole, isSuperAdmin } from '@maicon-ramos-org/cms-core'
 
 type Doc = Record<string, any>
@@ -55,7 +56,8 @@ export const validaRelacoes = (relations: Record<string, CollectionSlug>): Colle
     return data
   }
 
-export const validaProduto: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
+export const criaValidaProduto = (registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO): CollectionBeforeChangeHook => ({ data, originalDoc, req }) => {
+  if (!categoriaRegistrada(({ ...originalDoc, ...data }).categoria, registro)) invalido('categoria', 'Categoria não registrada nesta instância.')
   if (originalDoc?.id) {
     for (const key of ['marca', 'modelo', 'categoria']) {
       if (key in data && normaliza(data[key]) !== normaliza(originalDoc[key])) invalido(key, 'Identidade do produto é imutável.')
@@ -64,21 +66,35 @@ export const validaProduto: CollectionBeforeChangeHook = ({ data, originalDoc, r
   if (hasRole(req.user, 'ingestao') && !isSuperAdmin(req.user) && data.estado === 'published') invalido('estado', 'Ingestão cria draft.')
   return data
 }
+export const validaProduto = criaValidaProduto()
 
-export const validaVariante: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
+export const criaValidaVariante = (registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO): CollectionBeforeChangeHook => async ({ data, originalDoc, req }) => {
   const effective = { ...originalDoc, ...data }
   for (const k of ['material', 'cor', 'acabamento']) if (k in data) data[k] = normaliza(data[k])
   Object.assign(effective, data)
-  if (effective.estado === 'confirmada') {
-    const produto = await req.payload.findByID({ collection: 'produtos_fisicos', id: idRel(effective.produto), req, depth: 0 })
-    if (produto.categoria === 'filamento') {
-      for (const k of atributosFilamento) if (!effective[k]) invalido(k, 'Filamento confirmado exige atributo comparável.')
+  const produto = await req.payload.findByID({ collection: 'produtos_fisicos', id: idRel(effective.produto), req, depth: 0 })
+  const politica = categoriaRegistrada(produto.categoria, registro)
+  if (!politica) return invalido('produto', 'Categoria do produto não registrada nesta instância.')
+  for (const path of politica.atributosDeIdentidade) {
+    const value = valorDoAtributo(effective, path)
+    if (!politica.legada && value != null && valorComparavel(value) === undefined) {
+      invalido(path, 'Atributo de identidade exige string não vazia, número finito ou boolean.')
+    }
+    if (effective.estado === 'confirmada' && politica.exigeAtributos && (politica.legada ? !value : valorComparavel(value) === undefined)) {
+      invalido(path, politica.erroAtributo ?? 'Variante confirmada exige atributo de identidade comparável.')
     }
   }
-  data.chave_normalizada = chaveVariante(effective)
+  data.chave_normalizada = chaveVariante(effective, String(produto.categoria), registro)
   if (originalDoc?.id && data.chave_normalizada !== originalDoc.chave_normalizada) invalido('chave_normalizada', 'Identidade da variante é imutável.')
+  if (politica.validarVariante) {
+    // Cópias: um callback do site nunca altera dados persistidos ou relações por efeito colateral.
+    const problemas = politica.validarVariante(structuredClone(effective), structuredClone({ ...produto }))
+    if (!Array.isArray(problemas)) throw new Error('validarVariante deve retornar problemas de forma síncrona.')
+    if (problemas.length) throw new ValidationError({ errors: problemas })
+  }
   return data
 }
+export const validaVariante = criaValidaVariante()
 
 /** Valida o contrato público já existente /r/{c|p|o}{id}; não inventa redirect novo. */
 export const validaRedirect: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
@@ -169,11 +185,11 @@ export const validaElegibilidade: CollectionBeforeChangeHook = async ({ data, or
   if (effective.inicio && effective.fim && Date.parse(effective.inicio) > Date.parse(effective.fim)) invalido('fim', 'Intervalo inválido.')
   return data
 }
-export const validaVinculo: CollectionBeforeChangeHook = async ({ data, req }) => {
+export const criaValidaVinculo = (registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO): CollectionBeforeChangeHook => async ({ data, req }) => {
   if (data.decisao === 'confirmado' && data.metodo !== 'humano') {
     const variante = await req.payload.findByID({ collection: 'variantes_produto', id: idRel(data.variante), req, depth: 0 })
     const produto = await req.payload.findByID({ collection: 'produtos_fisicos', id: idRel(variante.produto), req, depth: 0 })
-    const match = avaliaMatch(data.evidencia?.entrada ?? {}, { ...variante }, { ...produto })
+    const match = avaliaMatch(data.evidencia?.entrada ?? {}, { ...variante }, { ...produto }, registro)
     const candidates = await req.payload.find({ collection: 'variantes_produto', req, depth: 0, overrideAccess: true,
       where: { and: [{ tenant: { equals: idRel(data.tenant) } }, { estado: { equals: 'confirmada' } }] }, limit: 1000 })
     // Piloto conservador: catálogos maiores requerem matching indexado antes de automatizar.
@@ -181,7 +197,7 @@ export const validaVinculo: CollectionBeforeChangeHook = async ({ data, req }) =
     let qualifying = 0
     for (const candidate of candidates.docs) {
       const parent = await req.payload.findByID({ collection: 'produtos_fisicos', id: idRel(candidate.produto), req, depth: 0 })
-      if (avaliaMatch(data.evidencia?.entrada ?? {}, { ...candidate }, { ...parent }).automatico) qualifying++
+      if (avaliaMatch(data.evidencia?.entrada ?? {}, { ...candidate }, { ...parent }, registro).automatico) qualifying++
     }
     if (qualifying !== 1) invalido('evidencia', 'Matching ambíguo exige revisão humana.')
     if (!match.automatico || match.metodo !== data.metodo || data.score !== match.score) {
@@ -194,3 +210,4 @@ export const validaVinculo: CollectionBeforeChangeHook = async ({ data, req }) =
   }
   return data
 }
+export const validaVinculo = criaValidaVinculo()
