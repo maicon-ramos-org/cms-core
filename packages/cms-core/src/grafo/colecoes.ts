@@ -3,7 +3,7 @@ import { authenticated, nunca, podeEscreverConteudo } from '../access/roles'
 import { chaveDeOrigem } from '../fields/origem'
 import { validaSlugKebab } from '../hooks/validations'
 import { eventoInterno, registraEvento } from './eventos'
-import { invalidoGrafo, unicoGrafo, urlFonte, validaGrafo } from './validacao'
+import { invalidoGrafo, protegeRevisaoPesquisa, unicoGrafo, urlFonte, validaGrafo } from './validacao'
 
 export const campoTenantGrafo = (): Field => ({ name: 'tenant', type: 'relationship', relationTo: 'tenants', required: true, index: true })
 const rel = (name: string, relationTo: string, required = false): Field => ({ name, type: 'relationship', relationTo, required })
@@ -18,6 +18,7 @@ function colecao(slug: string, fields: Field[], refs: Record<string, string>, un
     indexes: [['origem'], ...unicos].map(fields => ({ fields: ['tenant', ...fields], unique: true })),
     fields: [campoTenantGrafo(), { ...chaveDeOrigem }, ...fields],
     hooks: {
+      ...(slug === 'pesquisas' ? { beforeOperation: [protegeRevisaoPesquisa] } : {}),
       beforeValidate: [validaGrafo(refs, fields.filter(f => 'required' in f && f.required && 'name' in f).map(f => (f as { name: string }).name)), unicoGrafo(['origem']), ...unicos.map(unicoGrafo)],
       beforeDelete: [() => invalidoGrafo('id', 'Exclusão do grafo indisponível; preserve as referências e versões.')],
       afterChange: [registraEvento],
@@ -45,6 +46,7 @@ export function colecoesGrafo(): CollectionConfig[] {
       { name: 'revisado_em', type: 'date' }], { entidade: 'entidades', fonte: 'fontes' }, [], true),
     colecao('pesquisas', [rel('entidade', 'entidades', true), { name: 'corpo_md', type: 'textarea', required: true },
       { name: 'qualidade', type: 'number', min: 0, max: 100 },
+      { name: 'revisado_em', type: 'date', admin: { description: 'Data editorial documentada; importar não renova a pesquisa. Sem preenchimento usa updatedAt legado.' } },
       { name: 'validade_dias', type: 'number', required: true, defaultValue: 90, min: 1 }], { entidade: 'entidades' }, [], true),
     colecao('clusters', [nome, slug, rel('entidade_pilar', 'entidades'), { name: 'plano', type: 'json' },
       { name: 'status', type: 'select', required: true, defaultValue: 'planejado', options: ['planejado', 'ativo', 'concluido'] }],

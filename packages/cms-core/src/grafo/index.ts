@@ -9,7 +9,7 @@ import { draftPrimeiro, validaCorpoGrafo, validaGrafo } from './validacao'
 
 export type { FormatoEditorial, IntencaoEditorial, OpcoesGrafoEditorial } from './contratos'
 export { registrarFormatos } from './contratos'
-export { avaliarGates, type ClaimGate, type ConfigGates, type EntradaGates, type ProblemaGate, type RegistroGrafo } from './gates'
+export { avaliarGates, dataFrescorPesquisa, type PesquisaGate, type ClaimGate, type ConfigGates, type EntradaGates, type ProblemaGate, type RegistroGrafo } from './gates'
 
 const somenteAdmin: FieldAccess = ({ req }) => isSuperAdmin(req.user)
 const camposTenant: Field[] = [

@@ -22,11 +22,19 @@ export interface ClaimGate {
   status: string
   fonte: { url: string }
 }
+export interface PesquisaGate {
+  qualidade?: number | null
+  validade_dias?: number | null
+  revisado_em?: string | null
+  updatedAt?: string | null
+}
+/** Null legado conserva compatibilidade; valor explícito inválido nunca faz fallback. */
+export const dataFrescorPesquisa = (pesquisa?: PesquisaGate) => pesquisa?.revisado_em ?? pesquisa?.updatedAt
 export interface EntradaGates {
   agora: Date
   config: ConfigGates
   post: RegistroGrafo
-  pesquisa?: { qualidade?: number; validade_dias?: number; updatedAt?: string }
+  pesquisa?: PesquisaGate
   claims: ClaimGate[]
 }
 
@@ -49,7 +57,7 @@ export function avaliarGates({ agora, config, post, pesquisa, claims }: EntradaG
   const paragrafos = corpo.replace(/```[\s\S]*?```/g, '').split(/\n\s*\n/).filter(Boolean)
 
   if (config.g1 !== false) {
-    const atualizado = Date.parse(pesquisa?.updatedAt ?? '')
+    const atualizado = Date.parse(dataFrescorPesquisa(pesquisa) ?? '')
     const validade = pesquisa?.validade_dias ?? 0
     const idade = agora.getTime() - atualizado
     if (!pesquisa || !Number.isFinite(pesquisa.qualidade) || pesquisa.qualidade! < (config.qualidade_minima ?? 70)

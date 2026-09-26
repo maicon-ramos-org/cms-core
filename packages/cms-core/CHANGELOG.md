@@ -1,6 +1,16 @@
 # @maicon-ramos-org/cms-core
 
-## 0.2.0-next.3 — 2026-09-25 (pré-lançamento preparado, ainda não publicado)
+## Não lançado
+
+- G1 passa a usar `pesquisas.revisado_em` quando informado, sem renovar frescor
+  por import/edição técnica. Campo opt-in sem default; clearing explícito em PATCH
+  não pode reativar fallback. Pesquisa sem data conserva compatibilidade `updatedAt`
+  marcada como legado, que exige auditoria/backfill antes de aprovar migração.
+- Seleção de pesquisa por maior data efetiva, com duas consultas limitadas e
+  tenant explícito. Contexto distingue revisão editorial e atualização técnica;
+  REST/dry-run/publicação usam a mesma regra. Default sem grafo não muda schema.
+
+## 0.2.0-next.3 — 2026-09-25 (pré-lançamento)
 
 - Entrada opt-in `./grafo`: coleções de entidades, relações, fontes, claims,
   pesquisas, clusters e eventos. Vínculos de tenant são verificados por hooks,
