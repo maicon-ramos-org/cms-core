@@ -138,6 +138,23 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     expect(contexto.body.posts[0]).not.toHaveProperty('corpo_md')
     expect((await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Publicação proibida', slug: 'proibido', corpo_md: 'Texto', _status: 'published' })).status).toBe(403)
   })
+  it('posts do grafo também recusam select em escrita antes de conteúdo, versão e evento mudar', async () => {
+    const origem = { tenant: tenantA.id, titulo: 'Post auditado', slug: 'post-auditado', corpo_md: 'Rascunho auditado.' }
+    erroPath(await request('/posts?select[slug]=true', 'POST', origem), 'select')
+    expect((await request('/posts?where[slug][equals]=post-auditado')).body.totalDocs).toBe(0)
+    const criado = await request('/posts', 'POST', origem)
+    expect(criado.status).toBe(201)
+    const id = criado.body.doc.id
+    const antes = (await request(`/posts/${id}?depth=0`)).body
+    const versoes = () => payload.findVersions({ collection: 'posts' as never, where: { parent: { equals: id } }, limit: 50 })
+    const eventos = () => payload.find({ collection: 'eventos' as never, where: { and: [{ colecao: { equals: 'posts' } }, { doc: { equals: String(id) } }] } })
+    const versoesAntes = await versoes(), eventosAntes = await eventos()
+    expect((await request(`/posts/${id}?select[slug]=true`)).status).toBe(200)
+    erroPath(await request(`/posts/${id}?select[slug]=true`, 'PATCH', { titulo: 'Não salvar' }), 'select')
+    expect((await request(`/posts/${id}?depth=0`)).body).toEqual(antes)
+    expect((await versoes()).totalDocs).toBe(versoesAntes.totalDocs)
+    expect((await eventos()).totalDocs).toBe(eventosAntes.totalDocs)
+  })
   it('eventos têm ator da key e são imutáveis até pela Local API', async () => {
     const r = await request('/entidades', 'POST', { tenant: tenantA.id, nome: 'Auditado', slug: 'auditado', tipo: 'conceito' })
     expect(r.status).toBe(201)

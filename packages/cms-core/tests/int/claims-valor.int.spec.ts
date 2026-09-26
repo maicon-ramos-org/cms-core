@@ -190,7 +190,52 @@ describe.skipIf(semBanco)('claims.valor nativo atravessa PATCH, versões e resto
     expect(eventosDepois.totalDocs).toBe(auditoria.totalDocs + 2)
     expect(eventosDepois.docs[0]).toMatchObject({ ator: agenteA.id, acao: 'update', campos: expect.arrayContaining(['texto']) })
     expect(eventosDepois.docs[0]!.campos).not.toContain('valor')
-    expect(eventosDepois.docs[1]!.campos).not.toContain('valor')
+    expect(eventosDepois.docs[1]!.campos).toEqual(['status_na_origem'])
+  })
+
+  it('REST com depth 0 e default audita só a mudança real, inclusive com JSON que contém id', async () => {
+    for (const suffix of ['?depth=0', '']) {
+      const doc = await cria({ id: 9, nota: 'JSON da claim' })
+      const anterior = await eventos(doc.id)
+      const anotada = await request(`/claims/${doc.id}${suffix}`, 'PATCH', { status_na_origem: 'vigente' })
+      expect(anotada.status).toBe(200)
+      const posterior = await eventos(doc.id)
+      expect(posterior.totalDocs).toBe(anterior.totalDocs + 1)
+      expect(posterior.docs[0]!.campos).toEqual(['status_na_origem'])
+      expect((await request(`/claims/${doc.id}`)).body.valor).toEqual({ id: 9, nota: 'JSON da claim' })
+    }
+  })
+
+  it('select em escrita REST/Local/bulk/restore falha 400 antes de claim, versão ou evento mudar', async () => {
+    const doc = await cria('12%')
+    const antes = (await request(`/claims/${doc.id}?depth=0`)).body
+    const versoesAntes = await versoes(doc.id), eventosAntes = await eventos(doc.id)
+    const versao = versoesAntes.docs[0]!
+    const select = { tenant: true }
+    const usuario = { ...agenteA, collection: 'users' }
+    const exigeSelect = { status: 400, data: { errors: expect.arrayContaining([expect.objectContaining({ path: 'select' })]) } }
+
+    // Seleção continua válida para GET; somente uma resposta parcial de escrita
+    // impediria a auditoria de observar todos os campos alterados.
+    expect((await request(`/claims/${doc.id}?select[tenant]=true`)).status).toBe(200)
+    erroPath(await request(`/claims/${doc.id}?select[tenant]=true`, 'PATCH', { texto: 'Não salvar' }), 'select')
+    erroPath(await request(`/claims?where[id][equals]=${doc.id}&select[tenant]=true`, 'PATCH', { texto: 'Não salvar em lote' }), 'select')
+    const origem = `fixture:select-bloqueado:${++sequencia}`
+    erroPath(await request('/claims?select[tenant]=true', 'POST', { tenant: tenantA.id, entidade: entidadeA.id,
+      fonte: fonteA.id, texto: 'Não criar', origem, valor: valorNoWire('12%') }), 'select')
+
+    await expect(payload.update({ collection: 'claims' as never, id: doc.id, data: { texto: 'Não salvar' } as never,
+      select: select as never, user: usuario, overrideAccess: false })).rejects.toMatchObject(exigeSelect)
+    await expect(payload.update({ collection: 'claims' as never, where: { id: { equals: doc.id } },
+      data: { texto: 'Não salvar em lote' } as never, select: select as never,
+      user: usuario, overrideAccess: false })).rejects.toMatchObject(exigeSelect)
+    await expect(payload.restoreVersion({ collection: 'claims' as never, id: versao.id,
+      select: select as never, user: usuario, overrideAccess: false })).rejects.toMatchObject(exigeSelect)
+
+    expect((await request(`/claims/${doc.id}?depth=0`)).body).toEqual(antes)
+    expect((await versoes(doc.id)).totalDocs).toBe(versoesAntes.totalDocs)
+    expect((await eventos(doc.id)).totalDocs).toBe(eventosAntes.totalDocs)
+    expect((await payload.find({ collection: 'claims' as never, where: { origem: { equals: origem } }, depth: 0 })).totalDocs).toBe(0)
   })
 
   it.each(VALORES_CLAIM)('restore de versão anotada preserva %s, não o valor atual', async (_nome, valor) => {
