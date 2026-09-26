@@ -6,6 +6,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
+    "./pautas": "./src/pautas/index.ts",
     ".": "./src/index.ts",
     "./grafo": "./src/grafo/index.ts",
     "./scripts": "./src/scripts/index.ts"

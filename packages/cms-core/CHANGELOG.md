@@ -2,6 +2,13 @@
 
 ## Não lançado
 
+- Entrada pura `./pautas` com estados/papéis, registro imutável de formatos,
+  classificação das oito falhas, avanço de uma etapa, cooldown e recovery por
+  papel real de retorno. Sem I/O, relógio global, prioridade recalculada ou IDs
+  arredondados. Não entrega coleção/fila/jobs; não importa histórico operacional
+  nem habilita live_verified, publicação ou scheduler. Contrato incremental em
+  `docs/contratos/pautas-incrementais.md`.
+
 - G1 passa a usar `pesquisas.revisado_em` quando informado, sem renovar frescor
   por import/edição técnica. Campo opt-in sem default; clearing explícito em PATCH
   não pode reativar fallback. Pesquisa sem data conserva compatibilidade `updatedAt`
