@@ -1,5 +1,19 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.9 — 2026-09-26 (pré-lançamento)
+
+Alinha somente a dependência distribuída a `cms-core@0.2.0-next.7`: inclui as
+correções de tipos Sharp e preservação de `claims.valor` em PATCH/versões sem
+instalar duas versões do núcleo. O `pnpm pack` converte `workspace:*` no pin exato;
+não é necessário override transitivo. O código-fonte do afiliado permanece
+idêntico ao `.8`, sem mudança de schema ou ativação automática de plugins.
+
+Conserva `editorial@0.2.0-next.2` e `afflinks`, `desconto`, `schema` em `0.1.0`.
+Não publica o editorial nem distribui suas mudanças ainda não lançadas da PR #18.
+A PR não publica automaticamente: a release na dist-tag `next` depende da
+publicação verificada do core `.7` e dos gates de CI/revisão; `latest` permanece
+`0.1.0`. Nenhum pin de instância, conteúdo, backfill ou deploy é alterado.
+
 ## 0.2.0-next.8 — 2026-09-26 (pré-lançamento)
 
 Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. Sem mudança de
