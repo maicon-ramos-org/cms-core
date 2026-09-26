@@ -29,6 +29,9 @@ import { s3Storage } from '@payloadcms/storage-s3'
 import { en } from '@payloadcms/translations/languages/en'
 import { pt } from '@payloadcms/translations/languages/pt'
 import { buildConfig, type CollectionConfig, type Config, type Field, type Plugin, type SanitizedConfig } from 'payload'
+import { isSuperAdmin } from './access/roles'
+import { preparaPrincipalSiteReader } from './site-reader/provisionamento'
+import { aplicaPoliticaSiteReader } from './site-reader/politica'
 
 import { LinkRules, LinksGerados } from './collections/AutoLinker'
 import { QueriesLog } from './collections/Logs'
@@ -50,6 +53,8 @@ import { configR2DaExecucao, urlPublica, type ConfigR2 } from './r2'
 const FORA_DO_TENANT = new Set(['tenants', 'users'])
 
 export interface OpcoesCmsCore {
+  /** SSR de tenant único: exige também wrappers HTTP/admin explícitos no consumidor. */
+  siteReader?: boolean
   /**
    * A pasta `src` do site (`path.dirname(fileURLToPath(import.meta.url))` no
    * `payload.config.ts`): de lá saem o `payload-types.ts` e o mapa de componentes do admin.
@@ -220,7 +225,7 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
   const r2 = opcoes.midia?.r2 ?? configR2DaExecucao(process.env)
   const sharp = await sharpDaConfig(opcoes.sharp)
 
-  return buildConfig({
+  const config = await buildConfig({
     admin: {
       user: 'users',
       importMap: { baseDir: path.resolve(opcoes.raiz) },
@@ -287,8 +292,7 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
         multiTenantPlugin({
           collections: colecoesDoTenant(colecoes),
           tenantsSlug: 'tenants',
-          userHasAccessToAllTenants: (user) =>
-            Boolean((user as { roles?: string[] | null })?.roles?.includes('super-admin')),
+          userHasAccessToAllTenants: isSuperAdmin,
         }),
       ),
       comAsColecoes((colecoes) =>
@@ -305,6 +309,8 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
       ...(sharp ? [] : [semRecorteNemPontoFocal]),
       // por último: vale para toda coleção, venha do núcleo, de um plugin ou do site
       comEnvioDaRevalidacao,
+      ...(opcoes.siteReader ? [preparaPrincipalSiteReader] : []),
     ],
   })
+  return opcoes.siteReader ? aplicaPoliticaSiteReader(config) : config
 }

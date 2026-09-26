@@ -26,4 +26,10 @@ describe('plataforma da fixture PostgreSQL', () => {
   it('binding ausente não usa DATABASE_URL ou uma conexão anterior', () => {
     expect(() => opcoesPoolFixture(() => ({ env: {}, ctx: { waitUntil() {} } }))).toThrow(/contexto e binding/)
   })
+  it('reader só ativa com flag explícita da fixture, não por instalar o wrapper', () => {
+    const env = { HYPERDRIVE: { connectionString: 'postgres://fixture' } }
+    const ctx = { waitUntil() {} }
+    expect(opcoesPoolFixture(() => ({ env, ctx })).siteReader).toBeUndefined()
+    expect(opcoesPoolFixture(() => ({ env: { ...env, TESTAR_SITE_READER: '1' }, ctx })).siteReader).toBe(true)
+  })
 })

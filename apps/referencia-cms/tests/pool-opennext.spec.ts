@@ -1,9 +1,9 @@
 /** Prova opt-in de runtime: só banco loopback novo, build real e credencial sintética fixa. */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { unstable_dev, type Unstable_DevWorker } from 'wrangler'
@@ -20,6 +20,8 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
   let worker: Unstable_DevWorker, admin: InstanceType<typeof Pool>
   let criouBanco = false
   let tenantA: number | string
+  let readerId: number | string
+  let serverActionId: string
   let claims: Array<{ id: number; versao: number; nome: string }>
   const claimRequest = async (path: string, method = 'GET', body?: unknown) => {
     const r = await worker.fetch('/api' + path, { method,
@@ -40,6 +42,20 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
   beforeAll(async () => {
     const script = fileURLToPath(new URL('../.open-next/worker.js', import.meta.url))
     if (!existsSync(script)) throw new Error('Prova exige build OpenNext real antes de rodar.')
+    // Nunca imprime o manifesto: ele também contém encryptionKey do build.
+    const manifests = ['../.next/server/server-reference-manifest.json',
+      '../.open-next/server-functions/default/apps/referencia-cms/.next/server/server-reference-manifest.json']
+      .map(path => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')))
+    for (const manifest of manifests) {
+      expect(Object.keys(manifest.edge)).toHaveLength(0)
+      const actions = Object.entries(manifest.node) as Array<[string, { filename: string; exportedName: string }]>
+      expect(actions).toHaveLength(2)
+      expect(actions.filter(([, action]) => action.filename === 'app/(payload)/layout.tsx')).toHaveLength(1)
+      expect(actions.filter(([, action]) => action.filename.endsWith('/@payloadcms/next/dist/layouts/Root/index.js'))).toHaveLength(1)
+      expect(actions.every(([, action]) => action.exportedName === '$$RSC_SERVER_ACTION_0')).toBe(true)
+    }
+    expect(Object.keys(manifests[0].node)).toEqual(Object.keys(manifests[1].node))
+    serverActionId = Object.entries(manifests[0].node).find(([, action]) => (action as { filename: string }).filename === 'app/(payload)/layout.tsx')![0]
     const banco = new URL(process.env.DATABASE_URL!)
     if (!['localhost', '127.0.0.1', '[::1]'].includes(banco.hostname)) throw new Error('Prova exige PostgreSQL loopback isolado.')
     admin = new Pool({ connectionString: banco.toString(), max: 1 })
@@ -56,13 +72,14 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
       saida = execFileSync(process.execPath, [require.resolve('tsx/cli'), fileURLToPath(new URL('./fixtures/seed-pool.ts', import.meta.url))], {
         encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH,
           DATABASE_URL: banco.toString(), PAYLOAD_SECRET: 'fixture-pool-sem-segredo-real',
-          PAYLOAD_DB_PUSH: '1', REVALIDATE_URL: '', NODE_ENV: 'test' },
+          PAYLOAD_DB_PUSH: '1', REVALIDATE_URL: '', NODE_ENV: 'test', TESTAR_SITE_READER: '1' },
       })
     } catch { throw new Error('Subprocesso de seed local falhou; nenhuma resposta de provedor é impressa.') }
     const linha = saida.split('\n').find(l => l.startsWith('FIXTURE_POOL='))
     if (!linha) throw new Error('Seed sem confirmação estruturada.')
     const fixture = JSON.parse(linha.slice('FIXTURE_POOL='.length))
     tenantA = fixture.tenantA
+    readerId = fixture.readerId
     claims = fixture.claims
     expect(typeof tenantA).toBe('number')
     await esperaSemConexoes()
@@ -120,5 +137,64 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
     const invalida = await claimRequest(`/claims/${doc.id}`, 'PATCH', { valor: '12%' })
     expect(invalida.status).toBe(400)
     expect(invalida.body.errors.flatMap((e: any) => e.data?.errors ?? [])).toContainEqual(expect.objectContaining({ path: 'valor' }))
+  })
+
+  it('reader no OpenNext real: identidade mínima e bloqueio de REST/GraphQL/admin', async () => {
+    const headers = { authorization: 'users API-Key reader-opennext-fixture-a' }
+    const identity = await worker.fetch('/api/editorial/identity-v1', { headers })
+    expect(identity.status).toBe(200)
+    expect(await identity.json()).toEqual({ versao: 1, papel: 'site-reader', tenantId: String(tenantA) })
+    expect(identity.headers.get('cache-control')).toBe('private, no-store')
+    expect(identity.headers.has('set-cookie')).toBe(false)
+    for (const path of ['/api/users/me?select[apiKey]=true&depth=10', '/api/claims?draft=true', '/api/claims/versions', '/api/payload-jobs/run?queue=diario', '/api/graphql-playground']) {
+      expect((await worker.fetch(path, { headers })).status, path).toBe(403)
+    }
+    expect((await worker.fetch('/api/graphql', { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: '{' })).status).toBe(403)
+    for (const path of ['/admin', '/admin/login']) expect((await worker.fetch(path, { headers, redirect: 'manual' })).status, path).toBe(404)
+  })
+
+  it.each(['X-HTTP-Method-Override', 'X-Payload-HTTP-Method-Override'])('Next/workerd mantém Request original: %s não vira GET', async header => {
+    const r = await worker.fetch('/api/editorial/identity-v1', { method: 'POST',
+      headers: { authorization: 'users API-Key reader-opennext-fixture-a', [header]: 'GET', 'content-type': 'application/json' }, body: '{' })
+    expect(r.status).toBe(405)
+    expect(r.headers.get('allow')).toBe('GET')
+  })
+
+  it('action HTTP real executa slugify para admin, mas reader não alcança handleServerFunctions', async () => {
+    const origin = `http://${worker.address}:${worker.port}`
+    const call = async (key: string) => {
+      const response = await worker.fetch(origin + '/admin', { method: 'POST', headers: {
+        authorization: `users API-Key ${key}`, origin, 'Next-Action': serverActionId,
+        'Content-Type': 'text/plain;charset=UTF-8', Accept: 'text/x-component',
+      }, body: JSON.stringify([{ name: 'slugify', args: { collectionSlug: 'posts', path: 'slug', valueToSlugify: 'Fixture Action Guard', data: {} } }]) })
+      // Somente status/presença do resultado são comparados; Flight pode conter dados privados.
+      return { status: response.status, executou: (await response.text()).includes('fixture-action-guard') }
+    }
+    expect(await call('reader-admin-opennext-fixture')).toEqual({ status: 200, executou: true })
+    expect(await call('reader-opennext-fixture-a')).toEqual({ status: 404, executou: false })
+  })
+
+  it('única action upstream permitida conserva corpo estrito de cookie de idioma, sem auth/Payload/CRUD', () => {
+    const source = readFileSync(resolve(dirname(require.resolve('@payloadcms/next/layouts')), '../layouts/Root/index.js'), 'utf8')
+    expect(source).toContain("import { cookies as nextCookies } from 'next/headers.js';")
+    const body = source.match(/async function switchLanguageServerAction\(lang\) \{([\s\S]*?)\n  \}/)?.[1]
+    expect(body?.replace(/\s+/g, ' ').trim()).toBe("'use server'; const cookies = await nextCookies(); cookies.set({ name: `${config.cookiePrefix || 'payload'}-lng`, maxAge: 60 * 60 * 24 * 365, path: '/', value: lang });")
+    // RootProvider recebe a função independentemente de req.user, inclusive no login anônimo.
+    expect(source).toContain('switchLanguageServerAction: switchLanguageServerAction,')
+  })
+
+  it('login anônimo entrega a referência da action de idioma, que não é privilégio do reader', async () => {
+    const response = await worker.fetch('/admin/login')
+    expect(response.status).toBe(200)
+    const body = await response.text()
+    // Não imprime HTML/Flight nem o argumento bound criptografado.
+    expect(body.includes('switchLanguageServerAction')).toBe(true)
+  })
+
+  it('Worker observa revogação no request seguinte, sem cache global de principal', async () => {
+    const r = await worker.fetch(`/api/users/${readerId}`, { method: 'PATCH', headers: { authorization: 'users API-Key reader-admin-opennext-fixture', 'content-type': 'application/json' }, body: JSON.stringify({ enableAPIKey: false }) })
+    expect(r.status).toBe(200)
+    const invalid = await worker.fetch('/api/editorial/identity-v1', { headers: { authorization: 'users API-Key reader-opennext-fixture-a' } })
+    expect(invalid.status).toBe(401)
   })
 })

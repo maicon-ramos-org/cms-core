@@ -1,5 +1,23 @@
 # @maicon-ramos-org/cms-core
 
+## Não lançado
+
+- `siteReader: true` adiciona papel exclusivo de tenant único e identidade mínima
+  `GET /editorial/identity-v1`, sem conceder Users.read ou acesso a coleções,
+  drafts, versões, auditoria, jobs, GraphQL e admin. Requer instalação explícita
+  dos guards HTTP original, layout/página/metadata e server actions no consumidor;
+  o plugin isolado não protege todos os transportes. Entrada pública `/site-reader`.
+- Exceção explícita: a action nativa de idioma do Payload permanece disponível
+  como no login anônimo, somente alterando cookie. Sentinelas de manifest/corpo
+  exigem revisão se essa superfície mudar; a serverFunction da aplicação é negada.
+- Override de método é recusado antes de ler corpo; credenciais são revalidadas
+  sem cache global. Config com strategies custom, autoLogin ativo ou roles oculto/
+  virtual/localizado falha fechada; o default permanece desligado e sem alteração
+  de schema. Ativar exige migration aditiva do enum de roles na própria instância.
+- Integração/provas somente na referência local/CI. Sem ativação de sites, release
+  automática, publicação de conteúdo ou concessão de URL/tracking afiliado ao reader.
+  Contrato e limites: `docs/contratos/site-reader.md`.
+
 ## 0.2.0-next.8 — 2026-09-26 (pré-lançamento)
 
 - A auditoria append-only do grafo compara a identidade dos campos relacionais

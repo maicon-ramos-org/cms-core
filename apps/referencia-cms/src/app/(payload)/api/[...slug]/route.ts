@@ -1,6 +1,7 @@
-/* THIS FILE WAS GENERATED AUTOMATICALLY BY PAYLOAD. */
-/* DO NOT MODIFY IT BECAUSE IT COULD BE REWRITTEN AT ANY TIME. */
+/* Integração mantida pela aplicação: preservar o guard antes dos handlers Payload.
+ * A regeneração destas rotas deve passar por tests/site-reader-next.spec.ts. */
 import config from '@payload-config'
+import { protegerTransporteSiteReader } from '@maicon-ramos-org/cms-core/site-reader'
 import '@payloadcms/next/css'
 import {
   REST_DELETE,
@@ -11,9 +12,9 @@ import {
   REST_PUT,
 } from '@payloadcms/next/routes'
 
-export const GET = REST_GET(config)
-export const POST = REST_POST(config)
-export const DELETE = REST_DELETE(config)
-export const PATCH = REST_PATCH(config)
-export const PUT = REST_PUT(config)
-export const OPTIONS = REST_OPTIONS(config)
+export const GET = protegerTransporteSiteReader({ config, superficie: 'rest', handler: REST_GET(config) })
+export const POST = protegerTransporteSiteReader({ config, superficie: 'rest', handler: REST_POST(config) })
+export const DELETE = protegerTransporteSiteReader({ config, superficie: 'rest', handler: REST_DELETE(config) })
+export const PATCH = protegerTransporteSiteReader({ config, superficie: 'rest', handler: REST_PATCH(config) })
+export const PUT = protegerTransporteSiteReader({ config, superficie: 'rest', handler: REST_PUT(config) })
+export const OPTIONS = protegerTransporteSiteReader({ config, superficie: 'rest', handler: REST_OPTIONS(config) })

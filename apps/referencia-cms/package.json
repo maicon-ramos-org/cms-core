@@ -16,7 +16,7 @@
     "migrate:create": "cross-env NODE_OPTIONS=--no-deprecation payload migrate:create",
     "seed": "cross-env NODE_OPTIONS=--no-deprecation tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run tests/plataforma-pool.spec.ts",
+    "test": "vitest run tests/plataforma-pool.spec.ts tests/site-reader-next.spec.ts",
     "test:pool:opennext": "vitest run tests/pool-opennext.spec.ts",
     "confere:schema": "cross-env NODE_OPTIONS=--no-deprecation tsx src/scripts/confere-schema.ts"
   },
