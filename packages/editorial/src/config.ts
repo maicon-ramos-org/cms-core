@@ -23,6 +23,13 @@ export interface ConfigDoEditorial {
    * a opção, o comportamento é idêntico ao de hoje.
    */
   semTenant?: string[]
+  /**
+   * Opt-in: GETs CMS idênticos compartilham resultado somente durante um render.
+   * Caminhos exatos ou subárvores terminadas em /* (não aceita o wildcard geral).
+   * Cookies, Authorization, previews, /r e APIs/rotas reservadas nunca participam.
+   * Não altera cache de rota, tags, TTL ou invalidação. Ausente = comportamento atual.
+   */
+  memoLeituras?: { caminhosPublicos: string[] }
   /** Pastas cujas fichas (`/pasta/slug/`) têm gêmeo `.md`; o hub da pasta não tem. */
   pastasComMd?: string[]
   /** Páginas de raiz sem gêmeo `.md`, além de `/`, `/blog/`, `/busca/` e os hubs das pastas. */

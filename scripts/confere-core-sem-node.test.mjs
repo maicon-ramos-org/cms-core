@@ -85,6 +85,21 @@ test('fora da lista de permitidos reprova: fs sem prefixo, fs/promises, child_pr
   assert.match(r.join('\n'), /c\.ts:1 — node:child_process/)
 })
 
+test('AsyncLocalStorage nomeado é o único acesso permitido a async_hooks (Node e workerd)', () => {
+  assert.deepEqual(achados({
+    'packages/editorial/src/lib/contexto.ts': "import { AsyncLocalStorage as Contexto } from 'node:async_hooks'\nexport const contexto = new Contexto()",
+  }), [])
+  for (const codigo of [
+    "import { createHook } from 'node:async_hooks'",
+    "import { AsyncLocalStorage, createHook } from 'async_hooks'",
+    "import * as hooks from 'node:async_hooks'",
+    "import hooks from 'node:async_hooks'",
+    "export { AsyncLocalStorage } from 'node:async_hooks'",
+    "const hooks = await import('node:async_hooks')",
+    "const hooks = require('node:async_hooks')",
+  ]) assert.equal(achados({ 'packages/editorial/src/lib/contexto.ts': codigo }).length, 1, codigo)
+})
+
 test('import só de tipo não entra no bundle: não reprova', () => {
   const r = achados({
     'packages/editorial/src/middleware.ts': "import type { Tema } from '../tema'\nimport { type Outro } from './lib/x'\nexport type { Rotas } from '../rotas'",

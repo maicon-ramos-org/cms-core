@@ -1,5 +1,17 @@
 # @maicon-ramos-org/editorial
 
+## Não lançado — memo de leituras SSR opt-in
+
+- `config.memoLeituras.caminhosPublicos`: deduplica GETs CMS idênticos somente
+  durante um render público declarado; ausente mantém o comportamento anterior.
+- Isolamento por requisição/identidade, cópias independentes, limites de memória,
+  retry de falhas e contexto até EOF/cancelamento/abort. Rewrites suspendem contexto
+  herdado; cookies, autenticação, previews, `/r`, APIs e escritas não participam.
+- Testes reais Node/Astro e workerd preservam HTML sem JS, Markdown/JSON, headers
+  e isolamento. Navegação duplicada no cabeçalho/rodapé passa de dois GETs para um.
+  Não muda cache de rota, TTL, tags, invalidação, banner ou tracking afiliado.
+- Contrato: `docs/contratos/leitura-ssr.md`. Nenhum consumidor ativado nesta entrega.
+
 ## 0.2.0-next.2 — 2026-09-25 (pré-lançamento, PRD 24 RF10.10)
 
 Pré-lançamento na dist-tag `next` (RF4): o `latest` continua em `0.1.0`.

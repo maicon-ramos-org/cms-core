@@ -3,6 +3,7 @@
  * Autentica com a API key do usuário de serviço `web-server` (papel: sistema).
  */
 import { variavel } from './ambiente'
+import { leituraCmsNaRequisicao } from './contexto-requisicao'
 
 const CMS_URL = () => variavel('CMS_URL') ?? 'http://localhost:3000'
 
@@ -146,19 +147,20 @@ export interface FindResult<T> {
 }
 
 export async function cmsFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${CMS_URL()}${path}`, {
+  const url = `${CMS_URL()}${path}`
+  const opcoes = {
     ...init,
     headers: {
       'content-type': 'application/json',
       authorization: `users API-Key ${CMS_API_KEY()}`,
       ...(init?.headers ?? {}),
     },
-    signal: init?.signal ?? AbortSignal.timeout(8000),
-  })
-  if (!res.ok) {
-    throw new Error(`CMS ${path} → HTTP ${res.status}`)
   }
-  return (await res.json()) as T
+  return leituraCmsNaRequisicao(url, opcoes, async () => {
+    const res = await fetch(url, { ...opcoes, signal: init?.signal ?? AbortSignal.timeout(8000) })
+    if (!res.ok) throw new Error(`CMS ${path} → HTTP ${res.status}`)
+    return { valor: await res.json() as T, headers: res.headers }
+  })
 }
 
 /**

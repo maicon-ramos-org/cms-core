@@ -16,6 +16,7 @@ import { defineMiddleware } from 'astro:middleware'
 import config from 'virtual:editorial/config'
 
 import { getTenantByHost, getTenantBySlug } from './lib/cms'
+import { comContextoLeituraCms, permiteMemoLeituras, semContextoLeituraCms } from './lib/contexto-requisicao'
 import { criaResolveTenant } from './lib/resolve-tenant'
 import {
   caminhoDoMd,
@@ -114,7 +115,7 @@ const varia = (r: Response, metodo: string, nomes: string[] = []): Response => {
   return todos.length > 0 ? comVary(r, todos) : r
 }
 
-export const onRequest = defineMiddleware(async (context, next) => {
+export const onRequest = defineMiddleware((context, next) => semContextoLeituraCms(async () => {
   // rota de webhook não depende de tenant (autentica por token próprio); `semTenant` da
   // config generaliza o mesmo bypass pra outros caminhos que também não dependem do CMS
   // (PRD 24: os endereços antigos de mídia, sem tenant, com o CMS fora do ar)
@@ -175,7 +176,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return varia(new Response('Tenant não encontrado para este host.', { status: 404 }), metodo)
   }
   context.locals.tenant = resolucao.tenant
-  const resposta = await next()
+  const resposta = permiteMemoLeituras(context.request, config.memoLeituras?.caminhosPublicos)
+    ? await comContextoLeituraCms(next, context.request.signal)
+    : await next()
   if (!negociavel) return varia(resposta, metodo)
   return comAlternate(varia(resposta, metodo, ['Accept']), caminhoDoMd(context.url.pathname))
-})
+}))

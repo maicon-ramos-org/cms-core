@@ -1,0 +1,5 @@
+---
+import { cmsFetch } from '../../../../../src/lib/cms'
+const r = await cmsFetch<{ docs: Array<{ nome: string }> }>(`/api/categorias?tenant=${Astro.locals.tenant.id}`)
+---
+<footer>{r.docs.map(c => <a href="/ficha/">{c.nome}</a>)}</footer>

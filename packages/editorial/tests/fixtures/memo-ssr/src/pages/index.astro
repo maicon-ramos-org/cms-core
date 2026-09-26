@@ -1,0 +1,6 @@
+---
+import Cabecalho from '../componentes/Cabecalho.astro'
+import Rodape from '../componentes/Rodape.astro'
+Astro.response.headers.set('Cache-Tag', `tenant:${Astro.locals.tenant.slug}`)
+---
+<!doctype html><html lang="pt-BR"><head><title>Leitura SSR</title><link rel="canonical" href={`https://${Astro.locals.tenant.canonical_host}/`} /></head><body><Cabecalho /><main><h1>Conteúdo completo</h1><a href="/r/c1" rel="sponsored nofollow">Oferta</a></main><Rodape /></body></html>
