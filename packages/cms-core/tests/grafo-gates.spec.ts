@@ -31,6 +31,16 @@ describe('gates determinísticos do grafo', () => {
     const e = entrada(); e.pesquisa!.qualidade = 69
     expect(avaliarGates(e)).toContainEqual(expect.objectContaining({ gate: 'G1' }))
   })
+  it.each(['2020-01-01T00:00:00Z', 'inválida', '', '2026-09-26T12:00:00Z'])('data editorial %s não ganha frescor pelo timestamp técnico do import', revisado_em => {
+    const e = entrada()
+    Object.assign(e.pesquisa!, { revisado_em })
+    expect(avaliarGates(e)).toContainEqual(expect.objectContaining({ gate: 'G1', path: 'entidades' }))
+  })
+  it('data editorial vigente prevalece sobre timestamp técnico antigo', () => {
+    const e = entrada()
+    Object.assign(e.pesquisa!, { revisado_em: '2026-09-24T12:00:00Z', updatedAt: '2020-01-01T00:00:00Z' })
+    expect(avaliarGates(e)).toEqual([])
+  })
   it('pesquisa ainda sem avaliação de qualidade permanece bloqueada para publicação', () => {
     const e = entrada(); delete e.pesquisa!.qualidade
     expect(avaliarGates(e)).toContainEqual(expect.objectContaining({ gate: 'G1' }))

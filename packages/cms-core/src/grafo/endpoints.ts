@@ -1,8 +1,9 @@
 import { APIError, type Endpoint, type PayloadRequest } from 'payload'
 import { idGrafo, tenantDaConsulta } from './acesso'
 import type { FormatoEditorial } from './contratos'
-import { avaliarGates, type ClaimGate, type ConfigGates, type EntradaGates, type ProblemaGate, type RegistroGrafo } from './gates'
+import { avaliarGates, dataFrescorPesquisa, type ClaimGate, type ConfigGates, type ProblemaGate, type RegistroGrafo } from './gates'
 import { markdownCanonico } from './markdown'
+import { pesquisaMaisRecente } from './pesquisas'
 import { encontraNoTenant, invalidoGrafo } from './validacao'
 
 export async function avaliaPost(req: PayloadRequest, post: RegistroGrafo, formatos: FormatoEditorial[]): Promise<ProblemaGate[]> {
@@ -13,8 +14,7 @@ export async function avaliaPost(req: PayloadRequest, post: RegistroGrafo, forma
   if (!config.ativo) return []
   const entidades = Array.isArray(post.entidades) ? post.entidades : []
   const entidade = idGrafo(entidades[0])
-  const pesquisas = entidade === undefined ? undefined : await req.payload.find({ collection: 'pesquisas' as never, req, depth: 0, limit: 1,
-    overrideAccess: true, sort: '-updatedAt', where: { and: [{ tenant: { equals: tenant } }, { entidade: { equals: entidade } }] } })
+  const pesquisa = entidade === undefined ? undefined : await pesquisaMaisRecente(req, tenant, entidade, true)
   const claims: ClaimGate[] = []
   for (const id of Array.isArray(post.claims) ? post.claims : []) {
     const claim = await encontraNoTenant(req, 'claims', id, tenant)
@@ -25,7 +25,7 @@ export async function avaliaPost(req: PayloadRequest, post: RegistroGrafo, forma
   }
   const canonico = { ...post, corpo_md: markdownCanonico(req, post.corpo) }
   const problemas = avaliarGates({ agora: new Date(), config, post: canonico,
-    pesquisa: pesquisas?.docs[0] as EntradaGates['pesquisa'], claims })
+    pesquisa, claims })
   const formato = formatos.find(f => f.slug === (post.tipo ?? 'artigo'))
   if (!formato) problemas.push({ gate: 'formato', severidade: 'P0', path: 'tipo', mensagem: 'Formato não registrado nesta instância.' })
   else if (formato.validarPublicacao) problemas.push(...formato.validarPublicacao(canonico))
@@ -48,22 +48,20 @@ export const contextoGrafo: Endpoint = {
     const entidade = entidades.docs[0]
     if (!entidade) throw new APIError('Entidade não encontrada.', 404)
     const base = { req, overrideAccess: false, depth: 0, limit: 50 }
-    const [relacoes, claims, posts, pesquisas] = await Promise.all([
+    const [relacoes, claims, posts, pesquisa] = await Promise.all([
       req.payload.find({ ...base, collection: 'relacoes' as never, where: { and: [{ tenant: { equals: tenant } },
         { or: [{ de: { equals: entidade.id } }, { para: { equals: entidade.id } }] }] } }),
       req.payload.find({ ...base, collection: 'claims' as never, where: { and: [{ tenant: { equals: tenant } },
         { entidade: { equals: entidade.id } }, { status: { equals: 'vigente' } }, { ano_ancora: { greater_than_equal: new Date().getUTCFullYear() - 2 } }] } }),
       req.payload.find({ ...base, collection: 'posts', select: { slug: true, titulo: true, tipo: true, resumo: true, publicado_em: true, _status: true },
         where: { and: [{ tenant: { equals: tenant } }, { entidades: { contains: entidade.id } }] } }),
-      req.payload.find({ ...base, collection: 'pesquisas' as never, limit: 1, sort: '-updatedAt',
-        where: { and: [{ tenant: { equals: tenant } }, { entidade: { equals: entidade.id } }] } }),
+      pesquisaMaisRecente(req, tenant, entidade.id),
     ])
     const fonteIDs = claims.docs.map(c => idGrafo(c.fonte)).filter(id => id !== undefined)
     const fontes = fonteIDs.length ? await req.payload.find({ ...base, collection: 'fontes' as never,
       where: { and: [{ tenant: { equals: tenant } }, { id: { in: fonteIDs } }] } }) : { docs: [] }
     const porID = new Map(fontes.docs.map(f => [String(f.id), f]))
     const aresta = (r: RegistroGrafo) => ({ id: r.id, de: idGrafo(r.de), para: idGrafo(r.para), tipo: recorta(r.tipo, 100), peso: r.peso })
-    const pesquisa = pesquisas.docs[0]
     return Response.json({ tenant, entidade: entidadeDTO(entidade),
       relacoes: { saida: relacoes.docs.filter(r => String(idGrafo(r.de)) === String(entidade.id)).map(aresta),
         entrada: relacoes.docs.filter(r => String(idGrafo(r.para)) === String(entidade.id)).map(aresta) },
@@ -75,6 +73,8 @@ export const contextoGrafo: Endpoint = {
       posts: posts.docs.map(p => ({ id: p.id, slug: recorta(p.slug, 200), titulo: recorta(p.titulo, 300),
         tipo: recorta(p.tipo, 100), resumo: recorta(p.resumo), publicado_em: p.publicado_em, _status: p._status })),
       pesquisa: pesquisa ? { id: pesquisa.id, qualidade: pesquisa.qualidade, validade_dias: pesquisa.validade_dias,
+        revisado_em: pesquisa.revisado_em ?? null, data_frescor: dataFrescorPesquisa(pesquisa),
+        base_frescor: pesquisa.revisado_em != null ? 'revisado_em' : 'updatedAt-legado',
         atualizado_em: pesquisa.updatedAt, corpo_md: recorta(pesquisa.corpo_md, 8000), corpo_truncado: String(pesquisa.corpo_md ?? '').length > 8000 } : null,
       truncado: { relacoes: relacoes.hasNextPage, claims: claims.hasNextPage, posts: posts.hasNextPage },
     }, { headers: { 'Cache-Control': 'private, no-store' } })

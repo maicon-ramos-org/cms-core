@@ -1,4 +1,4 @@
-import { APIError, ValidationError, type CollectionBeforeValidateHook, type PayloadRequest, type Where } from 'payload'
+import { APIError, ValidationError, type CollectionBeforeOperationHook, type CollectionBeforeValidateHook, type PayloadRequest, type Where } from 'payload'
 import { hasRole, isSuperAdmin } from '../access/roles'
 import { efetivo } from '../hooks/validations'
 import { exigeTenantAutorizado, idGrafo } from './acesso'
@@ -13,12 +13,28 @@ export async function encontraNoTenant(req: PayloadRequest, collection: string, 
   return resposta.docs[0] as Record<string, any> | undefined
 }
 
+/** Antes de o Payload mesclar null legado no PATCH: somente limpeza explícita é recusada. */
+export const protegeRevisaoPesquisa: CollectionBeforeOperationHook = ({ args, operation }) => {
+  if (operation === 'update' && 'data' in args) {
+    const data = args.data as Record<string, unknown> | undefined
+    // Não depende de originalDoc: uma limpeza concorrente com o backfill também falha.
+    if (data && (data.revisado_em === null || data.revisado_em === '')) {
+      invalidoGrafo('revisado_em', 'Informe a data editorial documentada; limpar a revisão não pode reativar frescor técnico.')
+    }
+  }
+  return args
+}
+
 export const validaGrafo = (refs: Record<string, string> = {}, obrigatorias: string[] = []): CollectionBeforeValidateHook =>
   async ({ data, originalDoc, req, collection }) => {
     const tenant = idGrafo(efetivo(data, originalDoc, 'tenant'))
     if (tenant === undefined) invalidoGrafo('tenant', 'Tenant obrigatório.')
     if (originalDoc?.id && String(idGrafo(originalDoc.tenant)) !== String(tenant)) invalidoGrafo('tenant', 'Tenant é imutável.')
     exigeTenantAutorizado(req, tenant!)
+    // restoreVersion não passa pelo update beforeOperation; o Payload marca este caminho.
+    if (collection.slug === 'pesquisas' && req.context.isRestoringVersion && !data?.revisado_em) {
+      invalidoGrafo('revisado_em', 'Versão sem revisão editorial não pode reativar frescor técnico; registre a data documentada antes de restaurar.')
+    }
     if (originalDoc?.origem && efetivo(data, originalDoc, 'origem') !== originalDoc.origem) invalidoGrafo('origem', 'Chave de origem é imutável.')
     for (const campo of obrigatorias) if (efetivo(data, originalDoc, campo) == null) invalidoGrafo(campo, 'Campo obrigatório.')
     for (const [campo, col] of Object.entries(refs)) {
