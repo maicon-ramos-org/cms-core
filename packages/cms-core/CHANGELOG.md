@@ -1,6 +1,10 @@
 # @maicon-ramos-org/cms-core
 
-## Não lançado
+## 0.2.0-next.5 — 2026-09-26 (pré-lançamento)
+
+Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. Ativação explícita
+somente na plataforma Worker. Não muda schema, migrations, comportamento padrão
+Node ou pins de instâncias. Não inclui nova versão de afiliado ou editorial.
 
 - Plugin opt-in `poolPostgresPorRequisicao(obterContexto)` isola fila, clientes e
   listeners PostgreSQL por identidade de invocação, com conexão do binding atual.
@@ -9,6 +13,8 @@
   request e com réplicas. Libera o cliente de bootstrap do adapter 3.88.
 - Contrato e provas em `docs/contratos/pool-postgres-por-requisicao.md`.
   Consumidor instala somente no Worker e resolve `waitUntil` dinamicamente.
+  Provas Workerd/PG16 e Worker OpenNext gerado cobrem concorrência cold/warm,
+  autenticação, isolamento tenant e encerramento sem sessões residuais.
 
 ## 0.2.0-next.4 — 2026-09-26 (pré-lançamento)
 

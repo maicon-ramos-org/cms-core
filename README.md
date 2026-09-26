@@ -15,6 +15,10 @@ descreve coleções, formatos, gates, migração por instância e limites desta 
 O plugin saiu em `cms-core@0.2.0-next.3`; a ativação continua explícita por instância.
 O pré-lançamento `.4` acrescenta [frescor editorial](docs/contratos/frescor-editorial.md)
 e a [máquina pura de pautas](docs/contratos/pautas-incrementais.md), sem ativar fila.
+O pré-lançamento `.5` prepara o plugin opt-in
+[`poolPostgresPorRequisicao`](docs/contratos/pool-postgres-por-requisicao.md), para
+isolar conexões PostgreSQL por invocação Worker. Node e schema padrão não mudam;
+consumo depende de publicação confirmada, não apenas desta versão no repositório.
 
 Ofertas sem identidade física têm o plugin separado `ofertasEditoriais({ programas })`
 em `afiliado/cms`. O [contrato](docs/contratos/ofertas-editoriais.md) descreve drafts,
