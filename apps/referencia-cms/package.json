@@ -16,7 +16,8 @@
     "migrate:create": "cross-env NODE_OPTIONS=--no-deprecation payload migrate:create",
     "seed": "cross-env NODE_OPTIONS=--no-deprecation tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'o site de referência é provado subindo de verdade no CI (trabalho referencia)'",
+    "test": "vitest run tests/plataforma-pool.spec.ts",
+    "test:pool:opennext": "vitest run tests/pool-opennext.spec.ts",
     "confere:schema": "cross-env NODE_OPTIONS=--no-deprecation tsx src/scripts/confere-schema.ts"
   },
   "dependencies": {
@@ -52,8 +53,5 @@
     "vite-tsconfig-paths": "6.0.5",
     "vitest": "4.0.18",
     "wrangler": "^4.139.0"
-  },
-  "plataforma": {
-    "semTestes": "o site de referência não tem regra própria: é provado subindo de verdade no CI (migração, semente, build e as rotas do tema e do plugin respondendo)"
   }
 }

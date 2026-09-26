@@ -46,6 +46,8 @@
     }
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
+    "miniflare": "5.20260923.0-alpha",
     "@types/node": "22.19.9",
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/plugin-multi-tenant": "3.88.0",
