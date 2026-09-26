@@ -1,6 +1,11 @@
 # @maicon-ramos-org/afiliado
 
-## Não lançado
+## 0.2.0-next.7 — 2026-09-26 (pré-lançamento)
+
+Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. O pacote fixa
+`cms-core@0.2.0-next.4` e conserva `editorial@0.2.0-next.2`. Ativar ofertas exige
+`grafoEditorial()` antes de `ofertasEditoriais()` e migration revisada da instância;
+atualizar o pacote não ativa ofertas, categorias extras nem memoização SSR.
 
 - Plugin separado `ofertasEditoriais({ programas })`: ofertas editoriais draft-first,
   histórico append-only, escolhas por vocabulário do tenant, decimais exatos nullable,

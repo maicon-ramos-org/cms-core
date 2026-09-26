@@ -13,10 +13,14 @@ O grafo editorial incremental é ativado pelo plugin `grafoEditorial()` da entra
 `@maicon-ramos-org/cms-core/grafo`. O [contrato](docs/contratos/grafo-editorial.md)
 descreve coleções, formatos, gates, migração por instância e limites desta entrega.
 O plugin saiu em `cms-core@0.2.0-next.3`; a ativação continua explícita por instância.
+O pré-lançamento `.4` acrescenta [frescor editorial](docs/contratos/frescor-editorial.md)
+e a [máquina pura de pautas](docs/contratos/pautas-incrementais.md), sem ativar fila.
 
 Ofertas sem identidade física têm o plugin separado `ofertasEditoriais({ programas })`
 em `afiliado/cms`. O [contrato](docs/contratos/ofertas-editoriais.md) descreve drafts,
-espelhos, histórico, escolhas e redirect opt-in; esta extensão ainda não foi lançada.
+espelhos, histórico, escolhas e redirect opt-in, versionados em `afiliado@0.2.0-next.7`.
+Consuma as versões exatas somente após o workflow de publicação e a disponibilidade
+no registry serem confirmados; merge/CI, isoladamente, não publicam um pacote.
 
 ## Como provar uma mudança
 

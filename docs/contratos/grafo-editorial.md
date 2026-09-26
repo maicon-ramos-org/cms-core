@@ -1,11 +1,11 @@
 # Grafo editorial — primeira entrega do PRD 20
 
-Status: implementado e testado localmente; ainda não lançado. O contrato foi
-escrito antes do código. Referências: PRDs 20, 22 e 23 e ADR-0013 do repositório da
+Status: base publicada em `cms-core@0.2.0-next.3`; frescor editorial versionado em
+`cms-core@0.2.0-next.4`. O contrato foi escrito antes do código.
+Referências: PRDs 20, 22 e 23 e ADR-0013 do repositório da
 plataforma. Não fecha esses três PRDs.
-Versão preparada: `@maicon-ramos-org/cms-core@0.2.0-next.3`; ainda depende de CI,
-merge e aprovação para tag. Registry e remoto foram conferidos antes do bump:
-essa versão/tag não existiam; `latest` era 0.1.0 e `next` era 0.2.0-next.2.
+O consumo de cada pré-lançamento exige publicação confirmada no registry, não
+somente merge/CI. As versões são fixadas pela instância; `latest` permanece 0.1.0.
 
 ## Ativação e compatibilidade
 
@@ -13,7 +13,7 @@ essa versão/tag não existiam; `latest` era 0.1.0 e `next` era 0.2.0-next.2.
 um plugin passado a `cmsCore({ plugins: [...] })`. Ativação explícita permite gerar
 e revisar a migration de cada instância antes de alterar seu banco. Sem o plugin,
 a config e o schema atuais permanecem iguais. O pacote `schema` existente é
-preservado. Dependências continuam fixas; esta entrega não publica pacote ou tag.
+preservado. Dependências continuam fixas; instalar não ativa o plugin nem migra banco.
 
 O núcleo registra `artigo`; o site/plugin registra os outros formatos por
 `{ slug, rotulo, intencao, validarPublicacao? }`. O callback recebe os dados
@@ -35,7 +35,7 @@ SSR/cache na Cloudflare.
 | relacoes | de, para, tipo, peso (real finito, sem teto) | tenant+de+para+tipo único; de diferente de para |
 | fontes | url, publisher opcional, titulo, tier (1–3), publicado_em, recuperado_em, upstream (fonte) | tenant+url único |
 | claims | entidade, texto, valor (json), ano_ancora, fonte obrigatória, status (vigente/revisar/refutada), revisado_em | versions |
-| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0), revisado_em opcional | versions; G1 recusa qualidade ausente; relógio editorial na extensão ainda não lançada |
+| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0), revisado_em opcional | versions; G1 recusa qualidade ausente; relógio editorial desde .4 |
 | clusters | nome, slug, entidade_pilar opcional, plano (json), status (planejado/ativo/concluido) | tenant+slug único, versions |
 | eventos | colecao, doc, acao (create/update), ator (users), campos (nomes alterados) | append-only; hook interno; nenhum valor/segredo no diff |
 

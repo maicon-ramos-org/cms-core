@@ -1,6 +1,7 @@
 # Ofertas editoriais opt-in — contrato antes do código
 
-Status: recorte aprovado e implementado em 2026-09-26; ainda não lançado.
+Status: recorte aprovado e implementado em 2026-09-26; versionado em
+`afiliado@0.2.0-next.7`, com `cms-core@0.2.0-next.4`. Consumo após publicação confirmada.
 Base: `main` c1f2c50, com registro de categorias da PR #17 já integrado. Esta onda
 não muda o catálogo físico nem exige marca/modelo onde esses fatos não existem.
 
