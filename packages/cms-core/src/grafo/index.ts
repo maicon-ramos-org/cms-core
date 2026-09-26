@@ -3,7 +3,7 @@ import { isSuperAdmin } from '../access/roles'
 import { campoTenantGrafo, colecoesGrafo } from './colecoes'
 import { registrarFormatos, type OpcoesGrafoEditorial } from './contratos'
 import { avaliaPost, contextoGrafo, endpointGates } from './endpoints'
-import { registraEvento } from './eventos'
+import { registraEvento, rejeitaSelecaoNaEscritaAuditada } from './eventos'
 import { preparaMarkdown, sincronizaMarkdown } from './markdown'
 import { draftPrimeiro, validaCorpoGrafo, validaGrafo } from './validacao'
 import { bancoComValorClaimPreservado } from './valor-claim'
@@ -53,7 +53,7 @@ export function grafoEditorial(opcoes: OpcoesGrafoEditorial = {}): Plugin {
             { name: 'corpo_md', type: 'textarea' }, { name: 'pontuacao', type: 'json' },
             { name: 'gates', type: 'json', admin: { readOnly: true }, access: { create: () => false, update: () => false } },
           ], hooks: { ...c.hooks,
-            beforeOperation: [preparaMarkdown, ...(c.hooks?.beforeOperation ?? [])],
+            beforeOperation: [rejeitaSelecaoNaEscritaAuditada, preparaMarkdown, ...(c.hooks?.beforeOperation ?? [])],
             beforeValidate: [draftPrimeiro, validaGrafo({ entidades: 'entidades', claims: 'claims', cluster: 'clusters', capa: 'midia' }), sincronizaMarkdown, validaCorpoGrafo, ...(c.hooks?.beforeValidate ?? [])],
             beforeChange: [...(c.hooks?.beforeChange ?? []), async ({ data, originalDoc, req }) => {
               const efetivo = { ...originalDoc, ...data }

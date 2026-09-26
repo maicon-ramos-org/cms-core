@@ -1,5 +1,26 @@
 # @maicon-ramos-org/cms-core
 
+## 0.2.0-next.8 — 2026-09-26 (pré-lançamento)
+
+- A auditoria append-only do grafo compara a identidade dos campos relacionais
+  de topo (`relationship` e `upload`) antes de registrar `eventos.campos`.
+  Payload 3.88 fornece `previousDoc` com `depth:0` e o documento atualizado com
+  a profundidade da resposta; povoar a mesma relação não é mais registrado como
+  alteração. IDs, ordem das listas, coleção polimórfica e nulidade continuam
+  sensíveis a mudanças reais. JSON e demais campos mantêm a comparação anterior.
+  Limite conhecido: em posts, o `seoPlugin` com `tabbedUI` envolve os campos em
+  tabs; esta normalização de `collection.fields` não alcança seus vínculos, nem
+  o upload aninhado `posts.meta.image`. Esses campos ainda podem refletir
+  diferença de população na auditoria de posts.
+- Escritas auditadas nas coleções do grafo e em posts recusam `select` antes de
+  persistir (`400`, `path=select`) em create, update e restore de versão, inclusive
+  Local API e atualização em lote. Uma resposta parcial ocultaria campos do
+  `afterChange` e produziria auditoria incompleta. Consultas GET com `select`
+  continuam disponíveis; respostas completas de escrita não mudam.
+- Sem consulta adicional, mudança de schema/migration, reescrita de eventos
+  históricos, backfill ou ativação automática de instância. O pacote afiliado
+  distribuído requer pin alinhado em release própria.
+
 ## 0.2.0-next.7 — 2026-09-26 (pré-lançamento)
 
 - Preserva exatamente `claims.valor` string em PATCH que omite o campo e no

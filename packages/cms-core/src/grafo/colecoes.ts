@@ -2,7 +2,7 @@ import type { CollectionConfig, Field } from 'payload'
 import { authenticated, nunca, podeEscreverConteudo } from '../access/roles'
 import { chaveDeOrigem } from '../fields/origem'
 import { validaSlugKebab } from '../hooks/validations'
-import { eventoInterno, registraEvento } from './eventos'
+import { eventoInterno, registraEvento, rejeitaSelecaoNaEscritaAuditada } from './eventos'
 import { invalidoGrafo, protegeRevisaoPesquisa, unicoGrafo, urlFonte, validaGrafo } from './validacao'
 import { preparaOperacaoValorClaim, preservaValorClaim } from './valor-claim'
 
@@ -19,8 +19,9 @@ function colecao(slug: string, fields: Field[], refs: Record<string, string>, un
     indexes: [['origem'], ...unicos].map(fields => ({ fields: ['tenant', ...fields], unique: true })),
     fields: [campoTenantGrafo(), { ...chaveDeOrigem }, ...fields],
     hooks: {
-      ...(slug === 'pesquisas' ? { beforeOperation: [protegeRevisaoPesquisa] } : {}),
-      ...(slug === 'claims' ? { beforeOperation: [preparaOperacaoValorClaim] } : {}),
+      beforeOperation: [rejeitaSelecaoNaEscritaAuditada,
+        ...(slug === 'pesquisas' ? [protegeRevisaoPesquisa] : []),
+        ...(slug === 'claims' ? [preparaOperacaoValorClaim] : [])],
       beforeValidate: [validaGrafo(refs, fields.filter(f => 'required' in f && f.required && 'name' in f).map(f => (f as { name: string }).name)), unicoGrafo(['origem']), ...unicos.map(unicoGrafo)],
       beforeDelete: [() => invalidoGrafo('id', 'Exclusão do grafo indisponível; preserve as referências e versões.')],
       afterChange: [registraEvento],
