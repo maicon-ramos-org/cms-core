@@ -1,6 +1,6 @@
 {
   "name": "@maicon-ramos-org/afiliado",
-  "version": "0.2.0-next.9",
+  "version": "0.2.0-next.10",
   "description": "Plugin de afiliado: coleções e campos (entrada cms) e rotas e componentes (entrada web) de um site de cupom e oferta (PRD 17, ADR-0011)",
   "type": "module",
   "exports": {
