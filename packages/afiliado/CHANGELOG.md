@@ -2,6 +2,8 @@
 
 ## Não lançado
 
+## 0.2.0-next.11 — 2026-09-26 (pré-lançamento)
+
 - Helper interno `ultimasVerificacoesOfertas`: uma consulta SQL parametrizada por
   lote de até 100 ofertas, limitada ao tenant e a ofertas publicadas. Retorna só
   o check mais recente por oferta, sem carregar o histórico inteiro ou expor
@@ -9,6 +11,10 @@
   tenant à identidade; não há endpoint ou ativação automática.
 - Índice composto `(tenant, oferta, verificado_em)` para essa leitura. Cada
   instância precisa gerar/revisar a migration antes de usar o helper em produção.
+
+Alinha a dependência distribuída a `cms-core@0.2.0-next.9`, que contém o
+`site-reader` opt-in. Este pacote não ativa reader nem consulta em nenhum site;
+`latest` continua em `0.1.0`.
 
 ## 0.2.0-next.10 — 2026-09-26 (pré-lançamento)
 
