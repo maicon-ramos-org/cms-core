@@ -13,6 +13,7 @@ async function semeiaFixture(): Promise<void> {
   if (!['localhost', '127.0.0.1', '[::1]'].includes(banco.hostname)
     || !/^\/cms_core_pool_opennext_[a-f0-9]{32}$/.test(banco.pathname)) throw new Error('Banco da fixture inválido.')
   const config = await cmsCore({
+    ...(process.env.TESTAR_SITE_READER === '1' ? { siteReader: true } : {}),
     raiz: fileURLToPath(new URL('../../src', import.meta.url)), db: { connectionString: banco.toString() },
     logger: { options: { level: 'silent' } },
     plugins: [afiliado(), claimsJsonFixture, c => ({ ...c, typescript: { ...c.typescript, autoGenerate: false } })],
@@ -28,6 +29,14 @@ async function semeiaFixture(): Promise<void> {
     roles: ['sistema'], tenants: [{ tenant: a.id }], enableAPIKey: true, apiKey: 'pool-opennext-fixture-a' } })
   await payload.create({ collection: 'users', data: { email: 'claims@fixture.test', nome: 'Agente da fixture', password: 'senha-fixture',
     roles: ['agente'], tenants: [{ tenant: a.id }], enableAPIKey: true, apiKey: 'claims-opennext-fixture-a' } })
+  let readerId: number | string | undefined
+  if (process.env.TESTAR_SITE_READER === '1') {
+    const reader = await payload.create({ collection: 'users', data: { email: 'reader@fixture.test', nome: 'Reader fixture', password: 'senha-fixture',
+      roles: ['site-reader'], tenants: [{ tenant: a.id }], enableAPIKey: true, apiKey: 'reader-opennext-fixture-a' } as never })
+    readerId = reader.id
+    await payload.create({ collection: 'users', data: { email: 'reader-admin@fixture.test', nome: 'Admin fixture', password: 'senha-fixture',
+      roles: ['super-admin'], enableAPIKey: true, apiKey: 'reader-admin-opennext-fixture' } })
+  }
   const claims = []
   for (const [nome, valor] of VALORES_CLAIM) {
     const doc = await payload.create({ collection: 'claims' as never, data: { tenant: a.id,
@@ -36,7 +45,7 @@ async function semeiaFixture(): Promise<void> {
     claims.push({ id: doc.id, versao: versoes.docs[0]!.id, nome })
   }
   await payload.destroy()
-  console.log('FIXTURE_POOL=' + JSON.stringify({ tenantA: a.id, claims }))
+  console.log('FIXTURE_POOL=' + JSON.stringify({ tenantA: a.id, claims, readerId }))
 }
 semeiaFixture().then(async () => { encerra(); await sair(0) }).catch(async () => {
   // O chamador só recebe falha fixa, nunca corpo do provedor, SQL ou credencial.

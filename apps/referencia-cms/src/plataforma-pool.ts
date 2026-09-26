@@ -5,9 +5,9 @@ import type { Config, Plugin } from 'payload'
 
 interface ContextoFixture {
   ctx: { waitUntil(promessa: Promise<unknown>): void }
-  env: { HYPERDRIVE?: { connectionString: string }; TESTAR_POOL_POR_REQUISICAO?: string; TESTAR_CLAIMS_JSON?: string }
+  env: { HYPERDRIVE?: { connectionString: string }; TESTAR_POOL_POR_REQUISICAO?: string; TESTAR_CLAIMS_JSON?: string; TESTAR_SITE_READER?: string }
 }
-type OpcoesFixture = Pick<OpcoesCmsCore, 'db' | 'logger' | 'revalidacao' | 'sharp'> & { plugins?: Plugin[] }
+type OpcoesFixture = Pick<OpcoesCmsCore, 'db' | 'logger' | 'revalidacao' | 'sharp' | 'siteReader'> & { plugins?: Plugin[] }
 
 export function opcoesPoolFixture(atual: () => ContextoFixture): OpcoesFixture {
   const conexao = () => {
@@ -16,6 +16,7 @@ export function opcoesPoolFixture(atual: () => ContextoFixture): OpcoesFixture {
     return { identidade: contexto.ctx, connectionString: contexto.env.HYPERDRIVE.connectionString }
   }
   return {
+    ...(atual().env.TESTAR_SITE_READER === '1' ? { siteReader: true } : {}),
     db: { connectionString: conexao().connectionString, maxUses: 1 },
     sharp: null,
     // A fixture nunca imprime query, chave, connectionString ou corpo de exceção.

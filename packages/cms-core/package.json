@@ -9,6 +9,7 @@
     "./pautas": "./src/pautas/index.ts",
     ".": "./src/index.ts",
     "./grafo": "./src/grafo/index.ts",
+    "./site-reader": "./src/site-reader/index.ts",
     "./scripts": "./src/scripts/index.ts"
   },
   "files": [

@@ -1,4 +1,5 @@
 import type { Access, PayloadRequest } from 'payload'
+import { temPapelSiteReader } from '../site-reader/principal'
 
 /**
  * Papéis (contrato: PRD 01 RF3):
@@ -8,7 +9,7 @@ import type { Access, PayloadRequest } from 'payload'
  * - ingestao:    ingestao-worker — SÓ cria draft (hook draftOnlyIngestao)
  * - sistema:     processos server-side (web logando cliques/queries) — escrita em coleções de log
  */
-export type Papel = 'super-admin' | 'agente' | 'editor' | 'ingestao' | 'sistema'
+export type Papel = 'super-admin' | 'agente' | 'editor' | 'ingestao' | 'sistema' | 'site-reader'
 
 type UserLike = { roles?: Papel[] | string[] | null } | null | undefined
 
@@ -16,12 +17,14 @@ type UserLike = { roles?: Papel[] | string[] | null } | null | undefined
  * `user: unknown` e não `UserLike`: o tipo de `req.user` vem do `payload-types.ts` DO SITE.
  * Compilado sozinho, o pacote do núcleo não o tem (é o `UntypedUser` do Payload).
  */
-export const hasRole = (user: unknown, role: Papel): boolean =>
-  Boolean((user as UserLike)?.roles?.includes(role as never))
+export const hasRole = (user: unknown, role: Papel): boolean => {
+  const roles = (user as UserLike)?.roles
+  return (role === 'site-reader' || !temPapelSiteReader(user)) && Array.isArray(roles) && roles.includes(role as never)
+}
 
 export const isSuperAdmin = (user: unknown): boolean => hasRole(user, 'super-admin')
 
-export const authenticated: Access = ({ req }) => Boolean(req.user)
+export const authenticated: Access = ({ req }) => Boolean(req.user) && !temPapelSiteReader(req.user)
 
 export const superAdminOnly: Access = ({ req }) => isSuperAdmin(req.user)
 
