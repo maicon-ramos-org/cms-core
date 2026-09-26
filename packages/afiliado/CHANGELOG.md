@@ -1,5 +1,18 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.10 — 2026-09-26 (pré-lançamento)
+
+Alinha somente a dependência distribuída a `cms-core@0.2.0-next.8`, que audita
+campos relacionais reais nos eventos do grafo e rejeita `select` em escritas
+auditadas. O `pnpm pack` converte `workspace:*` no pin exato; não é necessário
+override transitivo. O código-fonte do afiliado permanece idêntico ao `.9`, sem
+mudança de schema ou ativação automática de plugins.
+
+Conserva `editorial@0.2.0-next.2` e `afflinks`, `desconto`, `schema` em `0.1.0`.
+A PR não publica automaticamente: a release na dist-tag `next` depende da
+publicação verificada do core `.8` e dos gates de CI/revisão; `latest` permanece
+`0.1.0`. Nenhum pin de instância, conteúdo, backfill ou deploy é alterado.
+
 ## 0.2.0-next.9 — 2026-09-26 (pré-lançamento)
 
 Alinha somente a dependência distribuída a `cms-core@0.2.0-next.7`: inclui as
