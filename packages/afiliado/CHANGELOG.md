@@ -2,6 +2,12 @@
 
 ## Não lançado
 
+## 0.2.0-next.12 — 2026-09-26 (pré-lançamento)
+
+Alinha a dependência distribuída a `cms-core@0.2.0-next.10`, que oferece o
+render privado opt-in. Não há mudança de código ou schema no afiliado, nem
+ativação em site. O `latest` permanece em `0.1.0`.
+
 ## 0.2.0-next.11 — 2026-09-26 (pré-lançamento)
 
 - Helper interno `ultimasVerificacoesOfertas`: uma consulta SQL parametrizada por
