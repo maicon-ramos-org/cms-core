@@ -5,6 +5,7 @@
  */
 export { afiliado, programasAtivos, type OpcoesAfiliado } from './plugin'
 export { ofertasEditoriais, type OpcoesOfertasEditoriais } from './ofertas-editoriais/plugin'
+export { ultimasVerificacoesOfertas, type ExecutorVerificacoes, type UltimaVerificacaoOferta } from './ofertas-editoriais/ultimas-verificacoes'
 export { registrarProgramasOferta, type ProgramaOferta, type RegistroProgramasOferta } from '../ofertas-editoriais/contratos'
 export { registrarCategorias, REGISTRO_CATEGORIAS_PADRAO, type CategoriaCatalogo, type CategoriaRegistrada, type RegistroCategorias, type ProblemaCategoria } from './catalogo/categorias'
 export * from './catalogo/regras'

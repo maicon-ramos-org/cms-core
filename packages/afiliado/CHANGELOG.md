@@ -1,5 +1,15 @@
 # @maicon-ramos-org/afiliado
 
+## Não lançado
+
+- Helper interno `ultimasVerificacoesOfertas`: uma consulta SQL parametrizada por
+  lote de até 100 ofertas, limitada ao tenant e a ofertas publicadas. Retorna só
+  o check mais recente por oferta, sem carregar o histórico inteiro ou expor
+  ator/notas. O chamador ainda deve autenticar o `site-reader` e vincular o
+  tenant à identidade; não há endpoint ou ativação automática.
+- Índice composto `(tenant, oferta, verificado_em)` para essa leitura. Cada
+  instância precisa gerar/revisar a migration antes de usar o helper em produção.
+
 ## 0.2.0-next.10 — 2026-09-26 (pré-lançamento)
 
 Alinha somente a dependência distribuída a `cms-core@0.2.0-next.8`, que audita

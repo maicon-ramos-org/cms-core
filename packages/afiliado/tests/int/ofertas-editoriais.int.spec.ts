@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cmsCore } from '@maicon-ramos-org/cms-core'
 import { grafoEditorial } from '@maicon-ramos-org/cms-core/grafo'
+import { sql } from '@payloadcms/db-postgres'
 import { getPayload, handleEndpoints, type Payload, type SanitizedConfig } from 'payload'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ofertasEditoriais } from '../../src/cms/ofertas-editoriais/plugin'
+import { ultimasVerificacoesOfertas } from '../../src/cms/ofertas-editoriais/ultimas-verificacoes'
 
 const semBanco = !process.env.DATABASE_URL
 it.runIf(semBanco && process.env.CI)('CI exige Postgres para ofertas editoriais', () => expect(process.env.DATABASE_URL).toBeTruthy())
@@ -30,7 +32,7 @@ describe.skipIf(semBanco)('ofertas editoriais opt-in, REST e Postgres reais', ()
 
   beforeAll(async () => {
     const banco = new URL(process.env.DATABASE_URL!)
-    banco.pathname = '/cms_core_teste_ofertas_editoriais'
+    banco.pathname = '/cms_core_teste_ofertas_editoriais_ultimas'
     vi.stubEnv('PAYLOAD_DB_PUSH', '1')
     vi.stubEnv('PAYLOAD_DROP_DATABASE', 'true')
     vi.stubEnv('PAYLOAD_SECRET', 'ofertas-fixture-sem-segredo-real')
@@ -160,6 +162,45 @@ describe.skipIf(semBanco)('ofertas editoriais opt-in, REST e Postgres reais', ()
     await expect(payload.update({ collection: 'verificacoes_ofertas_editoriais' as never, id: r.body.doc.id, data: { nota: 'override não contorna auditoria' } as never }))
       .rejects.toMatchObject({ status: 400 })
     await expect(payload.delete({ collection: 'verificacoes_ofertas_editoriais' as never, id: r.body.doc.id })).rejects.toMatchObject({ status: 400 })
+  })
+  it('lê só o último check de cada oferta publicada do tenant, em um SQL', async () => {
+    const indices = await payload.db.drizzle.execute(sql`SELECT indexdef FROM pg_indexes WHERE tablename = 'verificacoes_ofertas_editoriais'`)
+    expect(indices.rows.some(row => /\(tenant_id, oferta_id, verificado_em\)/.test(String(row.indexdef)))).toBe(true)
+    const a = (await request('/ofertas_editoriais', 'POST', dados('lote-check-a'))).body.doc
+    const b = (await request('/ofertas_editoriais', 'POST', dados('lote-check-b'))).body.doc
+    const draft = (await request('/ofertas_editoriais', 'POST', dados('lote-check-draft'))).body.doc
+    for (const oferta of [a, b]) expect((await request(`/ofertas_editoriais/${oferta.id}`, 'PATCH', { _status: 'published' })).status).toBe(200)
+    const checks = [
+      { oferta: a.id, data: '2022-01-01T00:00:00Z', origem: 'lote-a-antigo', ativo: true },
+      { oferta: a.id, data: '2024-01-01T00:00:00Z', origem: 'lote-a-recente', ativo: false },
+      { oferta: b.id, data: '2023-01-01T00:00:00Z', origem: 'lote-b', ativo: null },
+      { oferta: draft.id, data: '2025-01-01T00:00:00Z', origem: 'lote-draft', ativo: true },
+    ]
+    const criados = []
+    for (const check of checks) {
+      const r = await request('/verificacoes_ofertas_editoriais', 'POST', { tenant: tenantA.id, origem: check.origem,
+        oferta: check.oferta, verificado_em: check.data, link_ativo: check.ativo })
+      expect(r.status).toBe(201)
+      criados.push(r.body.doc)
+    }
+    let consultas = 0
+    const executar = async (sql: Parameters<typeof payload.db.drizzle.execute>[0]) => {
+      consultas++
+      return payload.db.drizzle.execute(sql)
+    }
+    const resultado = await ultimasVerificacoesOfertas(executar, tenantA.id, [a.id, b.id, draft.id, ofertaB.id, a.id])
+    expect(consultas).toBe(1)
+    expect(resultado).toEqual([
+      { id: criados[1].id, ofertaId: a.id, verificadoEm: '2024-01-01T00:00:00.000Z', linkAtivo: false, disponivel: null, precoVisto: null },
+      { id: criados[2].id, ofertaId: b.id, verificadoEm: '2023-01-01T00:00:00.000Z', linkAtivo: null, disponivel: null, precoVisto: null },
+    ])
+    expect(await ultimasVerificacoesOfertas(executar, tenantB.id, [a.id, b.id])).toEqual([])
+    expect(await ultimasVerificacoesOfertas(executar, tenantA.id, [])).toEqual([])
+    expect(consultas).toBe(2)
+    await expect(ultimasVerificacoesOfertas(executar, tenantA.id, Array(101).fill(a.id))).rejects.toThrow('até 100')
+    await expect(ultimasVerificacoesOfertas(executar, tenantA.id, [a.id, -1])).rejects.toThrow('IDs válidos')
+    await expect(ultimasVerificacoesOfertas(executar, tenantA.id, [2_147_483_648])).rejects.toThrow('IDs válidos')
+    expect(consultas).toBe(2)
   })
   it('picks têm vocabulário, papel único, tenant e bloqueio published→oferta draft', async () => {
     const draft = await create('ofertas_editoriais', dados('pick-draft'))

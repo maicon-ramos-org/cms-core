@@ -41,7 +41,7 @@ function colecoes(programas: RegistroProgramasOferta): CollectionConfig[] {
     fields: [campoTenant(), texto('origem', true), rel('oferta', 'ofertas_editoriais', true), data('verificado_em', true),
       { name: 'link_ativo', type: 'checkbox', defaultValue: () => null }, texto('preco_visto'), { name: 'disponivel', type: 'checkbox', defaultValue: () => null },
       { name: 'nota', type: 'textarea' }, { ...rel('ator', 'users'), admin: { readOnly: true } }],
-    indexes: [{ fields: ['tenant', 'origem'], unique: true }],
+    indexes: [{ fields: ['tenant', 'origem'], unique: true }, { fields: ['tenant', 'oferta', 'verificado_em'] }],
     hooks: { beforeValidate: [normalizaVerificacao], beforeChange: [validaVerificacao], beforeDelete: [semDeleteOferta] },
   }
   return [ofertas, verificacoes]
