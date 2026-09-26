@@ -2,6 +2,8 @@
 
 ## Não lançado
 
+## 0.2.0-next.10 — 2026-09-26 (pré-lançamento)
+
 - Opt-in `siteReader: { renderV1: projetor }` entrega DTO editorial privado em
   `GET /editorial/render-v1?slug=...`, após autenticar uma vez o reader exclusivo.
   Consulta e método são fechados; respostas não são cacheáveis, têm limite de 2 MB
