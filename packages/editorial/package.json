@@ -36,8 +36,10 @@
     "astro": "^7.2.4"
   },
   "devDependencies": {
+    "@astrojs/node": "^11.1.4",
     "@types/node": "22.19.9",
     "astro": "^7.2.4",
+    "miniflare": "5.20260923.0-alpha",
     "typescript": "5.7.3",
     "vitest": "4.0.18"
   }

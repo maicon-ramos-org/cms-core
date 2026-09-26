@@ -18,6 +18,8 @@
  * Por que lista de permitidos e não de proibidos: o módulo novo do Node que alguém puxar
  * amanhã tem que ser uma decisão, não uma surpresa no deploy. Para permitir outro, confira
  * que o runtime dos Workers o implementa e acrescente em `PERMITIDOS`, com o motivo.
+ * Exceção restrita: só o import nomeado de AsyncLocalStorage de async_hooks, provado
+ * em workerd nos testes do editorial. Não libera as outras APIs desse módulo.
  *
  * Os imports são achados pelo parser de verdade do TypeScript (`ts.createSourceFile` +
  * `forEachChild`), não por regex no texto bruto. Uma heurística anterior tirava comentário
@@ -153,7 +155,14 @@ export function importsDe(textoOriginal, caminho = 'arquivo.ts') {
   const visita = (node) => {
     if (ts.isImportDeclaration(node)) {
       if (!node.importClause?.isTypeOnly && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-        achados.push({ especificador: node.moduleSpecifier.text, linha: linhaDe(node.getStart(sourceFile)) })
+        const especificador = node.moduleSpecifier.text
+        const bindings = node.importClause?.namedBindings
+        // Workers suporta run/getStore de AsyncLocalStorage, não o módulo completo.
+        // Import namespace/default/dinâmico e reexports continuam fechados.
+        const somenteAsyncLocalStorage = especificador.replace(/^node:/, '') === 'async_hooks' &&
+          !node.importClause?.name && bindings && ts.isNamedImports(bindings) &&
+          bindings.elements.length > 0 && bindings.elements.every(e => e.isTypeOnly || (e.propertyName ?? e.name).text === 'AsyncLocalStorage')
+        achados.push({ especificador, linha: linhaDe(node.getStart(sourceFile)), ...(somenteAsyncLocalStorage ? { somenteAsyncLocalStorage: true } : {}) })
       }
     } else if (ts.isExportDeclaration(node)) {
       if (!node.isTypeOnly && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
@@ -245,11 +254,11 @@ export function procuraNodeNoWorker(raiz, entradas = ENTRADAS) {
       const via = origem === rel ? '' : ` (alcançado a partir de ${origem})`
       achados.push(`${rel}:${cerca} — frontmatter que a trava não reconhece (cerca --- depois de tag ou de {…})${via}`)
     }
-    for (const { especificador, linha } of importsDe(texto, arquivo)) {
+    for (const { especificador, linha, somenteAsyncLocalStorage } of importsDe(texto, arquivo)) {
       const semPrefixo = especificador.replace(/^node:/, '')
       const base = semPrefixo.split('/')[0]
       if (especificador.startsWith('node:') || DO_NODE.has(semPrefixo) || DO_NODE.has(base)) {
-        if (!PERMITIDOS.has(semPrefixo)) {
+        if (!PERMITIDOS.has(semPrefixo) && !somenteAsyncLocalStorage) {
           const via = origem === rel ? '' : ` (alcançado a partir de ${origem})`
           achados.push(`${rel}:${linha} — ${especificador}${via}`)
         }
@@ -269,10 +278,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.error('Módulo do Node que o Worker não tem, no caminho que ele carrega (PRD 24 RF3):\n')
     for (const a of achados) console.error(`  ${a}`)
     console.error(
-      `\nPermitidos: ${[...PERMITIDOS].map((m) => `node:${m}`).join(', ')}. O que lê disco ou sistema` +
+      `\nPermitidos: ${[...PERMITIDOS].map((m) => `node:${m}`).join(', ')} e AsyncLocalStorage nomeado. O que lê disco ou sistema` +
         '\nfica no que só o astro.config alcança (a integração), ou vira dado que a rota recebe.',
     )
     process.exit(1)
   }
-  console.log(`confere-core-sem-node: ok (${ENTRADAS.length} entradas do Worker web, só ${[...PERMITIDOS].map((m) => `node:${m}`).join(', ')})`)
+  console.log(`confere-core-sem-node: ok (${ENTRADAS.length} entradas do Worker web, ${[...PERMITIDOS].map((m) => `node:${m}`).join(', ')} e AsyncLocalStorage nomeado)`)
 }
