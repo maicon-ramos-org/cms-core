@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url'
 
 import { afiliado } from '@maicon-ramos-org/afiliado/cms'
 import { cmsCore } from '@maicon-ramos-org/cms-core'
+import { plataformaPoolFixture } from './plataforma-pool'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -20,4 +21,5 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
  */
 const nosWorkers = process.env.ALVO === 'workers'
 
-export default cmsCore({ raiz: dirname, plugins: [afiliado()], ...(nosWorkers ? { sharp: null } : {}) })
+const { plugins: pluginsFixture = [], ...opcoesFixture } = await plataformaPoolFixture()
+export default cmsCore({ raiz: dirname, ...opcoesFixture, plugins: [afiliado(), ...pluginsFixture], ...(nosWorkers ? { sharp: null } : {}) })

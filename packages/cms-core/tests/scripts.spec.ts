@@ -48,7 +48,7 @@ describe('a entrada ./scripts', () => {
   })
 
   it('o que é puro ou do CMS fica na principal', () => {
-    for (const nome of ['cmsCore', 'emPool', 'editorFeatures', 'ajustaCampo', 'configR2', 'configR2DaExecucao', 'Midia', 'revalidateAfterChange']) {
+    for (const nome of ['cmsCore', 'poolPostgresPorRequisicao', 'emPool', 'editorFeatures', 'ajustaCampo', 'configR2', 'configR2DaExecucao', 'Midia', 'revalidateAfterChange']) {
       expect(principal, nome).toHaveProperty(nome)
     }
   })

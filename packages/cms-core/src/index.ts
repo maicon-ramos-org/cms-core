@@ -4,6 +4,7 @@
  * domínio ou nicho de um site — a trava `scripts/confere-core-sem-marca.mjs` confere.
  */
 export { cmsCore, colecoesComSeo, colecoesDoTenant, type OpcoesCmsCore } from './fabrica'
+export { poolPostgresPorRequisicao, type ContextoConexaoPostgres } from './db/pool-por-requisicao'
 export {
   derivadosViaImages,
   MIME_DO_BINDING_IMAGES,

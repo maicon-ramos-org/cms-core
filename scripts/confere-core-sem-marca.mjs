@@ -53,7 +53,7 @@ const PASTAS = ['packages', 'apps', 'scripts']
  */
 const SEM_VARREDURA = new Set(['scripts/confere-core-sem-marca.mjs', 'scripts/confere-core-sem-marca.test.mjs'])
 
-const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo', '.next'])
+const IGNORADOS = new Set(['node_modules', 'dist', 'build', 'coverage', '.astro', '.turbo', '.next', '.open-next'])
 
 function arquivos(dir) {
   const saida = []

@@ -218,6 +218,12 @@ importers:
       '@types/node':
         specifier: 22.19.9
         version: 22.19.9
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      miniflare:
+        specifier: 5.20260923.0-alpha
+        version: 5.20260923.0-alpha(@types/node@22.19.9)
       payload:
         specifier: 3.88.0
         version: 3.88.0(graphql@16.14.2)(typescript@5.7.3)

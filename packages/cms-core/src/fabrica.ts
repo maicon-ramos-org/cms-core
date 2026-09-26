@@ -85,7 +85,8 @@ export interface OpcoesCmsCore {
   sharp?: NonNullable<Config['sharp']> | null
   /**
    * O Postgres. Sem a opção, `DATABASE_URL`. Num Worker, a string do Hyperdrive e
-   * `maxUses: 1` (uma conexão por requisição: o Hyperdrive é quem guarda o pool).
+   * `maxUses: 1`. Para isolar também a fila por invocação, a plataforma instala
+   * explicitamente `poolPostgresPorRequisicao`; maxUses sozinho não faz esse isolamento.
    */
   db?: { connectionString: string; maxUses?: number }
   midia?: {

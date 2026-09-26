@@ -1,0 +1,24 @@
+{
+  // Fixture local: sem IDs reais, deploy, dotenv ou credenciais de instância.
+  "name": "referencia-pool-opennext-local",
+  "main": "../../.open-next/worker.js",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": { "directory": "../../.open-next/assets", "binding": "ASSETS" },
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000", "localConnectionString": "postgres://fixture:fixture@127.0.0.1:1/fixture" }],
+  "vars": {
+    "TESTAR_POOL_POR_REQUISICAO": "1",
+    "PAYLOAD_SECRET": "fixture-pool-sem-segredo-real",
+    "PAYLOAD_DB_PUSH": "0",
+    "DATABASE_URL": "postgres://fixture:fixture@127.0.0.1:1/fixture",
+    "R2_ACCOUNT_ID": "ci",
+    "R2_ACCESS_KEY_ID": "fixture",
+    "R2_SECRET_ACCESS_KEY": "fixture",
+    "R2_BUCKET": "fixture-pool",
+    "R2_ENDPOINT": "https://bucket.invalid",
+    "R2_PUBLIC_BASE": "https://media.invalid",
+    "REVALIDATE_URL": ""
+  }
+}

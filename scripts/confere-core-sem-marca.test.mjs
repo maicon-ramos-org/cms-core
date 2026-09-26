@@ -96,10 +96,11 @@ test('palavra comum que contém o nome do programa não reprova', () => {
   assert.deepEqual(r, [])
 })
 
-test('node_modules e dist ficam fora', () => {
+test('dependências e builds gerados ficam fora, inclusive o bundle OpenNext', () => {
   const r = achados({
     'packages/schema/node_modules/x/index.js': "const host = 'runzos.com'",
     'packages/schema/dist/index.js': "const host = 'runzos.com'",
+    'apps/referencia-cms/.open-next/worker.js': "const caminhoBuild = '/Users/maiconramos/projeto'",
   })
   assert.deepEqual(r, [])
 })
