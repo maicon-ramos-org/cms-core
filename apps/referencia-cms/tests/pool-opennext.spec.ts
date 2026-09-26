@@ -7,6 +7,7 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { unstable_dev, type Unstable_DevWorker } from 'wrangler'
+import { VALORES_CLAIM, valorNoWire } from '../../../packages/cms-core/tests/fixtures/claims-valores'
 
 const require = createRequire(import.meta.url)
 const { Pool } = require(require.resolve('pg', { paths: [dirname(require.resolve('@payloadcms/db-postgres'))] }))
@@ -19,6 +20,14 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
   let worker: Unstable_DevWorker, admin: InstanceType<typeof Pool>
   let criouBanco = false
   let tenantA: number | string
+  let claims: Array<{ id: number; versao: number; nome: string }>
+  const claimRequest = async (path: string, method = 'GET', body?: unknown) => {
+    const r = await worker.fetch('/api' + path, { method,
+      headers: { authorization: 'users API-Key claims-opennext-fixture-a', 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    })
+    return { status: r.status, body: await r.json() as any }
+  }
   const esperaSemConexoes = async () => {
     for (let i = 0; i < 100; i++) {
       const { rows } = await admin.query('SELECT count(*)::int AS total FROM pg_stat_activity WHERE datname = $1', [nomeBanco])
@@ -52,7 +61,9 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
     } catch { throw new Error('Subprocesso de seed local falhou; nenhuma resposta de provedor é impressa.') }
     const linha = saida.split('\n').find(l => l.startsWith('FIXTURE_POOL='))
     if (!linha) throw new Error('Seed sem confirmação estruturada.')
-    tenantA = JSON.parse(linha.slice('FIXTURE_POOL='.length)).tenantA
+    const fixture = JSON.parse(linha.slice('FIXTURE_POOL='.length))
+    tenantA = fixture.tenantA
+    claims = fixture.claims
     expect(typeof tenantA).toBe('number')
     await esperaSemConexoes()
     worker = await unstable_dev(script, {
@@ -86,5 +97,28 @@ describe.skipIf(!ativo)('Payload OpenNext gerado, pool por requisição e PG16',
     expect(r.status).toBe(200)
     const corpo = await r.json() as { user?: { email: string } }
     expect(corpo.user?.email).toBe('pool@fixture.test')
+  })
+
+  it.each(VALORES_CLAIM)('claims JSON %s: Node → GET/PATCH/versions/restore no OpenNext real', async (nome, valor) => {
+    const doc = claims.find(c => c.nome === nome)!
+    expect((await claimRequest(`/claims/${doc.id}`)).body.valor).toEqual(valor)
+    expect((await claimRequest(`/claims/versions/${doc.versao}`)).body.version.valor).toEqual(valor)
+    const patch = await claimRequest(`/claims/${doc.id}`, 'PATCH', { texto: 'Alteração sem valor no Worker' })
+    expect(patch.status).toBe(200)
+    expect(patch.body.doc.valor).toEqual(valor)
+    expect(patch.body.doc.outro_json).toEqual({ texto: '12', numero: 12 })
+    const versoes = await claimRequest(`/claims/versions?where[parent][equals]=${doc.id}&sort=-updatedAt`)
+    expect(versoes.body.docs).toHaveLength(2)
+    expect(versoes.body.docs.every((v: any) => JSON.stringify(v.version.valor) === JSON.stringify(valor))).toBe(true)
+    expect((await claimRequest(`/claims/${doc.id}`, 'PATCH', { valor: valorNoWire('Diferente no Worker') })).status).toBe(200)
+    const restaurada = await claimRequest(`/claims/versions/${doc.versao}`, 'POST')
+    expect(restaurada.status).toBe(200)
+    expect(restaurada.body.valor).toEqual(valor)
+    expect(restaurada.body.outro_json).toEqual({ texto: '12', numero: 12 })
+    expect(restaurada.body.texto).toBe('Texto inicial')
+    expect((await claimRequest(`/claims/${doc.id}`)).body.valor).toEqual(valor)
+    const invalida = await claimRequest(`/claims/${doc.id}`, 'PATCH', { valor: '12%' })
+    expect(invalida.status).toBe(400)
+    expect(invalida.body.errors.flatMap((e: any) => e.data?.errors ?? [])).toContainEqual(expect.objectContaining({ path: 'valor' }))
   })
 })

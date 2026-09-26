@@ -10,6 +10,7 @@
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000", "localConnectionString": "postgres://fixture:fixture@127.0.0.1:1/fixture" }],
   "vars": {
     "TESTAR_POOL_POR_REQUISICAO": "1",
+    "TESTAR_CLAIMS_JSON": "1",
     "PAYLOAD_SECRET": "fixture-pool-sem-segredo-real",
     "PAYLOAD_DB_PUSH": "0",
     "DATABASE_URL": "postgres://fixture:fixture@127.0.0.1:1/fixture",

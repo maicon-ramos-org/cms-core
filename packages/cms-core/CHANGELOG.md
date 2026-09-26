@@ -1,5 +1,20 @@
 # @maicon-ramos-org/cms-core
 
+## 0.2.0-next.7 — 2026-09-26 (pré-lançamento)
+
+- Preserva exatamente `claims.valor` string em PATCH que omite o campo e no
+  restore de versão. O hook serializa somente valores nativos desses ramos;
+  create/edição explícita mantêm o contrato textual JSON e entradas inválidas
+  continuam 400 com `path=valor`, sem relaxar ACL, validator ou proveniência.
+- No grafo opt-in, `afterSchemaInit` impede o segundo parse de JSONB somente em
+  `_claims_v.version_valor`. Corrige a leitura/restauração de strings históricas
+  como `12` e `null`; não muda parser global, main, escrita, schema ou outros JSONB.
+  Acoplado ao Payload 3.88/pg 8/Drizzle 0.45.2, falha fechado se a coluna esperada
+  não existir. Detalhes e limites em `docs/contratos/claims-valor-json.md`.
+- Sem migration, edição de acervo, retomada de backfill, atualização automática de
+  instância ou versão/publicação de afiliado/editorial. Valores já alterados por
+  operações anteriores exigem reconciliação separada com snapshot.
+
 ## 0.2.0-next.6 — 2026-09-26 (pré-lançamento)
 
 - Corrige TS2367 ao compilar `derivadosViaImages` em consumidores cujo Payload

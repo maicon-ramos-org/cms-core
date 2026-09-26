@@ -4,6 +4,7 @@ import { chaveDeOrigem } from '../fields/origem'
 import { validaSlugKebab } from '../hooks/validations'
 import { eventoInterno, registraEvento } from './eventos'
 import { invalidoGrafo, protegeRevisaoPesquisa, unicoGrafo, urlFonte, validaGrafo } from './validacao'
+import { preparaOperacaoValorClaim, preservaValorClaim } from './valor-claim'
 
 export const campoTenantGrafo = (): Field => ({ name: 'tenant', type: 'relationship', relationTo: 'tenants', required: true, index: true })
 const rel = (name: string, relationTo: string, required = false): Field => ({ name, type: 'relationship', relationTo, required })
@@ -19,6 +20,7 @@ function colecao(slug: string, fields: Field[], refs: Record<string, string>, un
     fields: [campoTenantGrafo(), { ...chaveDeOrigem }, ...fields],
     hooks: {
       ...(slug === 'pesquisas' ? { beforeOperation: [protegeRevisaoPesquisa] } : {}),
+      ...(slug === 'claims' ? { beforeOperation: [preparaOperacaoValorClaim] } : {}),
       beforeValidate: [validaGrafo(refs, fields.filter(f => 'required' in f && f.required && 'name' in f).map(f => (f as { name: string }).name)), unicoGrafo(['origem']), ...unicos.map(unicoGrafo)],
       beforeDelete: [() => invalidoGrafo('id', 'Exclusão do grafo indisponível; preserve as referências e versões.')],
       afterChange: [registraEvento],
@@ -40,7 +42,7 @@ export function colecoesGrafo(): CollectionConfig[] {
       { name: 'tier', type: 'number', required: true, min: 1, max: 3, validate: (v: number | null | undefined) => v == null || Number.isInteger(v) || 'Tier deve ser inteiro.' },
       { name: 'publicado_em', type: 'date' }, { name: 'recuperado_em', type: 'date' }, rel('upstream', 'fontes')], { upstream: 'fontes' }, [['url']]),
     colecao('claims', [rel('entidade', 'entidades', true), { name: 'texto', type: 'textarea', required: true, maxLength: 4000 },
-      { name: 'valor', type: 'json' }, { name: 'ano_ancora', type: 'number', min: 1000, max: 9999,
+      { name: 'valor', type: 'json', hooks: { beforeValidate: [preservaValorClaim] } }, { name: 'ano_ancora', type: 'number', min: 1000, max: 9999,
         validate: (v: number | null | undefined) => v == null || Number.isInteger(v) || 'Ano deve ser inteiro.' },
       rel('fonte', 'fontes', true), { name: 'status', type: 'select', required: true, defaultValue: 'vigente', options: ['vigente', 'revisar', 'refutada'] },
       { name: 'revisado_em', type: 'date' }], { entidade: 'entidades', fonte: 'fontes' }, [], true),
