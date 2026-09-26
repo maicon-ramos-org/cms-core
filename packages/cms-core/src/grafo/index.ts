@@ -6,6 +6,7 @@ import { avaliaPost, contextoGrafo, endpointGates } from './endpoints'
 import { registraEvento } from './eventos'
 import { preparaMarkdown, sincronizaMarkdown } from './markdown'
 import { draftPrimeiro, validaCorpoGrafo, validaGrafo } from './validacao'
+import { bancoComValorClaimPreservado } from './valor-claim'
 
 export type { FormatoEditorial, IntencaoEditorial, OpcoesGrafoEditorial } from './contratos'
 export { registrarFormatos } from './contratos'
@@ -32,7 +33,7 @@ export function grafoEditorial(opcoes: OpcoesGrafoEditorial = {}): Plugin {
     if (!colecoes.some(c => c.slug === 'posts') || !colecoes.some(c => c.slug === 'tenants')) throw new Error('grafoEditorial exige cmsCore com posts e tenants.')
     const novas = colecoesGrafo()
     if (novas.some(n => colecoes.some(c => c.slug === n.slug))) throw new Error('grafoEditorial já registrado ou coleção do grafo duplicada.')
-    return { ...config, endpoints: [...(config.endpoints ?? []), contextoGrafo],
+    return { ...config, db: bancoComValorClaimPreservado(config.db), endpoints: [...(config.endpoints ?? []), contextoGrafo],
       collections: [...colecoes.map(c => {
         if (c.slug === 'tenants') return { ...c, fields: [...c.fields, ...camposTenant], hooks: { ...c.hooks,
           beforeValidate: [...(c.hooks?.beforeValidate ?? []), ({ data, req }) => {

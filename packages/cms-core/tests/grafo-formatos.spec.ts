@@ -13,7 +13,7 @@ describe('registro de formatos editoriais', () => {
   it('plugin exige núcleo e não aceita registro duplo', async () => {
     const vazio = { collections: [] } as unknown as Config
     expect(() => grafoEditorial()(vazio)).toThrow('exige cmsCore')
-    const base = { collections: [{ slug: 'posts', fields: [] }, { slug: 'tenants', fields: [] }] } as unknown as Config
+    const base = { db: { init: () => ({ name: 'postgres', afterSchemaInit: [] }) }, collections: [{ slug: 'posts', fields: [] }, { slug: 'tenants', fields: [] }] } as unknown as Config
     const montado = await grafoEditorial()(base)
     expect(base.collections).toHaveLength(2)
     expect(montado.collections).toHaveLength(9)
