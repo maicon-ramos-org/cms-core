@@ -1,5 +1,18 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.8 — 2026-09-26 (pré-lançamento)
+
+Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. Sem mudança de
+código, schema ou ativação: alinha a dependência distribuída a
+`cms-core@0.2.0-next.5`, já publicado, para o consumidor não instalar duas versões
+do núcleo ao usar o helper opt-in de Pool por requisição. O `pnpm pack` converte
+`workspace:*` no pin exato; nenhum override transitivo é necessário.
+
+Conserva `editorial@0.2.0-next.2` e `afflinks`, `desconto`, `schema` em `0.1.0`.
+Não inclui PR #18, não ativa memoização SSR nem o Pool Worker automaticamente.
+Ativação na plataforma, `waitUntil` dinâmico e prova concorrente do bundle da
+instância continuam necessários; nenhuma publicação de conteúdo ou deploy é feito.
+
 ## 0.2.0-next.7 — 2026-09-26 (pré-lançamento)
 
 Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. O pacote fixa
