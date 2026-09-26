@@ -35,7 +35,7 @@ SSR/cache na Cloudflare.
 | relacoes | de, para, tipo, peso (real finito, sem teto) | tenant+de+para+tipo único; de diferente de para |
 | fontes | url, publisher opcional, titulo, tier (1–3), publicado_em, recuperado_em, upstream (fonte) | tenant+url único |
 | claims | entidade, texto, valor (json), ano_ancora, fonte obrigatória, status (vigente/revisar/refutada), revisado_em | versions |
-| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0) | versions; G1 recusa qualidade ausente |
+| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0), revisado_em opcional | versions; G1 recusa qualidade ausente; relógio editorial na extensão ainda não lançada |
 | clusters | nome, slug, entidade_pilar opcional, plano (json), status (planejado/ativo/concluido) | tenant+slug único, versions |
 | eventos | colecao, doc, acao (create/update), ator (users), campos (nomes alterados) | append-only; hook interno; nenhum valor/segredo no diff |
 
@@ -72,7 +72,8 @@ própria validação. `posts.gates` é relatório gerado pelo servidor.
 ## Gates implementados nesta fase
 
 - G1: pesquisa da entidade principal, qualidade mínima e validade, sem aceitar
-  timestamp inválido ou futuro.
+  timestamp inválido ou futuro. Extensão ainda não lançada prioriza `revisado_em`
+  e identifica fallback técnico legado; veja [contrato de frescor](frescor-editorial.md).
 - G2: claim vigente, texto presente na prosa normalizada, ano e link inline da
   fonte no mesmo parágrafo; estatística com percentual sem fonte ligada reprova.
 - G3: blocklist editorial genérica e excesso de H2 em pergunta.

@@ -2,6 +2,14 @@
 
 ## Não lançado
 
+- Plugin separado `ofertasEditoriais({ programas })`: ofertas editoriais draft-first,
+  histórico append-only, escolhas por vocabulário do tenant, decimais exatos nullable,
+  espelhos de um nível e dados comerciais privados. Não exige identidade física nem
+  fabrica marca/modelo. Ativação e migration são explícitas por instância; default intacto.
+- DTO público por allowlist e helper opt-in de redirect `web/lib/ofertas-editoriais`:
+  destinos validados por programa, 302 no-store/noindex, prefetch 204 sem I/O,
+  tracking privado limitado e aliases legados sensíveis a caixa. Nenhuma rota é
+  injetada automaticamente; import completo e paridade são aceites do consumidor.
 - Registro opt-in de categorias físicas por instância via
   `afiliado({ catalogo: { categoriasAdicionais } })`. Políticas declaram atributos
   de identidade escalares, versão e validação pura; o pacote não inventa categoria,
