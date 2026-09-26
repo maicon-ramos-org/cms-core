@@ -2,7 +2,8 @@ import { tenantField } from '@payloadcms/plugin-multi-tenant/fields'
 import type { CollectionConfig, CollectionSlug, Field } from 'payload'
 import { authenticated, nunca, podeEscreverConteudo } from '@maicon-ramos-org/cms-core'
 import { validaSlugKebab } from '@maicon-ramos-org/cms-core'
-import { appendOnly, depoisListing, historicoInterno, observaListing, semDelete, validaElegibilidade, validaProduto, validaRedirect, validaRelacoes, validaVariante, validaVinculo } from '../catalogo/hooks'
+import { appendOnly, criaValidaProduto, criaValidaVariante, criaValidaVinculo, depoisListing, historicoInterno, observaListing, semDelete, validaElegibilidade, validaProduto, validaRedirect, validaRelacoes, validaVariante, validaVinculo } from '../catalogo/hooks'
+import { REGISTRO_CATEGORIAS_PADRAO, type RegistroCategorias } from '../catalogo/categorias'
 
 const text = (name: string, required = false): Field => ({ name, type: 'text', required })
 const number = (name: string, required = false): Field => ({ name, type: 'number', min: 0, required })
@@ -24,7 +25,7 @@ export const ProdutosFisicos: CollectionConfig = {
   versions: { maxPerDoc: 50 },
   ...base('produtos_fisicos', [text('nome', true),
     { name: 'slug', type: 'text', required: true, validate: validaSlugKebab }, text('marca', true), text('modelo', true),
-    select('categoria', ['filamento', 'impressora', 'resina', 'acessorio']),
+    select('categoria', REGISTRO_CATEGORIAS_PADRAO.map(c => c.slug)),
     { name: 'descricao', type: 'textarea' }, rel('imagem', 'midia', false), text('gtin'), text('mpn'),
     { name: 'especificacoes', type: 'json' }, select('estado', ['draft', 'review', 'published'], 'draft')]),
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
@@ -71,3 +72,19 @@ export const ElegibilidadeCupom: CollectionConfig = {
   hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ cupom: 'cupons', oferta: 'ofertas_produto' }), validaElegibilidade] },
 }
 export const catalogoFisico = [ProdutosFisicos, VariantesProduto, OfertasProduto, HistoricoPrecoOferta, VinculosCatalogo, ElegibilidadeCupom]
+
+/** Só o select e as políticas variam; coleções/campos/índices padrão ficam idênticos. */
+export function criaCatalogoFisico(registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO): CollectionConfig[] {
+  if (registro === REGISTRO_CATEGORIAS_PADRAO) return catalogoFisico
+  const politicas = new Map([
+    [validaProduto, criaValidaProduto(registro)],
+    [validaVariante, criaValidaVariante(registro)],
+    [validaVinculo, criaValidaVinculo(registro)],
+  ])
+  return catalogoFisico.map(c => ({ ...c,
+    fields: c.fields.map(field => c.slug === 'produtos_fisicos' && field.type === 'select' && field.name === 'categoria'
+      ? { ...field, options: [...field.options, ...registro.filter(categoria => !categoria.legada).map(categoria => ({ label: categoria.rotulo, value: categoria.slug }))] }
+      : field),
+    hooks: { ...c.hooks, beforeChange: c.hooks?.beforeChange?.map(hook => politicas.get(hook) ?? hook) },
+  }))
+}

@@ -1,5 +1,16 @@
 # @maicon-ramos-org/afiliado
 
+## Não lançado
+
+- Registro opt-in de categorias físicas por instância via
+  `afiliado({ catalogo: { categoriasAdicionais } })`. Políticas declaram atributos
+  de identidade escalares, versão e validação pura; o pacote não inventa categoria,
+  marca ou modelo para o acervo. Tenant, draft-first e identidade imutável permanecem.
+- Funções `chaveVariante`, `avaliaMatch` e `selecionaMatch` aceitam registro opcional.
+  As quatro categorias padrão preservam enum, schema, hashes e matching; categorias
+  adicionais usam os atributos declarados, não todos os metadados. Cada site precisa
+  revisar sua migration de enum antes de habilitar uma categoria.
+
 ## 0.2.0-next.6 — 2026-09-25 (pré-lançamento, PRD 24)
 
 Pré-lançamento na dist-tag `next`; o `latest` continua em `0.1.0`. Fixa

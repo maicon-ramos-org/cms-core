@@ -3,7 +3,8 @@
  * os scripts do site ainda usam do catálogo e do snapshot de desconto (eles mudam de casa no
  * RF5). A entrada `web` — rotas e componentes de oferta — nasce no RF3.
  */
-export { afiliado, programasAtivos } from './plugin'
+export { afiliado, programasAtivos, type OpcoesAfiliado } from './plugin'
+export { registrarCategorias, REGISTRO_CATEGORIAS_PADRAO, type CategoriaCatalogo, type CategoriaRegistrada, type RegistroCategorias, type ProblemaCategoria } from './catalogo/categorias'
 export * from './catalogo/regras'
 export { lockListing, observaListing } from './catalogo/hooks'
 export {

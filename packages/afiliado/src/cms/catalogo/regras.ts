@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto'
+import { atributosFilamento, categoriaRegistrada, REGISTRO_CATEGORIAS_PADRAO, valorComparavel, valorDoAtributo, type RegistroCategorias } from './categorias'
+export { atributosFilamento } from './categorias'
 
 export const idRel = (value: unknown): string => {
   if (value && typeof value === 'object' && 'id' in value) return String(value.id)
@@ -31,15 +33,35 @@ export function identidadeListing(data: Record<string, unknown>) {
       external_listing_id ? ['external', external_listing_id] : ['url', url_canonica]]),
   }
 }
-export const atributosFilamento = ['material', 'cor', 'peso_g', 'diametro_mm', 'acabamento'] as const
-export function chaveVariante(data: Record<string, unknown>) {
-  return hash([normaliza(data.sku_fabricante), normaliza(data.gtin), ...atributosFilamento.map(k => normaliza(data[k])), data.especificacoes ?? null])
+export function chaveVariante(data: Record<string, unknown>, categoria?: string, registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO) {
+  const politica = categoria === undefined ? undefined : categoriaRegistrada(categoria, registro)
+  if (categoria !== undefined && !politica) throw new Error(`Categoria não registrada: ${categoria}`)
+  if (!politica || politica.legada) {
+    return hash([normaliza(data.sku_fabricante), normaliza(data.gtin), ...atributosFilamento.map(k => normaliza(data[k])), data.especificacoes ?? null])
+  }
+  const atributos = politica.atributosDeIdentidade.map(k => {
+    const value = valorDoAtributo(data, k)
+    const comparavel = valorComparavel(value)
+    if (value != null && comparavel === undefined) throw new Error(`Atributo de identidade não comparável: ${k}`)
+    return [k, comparavel ?? null]
+  })
+  return hash(['categoria', politica.slug, politica.versaoIdentidade, normaliza(data.sku_fabricante), normaliza(data.gtin), atributos])
 }
 export type Candidato = Record<string, unknown>
 /** Identificador exato não autoriza colapsar atributos contraditórios. */
-export function avaliaMatch(entrada: Candidato, variante: Candidato, produto: Candidato) {
+export function avaliaMatch(entrada: Candidato, variante: Candidato, produto: Candidato, registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO) {
   if (variante.estado !== 'confirmada') return { automatico: false, motivo: 'variante incerta' }
-  if (atributosFilamento.some(k => entrada[k] != null && normaliza(entrada[k]) !== normaliza(variante[k]))) {
+  const politica = categoriaRegistrada(produto.categoria, registro)
+  if (!politica) return { automatico: false, motivo: 'categoria não registrada' }
+  if (!politica.legada && entrada.categoria != null && entrada.categoria !== politica.slug) {
+    return { automatico: false, motivo: 'categoria conflitante' }
+  }
+  const compara = politica.legada ? normaliza : valorComparavel
+  if (!politica.legada && politica.atributosDeIdentidade.some(k => valorComparavel(valorDoAtributo(variante, k)) === undefined)) {
+    return { automatico: false, motivo: 'atributos incompletos' }
+  }
+  if (politica.atributosDeIdentidade.some(k => valorDoAtributo(entrada, k) != null &&
+    compara(valorDoAtributo(entrada, k)) !== compara(valorDoAtributo(variante, k)))) {
     return { automatico: false, motivo: 'atributos conflitantes' }
   }
   if (['marca', 'modelo'].some(k => entrada[k] != null && normaliza(entrada[k]) !== normaliza(produto[k]))) {
@@ -52,15 +74,16 @@ export function avaliaMatch(entrada: Candidato, variante: Candidato, produto: Ca
   const sku = entrada.sku_fabricante && normaliza(entrada.marca) === normaliza(produto.marca) &&
     normaliza(entrada.sku_fabricante) === normaliza(variante.sku_fabricante)
   if (gtin || sku) return { automatico: true, metodo: gtin ? 'gtin' : 'sku', score: 1 }
-  const completo = produto.categoria === 'filamento' && ['marca', 'modelo'].every(k =>
+  const completo = politica.matchPorAtributos && ['marca', 'modelo'].every(k =>
     entrada[k] && normaliza(entrada[k]) === normaliza(produto[k])) &&
-    atributosFilamento.every(k => entrada[k] != null && normaliza(entrada[k]) === normaliza(variante[k]))
+    politica.atributosDeIdentidade.every(k => valorDoAtributo(entrada, k) != null &&
+      compara(valorDoAtributo(entrada, k)) === compara(valorDoAtributo(variante, k)))
   return completo ? { automatico: true, metodo: 'atributos', score: 1 } : { automatico: false, motivo: 'revisao necessaria' }
 }
 
 /** O chamador fornece todos os candidatos tenant-scoped: mais de um match é revisão. */
-export function selecionaMatch(entrada: Candidato, candidatos: Array<{ variante: Candidato; produto: Candidato }>) {
-  const matches = candidatos.filter(c => avaliaMatch(entrada, c.variante, c.produto).automatico)
+export function selecionaMatch(entrada: Candidato, candidatos: Array<{ variante: Candidato; produto: Candidato }>, registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO) {
+  const matches = candidatos.filter(c => avaliaMatch(entrada, c.variante, c.produto, registro).automatico)
   return matches.length === 1 ? matches[0] : undefined
 }
 
