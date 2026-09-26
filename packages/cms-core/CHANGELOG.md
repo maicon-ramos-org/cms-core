@@ -2,6 +2,8 @@
 
 ## Não lançado
 
+## 0.2.0-next.9 — 2026-09-26 (pré-lançamento)
+
 - `siteReader: true` adiciona papel exclusivo de tenant único e identidade mínima
   `GET /editorial/identity-v1`, sem conceder Users.read ou acesso a coleções,
   drafts, versões, auditoria, jobs, GraphQL e admin. Requer instalação explícita
