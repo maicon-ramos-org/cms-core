@@ -1,6 +1,11 @@
 # @maicon-ramos-org/cms-core
 
-## Não lançado
+## 0.2.0-next.4 — 2026-09-26 (pré-lançamento)
+
+Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. Mudanças opt-in:
+instâncias com grafo devem gerar/revisar migration de `pesquisas.revisado_em`
+(inclusive versões) e preservar a data editorial original no backfill via REST.
+Schema padrão sem grafo permanece igual; nenhuma instância é atualizada pelo pacote.
 
 - Entrada pura `./pautas` com estados/papéis, registro imutável de formatos,
   classificação das oito falhas, avanço de uma etapa, cooldown e recovery por
@@ -8,7 +13,6 @@
   arredondados. Não entrega coleção/fila/jobs; não importa histórico operacional
   nem habilita live_verified, publicação ou scheduler. Contrato incremental em
   `docs/contratos/pautas-incrementais.md`.
-
 - G1 passa a usar `pesquisas.revisado_em` quando informado, sem renovar frescor
   por import/edição técnica. Campo opt-in sem default; clearing explícito em PATCH
   não pode reativar fallback. Pesquisa sem data conserva compatibilidade `updatedAt`

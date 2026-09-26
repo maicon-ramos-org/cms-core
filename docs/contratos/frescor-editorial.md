@@ -1,7 +1,8 @@
 # Frescor editorial da pesquisa — correção independente
 
 Status: contrato escrito antes dos testes/código, implementado em 2026-09-26,
-ainda não lançado. Base `main` c1f2c50;
+versionado em `cms-core@0.2.0-next.4` (consumo após publicação confirmada).
+Base `main` c1f2c50;
 não inclui a PR de ofertas editoriais nem altera o schema sem grafo opt-in.
 
 ## Problema observado

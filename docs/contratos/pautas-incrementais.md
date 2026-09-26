@@ -1,7 +1,8 @@
 # Pautas — máquina pura primeiro, ativação operacional depois
 
 Status: contrato escrito antes do código, P1 implementada em 2026-09-26,
-ainda não lançada. Complementa PRD 23 e ADR-0013;
+versionada em `cms-core@0.2.0-next.4` (consumo após publicação confirmada).
+Complementa PRD 23 e ADR-0013;
 não declara o motor completo pronto. Pacotes continuam fixos: a entrada pura
 `cms-core/pautas` pertence ao pacote existente, não cria `packages/pauta`.
 

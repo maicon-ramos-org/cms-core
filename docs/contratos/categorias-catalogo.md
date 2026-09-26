@@ -1,7 +1,8 @@
 # Registro extensível de categorias do catálogo
 
-Status: implementado para revisão, ainda não lançado; contrato escrito antes do
-código. Recorte da proposta `catalogo-editorial-proxima-onda.md`, separado do grafo
+Status: implementado e versionado em `afiliado@0.2.0-next.7` (consumo após publicação
+confirmada); contrato escrito antes do código. Recorte da proposta
+`catalogo-editorial-proxima-onda.md`, separado do grafo
 já publicado.
 
 ## API
