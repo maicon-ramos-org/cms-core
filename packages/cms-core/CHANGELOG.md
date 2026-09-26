@@ -1,5 +1,14 @@
 # @maicon-ramos-org/cms-core
 
+## Não lançado
+
+- Entrada pura `./pautas` com estados/papéis, registro imutável de formatos,
+  classificação das oito falhas, avanço de uma etapa, cooldown e recovery por
+  papel real de retorno. Sem I/O, relógio global, prioridade recalculada ou IDs
+  arredondados. Não entrega coleção/fila/jobs; não importa histórico operacional
+  nem habilita live_verified, publicação ou scheduler. Contrato incremental em
+  `docs/contratos/pautas-incrementais.md`.
+
 ## 0.2.0-next.3 — 2026-09-25 (pré-lançamento preparado, ainda não publicado)
 
 - Entrada opt-in `./grafo`: coleções de entidades, relações, fontes, claims,
