@@ -8,6 +8,7 @@ const config = { custom: { siteReader: { ativo: true } }, cookiePrefix: 'payload
 const reader = { id: 1, collection: 'users', roles: ['site-reader'], tenants: [{ tenant: 1 }], _strategy: 'api-key', enableAPIKey: true }
 const key = { authorization: 'users API-Key fixture-nao-real' }
 const identity = 'https://cms.example.test/api/editorial/identity-v1'
+const render = 'https://cms.example.test/api/editorial/render-v1?slug=guia-alma'
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -111,6 +112,49 @@ describe('spike: Request original e preflight sem lookup anônimo', () => {
     const guard = protegerTransporteSiteReader({ config, handler: vi.fn(), superficie: 'rest' })
     expect((await guard(new Request(identity, { headers: key }), { params: Promise.resolve({ slug: ['payload-jobs', 'run'] }) })).status).toBe(403)
     expect((await guard(new Request(identity, { headers: key }), { params: Promise.resolve({ slug: ['editorial', 'identity-v1'] }) })).status).toBe(200)
+  })
+
+  it('render-v1 autentica uma vez, não delega e não aceita outro tenant/query', async () => {
+    const projetor = vi.fn(async () => ({ revisao: 'r1', dados: { titulo: 'Guia' } }))
+    const configurado = { ...config, custom: { siteReader: { ativo: true, renderV1: projetor } } } as SanitizedConfig
+    const handler = vi.fn()
+    const guard = protegerTransporteSiteReader({ config: configurado, handler, superficie: 'rest' })
+    const r = await guard(new Request(render, { headers: key }), { params: Promise.resolve({ slug: ['editorial', 'render-v1'] }) })
+    expect(r.status).toBe(200)
+    expect(await r.json()).toMatchObject({ tenantId: '1', dados: { titulo: 'Guia' } })
+    expect(mock.auth).toHaveBeenCalledTimes(1)
+    expect(projetor).toHaveBeenCalledWith({ payload: mock.payload, tenantId: '1', slug: 'guia-alma' })
+    expect(handler).not.toHaveBeenCalled()
+    expect((await guard(new Request(render + '&tenant=2', { headers: key }))).status).toBe(400)
+    expect(projetor).toHaveBeenCalledTimes(1)
+    expect((await guard(new Request(render, { headers: key }), { params: Promise.resolve({ slug: ['users', 'me'] }) })).status).toBe(403)
+  })
+
+  it('render-v1 é privado: anônimo 401, editor 403, reader misto 403, sem callback 403', async () => {
+    const projetor = vi.fn(async () => ({ revisao: 'r1', dados: {} }))
+    const configurado = { ...config, custom: { siteReader: { ativo: true, renderV1: projetor } } } as SanitizedConfig
+    const guard = protegerTransporteSiteReader({ config: configurado, handler: vi.fn(), superficie: 'rest' })
+    expect((await guard(new Request(render))).status).toBe(401)
+    expect(mock.auth).not.toHaveBeenCalled()
+    mock.auth.mockResolvedValue({ user: { ...reader, roles: ['editor'] } })
+    expect((await guard(new Request(render, { headers: key }))).status).toBe(403)
+    mock.auth.mockResolvedValue({ user: { ...reader, roles: ['site-reader', 'super-admin'] } })
+    expect((await guard(new Request(render, { headers: key }))).status).toBe(403)
+    expect((await protegerTransporteSiteReader({ config, handler: vi.fn(), superficie: 'rest' })(new Request(render, { headers: key }))).status).toBe(403)
+    expect(projetor).not.toHaveBeenCalled()
+  })
+
+  it('render-v1 bloqueia método e override antes de autenticar ou ler corpo', async () => {
+    const projetor = vi.fn()
+    const configurado = { ...config, custom: { siteReader: { ativo: true, renderV1: projetor } } } as SanitizedConfig
+    const guard = protegerTransporteSiteReader({ config: configurado, handler: vi.fn(), superficie: 'rest' })
+    for (const headers of [key, { ...key, 'X-HTTP-Method-Override': 'GET' }]) {
+      const request = new Request(render, { method: 'POST', headers, body: '{' })
+      expect((await guard(request)).status).toBe(405)
+      expect(request.bodyUsed).toBe(false)
+    }
+    expect(mock.auth).not.toHaveBeenCalled()
+    expect(projetor).not.toHaveBeenCalled()
   })
 
   it('admin preflight usa headers, nega inclusive reader misto e não faz lookup anônimo', async () => {

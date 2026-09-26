@@ -14,6 +14,20 @@ describe('spike: política aplicada à config final sanitizada', () => {
     midia: { r2: { bucket: 'fixture', publicBase: 'https://media.example.test', endpoint: 'http://127.0.0.1:19000', credentials: { accessKeyId: 'fixture', secretAccessKey: 'fixture' } } },
   }
 
+  it('render exige opt-in separado, preserva schema e recusa colisão de caminho', async () => {
+    const projetor = vi.fn(async () => ({ revisao: 'r1', dados: { titulo: 'Fixture' } }))
+    const identidade = await cmsCore({ ...base, siteReader: true })
+    const render = await cmsCore({ ...base, siteReader: { renderV1: projetor } })
+    expect(identidade.custom?.siteReader?.renderV1).toBeUndefined()
+    expect(render.custom?.siteReader?.renderV1).toBe(projetor)
+    expect(render.collections.map(c => c.slug)).toEqual(identidade.collections.map(c => c.slug))
+    expect(render.endpoints.map(e => e.path)).toEqual(identidade.endpoints.map(e => e.path))
+    await expect(cmsCore({ ...base, siteReader: { renderV1: null } as never })).rejects.toThrow(/renderV1 deve ser/)
+    await expect(cmsCore({ ...base, siteReader: { renderV1: projetor },
+      plugins: [c => ({ ...c, endpoints: [...(c.endpoints ?? []), { path: '/editorial/render-v1', method: 'get', handler: async () => new Response() }] })],
+    })).rejects.toThrow(/render já ocupado/)
+  })
+
   it('rejeita strategy custom em qualquer coleção só quando opt-in está ativo', async () => {
     const plugins = [(c: import('payload').Config) => ({ ...c, collections: [...(c.collections ?? []), {
       slug: 'auth_externa', fields: [], auth: { strategies: [{ name: 'externa', authenticate: async () => ({ user: null }) }] },

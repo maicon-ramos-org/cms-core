@@ -2,6 +2,13 @@
 
 ## Não lançado
 
+- Opt-in `siteReader: { renderV1: projetor }` entrega DTO editorial privado em
+  `GET /editorial/render-v1?slug=...`, após autenticar uma vez o reader exclusivo.
+  Consulta e método são fechados; respostas não são cacheáveis, têm limite de 2 MB
+  e rejeitam valores não JSON sem executar getters/toJSON. O projetor da instância
+  deve filtrar tenant, publicação e relações; não há ativação ou cutover de site.
+  Contrato: `docs/contratos/site-reader-render-v1.md`.
+
 ## 0.2.0-next.9 — 2026-09-26 (pré-lançamento)
 
 - `siteReader: true` adiciona papel exclusivo de tenant único e identidade mínima

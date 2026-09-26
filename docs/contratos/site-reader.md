@@ -1,4 +1,4 @@
-# Site reader: identidade mínima e transporte fechado (opt-in, não lançado)
+# Site reader: identidade mínima e transporte fechado (opt-in)
 
 Recorte aprovado: papel exclusivo `site-reader`, vinculado a exatamente um tenant,
 para um consumidor SSR. A ativação é explícita: `cmsCore({ siteReader: true })`.
@@ -47,8 +47,8 @@ jobs sem ACL custom continuam exigindo usuário autenticado.
   `Cache-Control: private, no-store`, `Vary: Authorization`; nenhum token/cookie.
 - `/users/me` permanece 403. Não há exceção de Users.read. A estratégia API key
   autentica internamente com overrideAccess, sem conceder leitura ao portador.
-- Nenhuma wildcard `/editorial/*`; futuros endpoints exigem contrato e entrada
-  literal. Não há endpoint de conteúdo/render nesta primeira entrega.
+- Nenhuma wildcard `/editorial/*`; cada endpoint exige contrato e entrada
+  literal. O render opt-in posterior está em `site-reader-render-v1.md`.
 
 ## Integração explícita do consumidor
 
@@ -72,15 +72,17 @@ O cliente preparatório atual de Alma usa `/api/users/me` e papel `sistema` para
 provar identidade. Ele **não é compatível automaticamente** com este contrato:
 deve migrar para `/api/editorial/identity-v1`, validar o DTO/tenant esperado e usar
 credencial própria com papel exclusivamente `site-reader`, depois de instalar
-todos os wrappers. Nenhuma rota de conteúdo/render-v1 está disponível nesta PR.
+todos os wrappers. O render-v1 exige opt-in separado; o cliente preparatório
+não o consome automaticamente.
 
 Preflight usa o export público `executeAuthStrategies`, sem getAccessResults, cache
 global de principal ou chave. Requisições sem Authorization/cookie de autenticação
 não acrescentam lookup nem inicialização Payload pelo guard. Credenciais presentes
 acrescentam autenticação ao delegar para handlers não-reader. Medição PG16: 0 leituras
 Users para anônimo, 1 para identidade reader direta, 2 para editor delegado ao REST.
-Esse é custo no MISS, não melhoria de TTFB. Um futuro render-v1 precisará medir/reusar
-autenticação de forma explícita. Não se injeta req.user para contornar auth original.
+Esse é custo no MISS, não melhoria de TTFB. O render-v1 reutiliza essa autenticação
+na mesma requisição; o custo das consultas do projetor depende da instância.
+Não se injeta req.user para contornar auth original.
 
 A ativação rejeita com erro de configuração auth strategies custom em **qualquer**
 coleção e autoLogin ativo (prefillOnly é permitido). Sem conhecer os headers/cookies
@@ -122,7 +124,7 @@ negados. URL afiliada/comissões/tracking exigem fluxo/credencial separada, não
 Blobs que já são públicos na CDN continuam públicos anonimamente.
 
 Local API `overrideAccess: true` continua código privilegiado da aplicação; não é
-sandbox. Futuro endpoint de render precisa tenant/publicação explícitos e DTO fechado,
+sandbox. O projetor do render precisa tenant/publicação explícitos e DTO fechado,
 sem espalhar queries recebidas para Local API. Esta entrega não publica conteúdo.
 
 ## Evidências verificadas antes da PR
