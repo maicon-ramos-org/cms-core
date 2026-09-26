@@ -32,6 +32,7 @@ import { buildConfig, type CollectionConfig, type Config, type Field, type Plugi
 import { isSuperAdmin } from './access/roles'
 import { preparaPrincipalSiteReader } from './site-reader/provisionamento'
 import { aplicaPoliticaSiteReader } from './site-reader/politica'
+import type { ProjetorRenderSiteReaderV1 } from './site-reader/render'
 
 import { LinkRules, LinksGerados } from './collections/AutoLinker'
 import { QueriesLog } from './collections/Logs'
@@ -54,7 +55,7 @@ const FORA_DO_TENANT = new Set(['tenants', 'users'])
 
 export interface OpcoesCmsCore {
   /** SSR de tenant único: exige também wrappers HTTP/admin explícitos no consumidor. */
-  siteReader?: boolean
+  siteReader?: boolean | { renderV1: ProjetorRenderSiteReaderV1 }
   /**
    * A pasta `src` do site (`path.dirname(fileURLToPath(import.meta.url))` no
    * `payload.config.ts`): de lá saem o `payload-types.ts` e o mapa de componentes do admin.
@@ -312,5 +313,10 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
       ...(opcoes.siteReader ? [preparaPrincipalSiteReader] : []),
     ],
   })
-  return opcoes.siteReader ? aplicaPoliticaSiteReader(config) : config
+  if (!opcoes.siteReader) return config
+  const renderV1 = typeof opcoes.siteReader === 'object' ? opcoes.siteReader.renderV1 : undefined
+  if (typeof opcoes.siteReader === 'object' && typeof renderV1 !== 'function') {
+    throw new Error('siteReader.renderV1 deve ser um projetor de página.')
+  }
+  return aplicaPoliticaSiteReader(config, renderV1)
 }
