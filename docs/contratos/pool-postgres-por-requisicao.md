@@ -1,9 +1,11 @@
 # PostgreSQL por requisição — plugin opt-in
 
-Status: contrato aprovado, implementação e provas locais concluídas em 2026-09-26;
-revisão/CI da PR ainda obrigatórios. Proposta escrita antes do código. Branch separada desde
-`d2d488a`, depois das releases `cms-core@0.2.0-next.4` e `afiliado@0.2.0-next.7`.
-Não faz parte dessas versões; nenhuma nova versão/tag está autorizada automaticamente.
+Status: contrato aprovado, implementação revisada e CI da PR #23 verde em 2026-09-26,
+integrada ao main em `6f3f91e`. Preparação da versão `cms-core@0.2.0-next.5` em PR
+separada; consumir somente após publicação e registry confirmados. Proposta escrita
+antes do código, em branch desde `d2d488a`, depois das releases
+`cms-core@0.2.0-next.4` e `afiliado@0.2.0-next.7`. Não faz parte dessas versões;
+nenhuma tag/publicação é autorizada automaticamente pela preparação da versão.
 
 ## Problema e limite
 
