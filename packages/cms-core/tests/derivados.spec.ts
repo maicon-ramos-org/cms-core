@@ -214,6 +214,20 @@ describe('derivadosViaImages: os imageSizes da coleção midia pelo binding Imag
     expect(chamadas[0]!.saida).toEqual({ format: 'image/webp', quality: 80 })
   })
 
+  it.each(['jpg', 'jpeg'])('configuração serializada com %s conserva JPEG, qualidade, fundo e extensão', async format => {
+    const { binding, chamadas } = bindingFalso()
+    // O alias legado pode vir de configuração gravada mesmo sem constar nos tipos atuais.
+    const imageSizes = JSON.parse(JSON.stringify([{ name: 'miniatura', width: 100, height: 100,
+      withoutEnlargement: false, formatOptions: { format, options: { quality: 73 } } }])) as ImageSize[]
+    const [derivado] = await derivadosViaImages(binding).gera({
+      bytes: imagem(1000, 1000), mimeType: 'image/png', filename: 'quadrada.png', imageSizes,
+    })
+    expect(chamadas).toEqual([{ transformacoes: [{ width: 100, height: 100, fit: 'cover', gravity: 'center', background: '#ffffff' }],
+      saida: { format: 'image/jpeg', quality: 73 } }])
+    expect(derivado).toMatchObject({ mimeType: 'image/jpeg', filename: 'quadrada-100x100.jpg', largura: 100, altura: 100, filesize: 113 })
+    expect(derivado!.filesize).toBe(derivado!.bytes.byteLength)
+  })
+
   it('arquivo que o Payload não redimensiona (PDF, SVG): nenhum derivado e nenhuma chamada ao binding', async () => {
     const { binding, chamadas, infos } = bindingFalso()
     const gerador = derivadosViaImages(binding)

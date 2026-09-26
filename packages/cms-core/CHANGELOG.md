@@ -1,5 +1,18 @@
 # @maicon-ramos-org/cms-core
 
+## 0.2.0-next.6 — 2026-09-26 (pré-lançamento)
+
+- Corrige TS2367 ao compilar `derivadosViaImages` em consumidores cujo Payload
+  resolve tipos transitivos de Sharp 0.35.x, que não declaram o alias legado `jpg`.
+  O formato recebido é validado na fronteira runtime, sem depender desse union
+  externo para comparar o alias. `jpg` e `jpeg` continuam produzindo `image/jpeg`,
+  fundo branco, qualidade solicitada e extensão `.jpg`; formatos não suportados
+  continuam recusados. O JavaScript emitido permanece idêntico.
+- Regressão compila o módulo real contra um contrato de `ImageSize` sem `jpg`,
+  além das provas runtime dos dois aliases. A correção não muda schema, versões
+  de Payload/Sharp ou ativação de plugins; o peer de runtime Sharp permanece
+  `0.34.2`. Afiliado/editorial não recebem versão nem publicação nesta entrega.
+
 ## 0.2.0-next.5 — 2026-09-26 (pré-lançamento)
 
 Pré-lançamento na dist-tag `next`; `latest` permanece em `0.1.0`. Ativação explícita

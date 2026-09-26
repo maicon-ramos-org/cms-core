@@ -297,7 +297,9 @@ function omitido(tamanho: ImageSize, original: { width: number; height: number }
 }
 
 function formatoDeSaida(tamanho: ImageSize, mimeOriginal: string): FormatoDeSaida {
-  const pedido = tamanho.formatOptions?.format
+  // Configuração legada pode conter jpg mesmo quando Sharp transitivo não declara
+  // esse alias. Validamos o MIME abaixo; o union externo não é a fronteira runtime.
+  const pedido: unknown = tamanho.formatOptions?.format
   if (!pedido) {
     if (mimeOriginal in EXTENSAO) return mimeOriginal as FormatoDeSaida
     naoSuportado(tamanho, `o original ${mimeOriginal} sem \`formatOptions\``)
