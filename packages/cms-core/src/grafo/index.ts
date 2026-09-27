@@ -5,7 +5,7 @@ import { registrarFormatos, type OpcoesGrafoEditorial } from './contratos'
 import { contextoGrafo } from './endpoints'
 import { registraEvento, rejeitaSelecaoNaEscritaAuditada } from './eventos'
 import { preparaMarkdown, sincronizaMarkdown } from './markdown'
-import { draftPrimeiro, validaCorpoGrafo, validaGrafo } from './validacao'
+import { validaCorpoGrafo, validaGrafo } from './validacao'
 import { bancoComValorClaimPreservado } from './valor-claim'
 
 export type { FormatoEditorial, IntencaoEditorial, OpcoesGrafoEditorial } from './contratos'
@@ -55,7 +55,7 @@ export function grafoEditorial(opcoes: OpcoesGrafoEditorial = {}): Plugin {
             { name: 'gates', type: 'json', admin: { hidden: true, readOnly: true }, access: { create: () => false, update: () => false } },
           ], hooks: { ...c.hooks,
             beforeOperation: [rejeitaSelecaoNaEscritaAuditada, preparaMarkdown, ...(c.hooks?.beforeOperation ?? [])],
-            beforeValidate: [draftPrimeiro, validaGrafo({ entidades: 'entidades', claims: 'claims', cluster: 'clusters', capa: 'midia' }), sincronizaMarkdown, validaCorpoGrafo, ...(c.hooks?.beforeValidate ?? [])],
+            beforeValidate: [validaGrafo({ entidades: 'entidades', claims: 'claims', cluster: 'clusters', capa: 'midia' }), sincronizaMarkdown, validaCorpoGrafo, ...(c.hooks?.beforeValidate ?? [])],
             beforeChange: [...(c.hooks?.beforeChange ?? []), ({ data, originalDoc }) => {
               const efetivo = { ...originalDoc, ...data }
               const formato = formatos.find(f => f.slug === (efetivo.tipo ?? 'artigo'))

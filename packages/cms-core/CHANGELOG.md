@@ -2,6 +2,14 @@
 
 ## Não lançado
 
+## 0.2.0-next.13 — 2026-09-27 (pré-lançamento; publicação pendente)
+
+- O agente da etapa final pode criar um post já aprovado com `_status: published`
+  em uma única chamada REST. Sem `_status`, o padrão do Payload continua draft;
+  a credencial de ingestão continua restrita a draft. Não há revisão editorial
+  duplicada no CMS. Tenant, relações, formato, versões e auditoria permanecem
+  validados. Sem alteração de schema ou migration.
+
 ## 0.2.0-next.12 — 2026-09-27 (pré-lançamento)
 
 - `siteReader` aceita projetores opt-in `offerV1` e `indexV1` além de

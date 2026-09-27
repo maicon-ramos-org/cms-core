@@ -71,7 +71,16 @@ describe.skipIf(semBanco)('ofertas editoriais opt-in, REST e Postgres reais', ()
     expect(r.body.doc.atualizado_na_origem).toBe('2020-01-01T00:00:00.000Z')
     expect((await request(`/ofertas_editoriais/${ofertaA.id}`)).body.preco).toBeNull()
     erro(await request('/ofertas_editoriais', 'POST', { ...dados('float'), preco: 12.3 }), 'preco')
-    expect((await request('/ofertas_editoriais', 'POST', { ...dados('publicacao-implicita'), _status: 'published' })).status).toBe(403)
+    const aprovada = await request('/ofertas_editoriais', 'POST', { ...dados('aprovada-antes-do-cms'),
+      disclosure: false, _status: 'published' })
+    expect(aprovada.status).toBe(201)
+    expect(aprovada.body.doc._status).toBe('published')
+    const aprovadaPeloAgente = await request('/ofertas_editoriais', 'POST', {
+      ...dados('aprovada-pelo-agente'), url_afiliado: undefined, estado: 'pausada', disclosure: false,
+      _status: 'published',
+    }, keyAgente)
+    expect(aprovadaPeloAgente.status).toBe(201)
+    expect(aprovadaPeloAgente.body.doc._status).toBe('published')
   })
   it('campos privados só aparecem à key interna; tenant B não aparece nem em versions', async () => {
     const publico = await request(`/ofertas_editoriais/${ofertaA.id}`, 'GET', undefined, keyAgente)
@@ -102,6 +111,8 @@ describe.skipIf(semBanco)('ofertas editoriais opt-in, REST e Postgres reais', ()
   it('ingestão só salva draft, sistema SSR não ganha permissão de escrita editorial', async () => {
     const r = await request('/ofertas_editoriais', 'POST', dados('importada'), 'ofertas-importador-fixture')
     expect(r.status).toBe(201)
+    expect((await request('/ofertas_editoriais', 'POST', { ...dados('importada-publicada'), disclosure: false,
+      _status: 'published' }, 'ofertas-importador-fixture')).status).toBe(403)
     expect((await request(`/ofertas_editoriais/${r.body.doc.id}`, 'PATCH', { _status: 'published' }, 'ofertas-importador-fixture')).status).toBe(403)
     expect((await request('/ofertas_editoriais', 'POST', dados('ssr-nao-escreve'), 'ofertas-ssr-fixture')).status).toBe(403)
   })

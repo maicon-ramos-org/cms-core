@@ -41,7 +41,6 @@ const lista = (valor: unknown, path: string): Doc[] => {
 export const normalizaOfertaEditorial: CollectionBeforeValidateHook = ({ data, originalDoc, operation, req }) => {
   if (!data) return data
   if (operation === 'create') {
-    if (data._status === 'published' && !isSuperAdmin(req.user)) throw new APIError('Oferta nova entra em draft; publicação exige atualização explícita.', 403)
     if (!data._status) data._status = 'draft'
   }
   if (req.user && !internoOferta(req.user) && camposPrivados.some(c => c in data && JSON.stringify(data[c]) !== JSON.stringify(originalDoc?.[c]))) {

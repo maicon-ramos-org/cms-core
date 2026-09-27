@@ -2,6 +2,15 @@
 
 ## Não lançado
 
+## 0.2.0-next.14 — 2026-09-27 (pré-lançamento; publicação pendente)
+
+- A credencial publicadora pode criar uma oferta editorial já aprovada com
+  `_status: published` em uma única chamada REST. Sem `_status`, continua draft;
+  a credencial de ingestão permanece draft-only. Host afiliado permitido para
+  oferta ativa publicada, tenant, identidade e vínculos seguem validados.
+- Alinha a dependência distribuída a `cms-core@0.2.0-next.13`. Não muda schema
+  nem ativa plugins em outra instância automaticamente.
+
 ## 0.2.0-next.13 — 2026-09-26 (pré-lançamento; publicação pendente)
 
 Alinha a dependência distribuída a `cms-core@0.2.0-next.11`, que deixa a

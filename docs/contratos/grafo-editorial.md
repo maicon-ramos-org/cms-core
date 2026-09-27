@@ -1,8 +1,8 @@
 # Grafo de dados — contrato da publicação pelo agente
 
-Status: base publicada em `cms-core@0.2.0-next.3`; este documento foi atualizado
-para a decisão de 2026-09-26. Até `next.10`, o plugin ainda executa G1–G4;
-a retirada entra apenas após publicação da próxima versão.
+Status: base publicada em `cms-core@0.2.0-next.3`; contrato de publicação
+atualizado para `next.13` (aguarda publicação do pacote). Até `next.10`, o
+plugin ainda executa G1–G4; versões posteriores retiram esses gates.
 Referências: PRDs 20, 22 e 23 e ADR-0013 do repositório da
 plataforma. Não fecha esses três PRDs.
 O consumo de cada pré-lançamento exige publicação confirmada no registry, não
@@ -61,9 +61,10 @@ Imagem por URL externa e bloco de código cercado são recusados com 400 em
 aceitos como texto degradado. Blocos de código e migração/rehost de imagem externa
 precisam ser resolvidos antes do import completo. Links/relações embutidos no
 Lexical também devem apontar para conteúdo do mesmo tenant.
-Novo post de agente/ingestão deve entrar em `draft`, inclusive na Local API;
-publicação é operação posterior e explícita. O agente publicador envia o post
-final após pesquisa, redação, validação e revisão feitas inteiramente fora do CMS.
+O agente publicador pode criar diretamente com `_status: published` depois de
+pesquisa, redação, validação e revisão feitas inteiramente fora do CMS. Se
+omitir `_status`, o post nasce draft; a credencial de ingestão só salva draft,
+inclusive na Local API. Publicar é sempre uma escolha explícita do pipeline.
 O CMS não cria papéis editoriais para agentes que não o acessam e não refaz
 checagem de fonte, ano, palavras, estilo, SEO ou capa na publicação.
 
@@ -75,7 +76,7 @@ para evitar uma migration destrutiva; não altera a publicação.
 
 O Hermes cuida de análise, pesquisa, criação, validação, revisão e decisão de
 publicar. Só o agente da etapa final chama a API do Payload. O CMS persiste o
-rascunho e sua publicação explícita, fornece campos estruturados e contexto de
+status escolhido, fornece campos estruturados e contexto de
 pesquisa, mantém versões/auditoria, autentica a credencial e impede referências
 entre tenants. Erros 400 do CMS dizem respeito ao contrato dos dados, não à
 qualidade editorial. A eventual política G1–G4 pertence ao pipeline Hermes.
@@ -106,14 +107,14 @@ diagnóstico editorial, se necessário, deve acontecer no pipeline Hermes.
 Implementação em `packages/cms-core/src/grafo/{index,colecoes,contratos,acesso,
 validacao,markdown,frescor,endpoints,eventos}.ts`, export adicional no package.json,
 testes em `packages/cms-core/tests/grafo*.spec.ts` e `tests/int/grafo.int.spec.ts`.
-Fixtures cobrem contrato estrutural, PATCH com null, fronteira de tenant, draft-first e
+Fixtures cobrem contrato estrutural, PATCH com null, fronteira de tenant, criação publicada e
 serialização. Integração usa banco de teste separado no Postgres 16 e REST real do
 Payload, além da Local API. `pnpm check` é gate antes de commit/push.
 
 Validação da mudança de responsabilidade: integração REST com Postgres isolado
-prova publicação com `tenants.gates.ativo=true` sem pesquisa/citação, consulta de
-claims antigas e em revisão e ausência do endpoint de gates. Ainda não houve
-migration de site, publicação do pacote nem deploy de instância nesta mudança.
+prova criação publicada com `tenants.gates.ativo=true` sem pesquisa/citação,
+consulta de claims antigas e em revisão e ausência do endpoint de gates.
+Publicação do pacote e consumo pelas instâncias ainda dependem da release.
 
 ## Pendências explícitas de expansão
 
