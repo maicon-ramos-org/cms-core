@@ -1,5 +1,9 @@
 # Frescor editorial da pesquisa — correção independente
 
+> Histórico até `cms-core@0.2.0-next.10`. Na versão seguinte, o CMS conserva
+> os metadados e a seleção cronológica para consulta, mas não usa G1 para
+> aprovar ou bloquear posts. Validade e qualidade são decisão do pipeline Hermes.
+
 Status: contrato escrito antes dos testes/código, implementado em 2026-09-26,
 versionado em `cms-core@0.2.0-next.4` (consumo após publicação confirmada).
 Base `main` c1f2c50;

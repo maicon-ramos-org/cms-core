@@ -2,6 +2,14 @@
 
 ## Não lançado
 
+## 0.2.0-next.13 — 2026-09-26 (pré-lançamento; publicação pendente)
+
+Alinha a dependência distribuída a `cms-core@0.2.0-next.11`, que deixa a
+avaliação editorial exclusivamente no pipeline externo. O `pnpm pack` converte
+`workspace:*` no pin exato; o código do plugin afiliado não muda. Sem migration,
+ativação em site ou deploy automático. Publicar este pacote somente depois de
+confirmar a publicação do core `.11` na dist-tag `next`.
+
 ## 0.2.0-next.12 — 2026-09-26 (pré-lançamento)
 
 Alinha a dependência distribuída a `cms-core@0.2.0-next.10`, que oferece o

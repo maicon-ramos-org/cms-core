@@ -1,7 +1,8 @@
-# Grafo editorial — primeira entrega do PRD 20
+# Grafo de dados — contrato da publicação pelo agente
 
-Status: base publicada em `cms-core@0.2.0-next.3`; frescor editorial versionado em
-`cms-core@0.2.0-next.4`. O contrato foi escrito antes do código.
+Status: base publicada em `cms-core@0.2.0-next.3`; este documento foi atualizado
+para a decisão de 2026-09-26. Até `next.10`, o plugin ainda executa G1–G4;
+a retirada entra apenas após publicação da próxima versão.
 Referências: PRDs 20, 22 e 23 e ADR-0013 do repositório da
 plataforma. Não fecha esses três PRDs.
 O consumo de cada pré-lançamento exige publicação confirmada no registry, não
@@ -16,10 +17,9 @@ a config e o schema atuais permanecem iguais. O pacote `schema` existente é
 preservado. Dependências continuam fixas; instalar não ativa o plugin nem migra banco.
 
 O núcleo registra `artigo`; o site/plugin registra os outros formatos por
-`{ slug, rotulo, intencao, validarPublicacao? }`. O callback recebe os dados
-efetivos do post e devolve problemas `{ gate, severidade, path, mensagem }`.
-Campos específicos de receita/oferta continuam sendo responsabilidade do site ou
-plugin. Este registro descreve formatos editoriais; ainda não agenda etapas.
+`{ slug, rotulo, intencao }`. Campos específicos de receita/oferta continuam
+sendo responsabilidade do site ou plugin. Formatos organizam os dados; não
+disparam ou validam etapas editoriais.
 
 ## Coleções
 
@@ -35,7 +35,7 @@ SSR/cache na Cloudflare.
 | relacoes | de, para, tipo, peso (real finito, sem teto) | tenant+de+para+tipo único; de diferente de para |
 | fontes | url, publisher opcional, titulo, tier (1–3), publicado_em, recuperado_em, upstream (fonte) | tenant+url único |
 | claims | entidade, texto, valor (json), ano_ancora, fonte obrigatória, status (vigente/revisar/refutada), revisado_em | versions |
-| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0), revisado_em opcional | versions; G1 recusa qualidade ausente; relógio editorial desde .4 |
+| pesquisas | entidade, corpo_md, qualidade opcional (0–100), validade_dias (>0), revisado_em opcional | versions; metadados para o pipeline editorial |
 | clusters | nome, slug, entidade_pilar opcional, plano (json), status (planejado/ativo/concluido) | tenant+slug único, versions |
 | eventos | colecao, doc, acao (create/update), ator (users), campos (nomes alterados) | append-only; hook interno; nenhum valor/segredo no diff |
 
@@ -50,7 +50,9 @@ sem usuário não inventam identidade: evento registra ator vazio.
 ## Posts e configuração por tenant
 
 Posts acrescentam `tipo`, `intencao`, `resumo`, `entidades[]`, `cluster`, `claims[]`,
-`corpo_md`, `pontuacao` e `gates`. Lexical é canônico: `corpo` explícito vence sobre
+`corpo_md` e `pontuacao`. `posts.gates` permanece no schema apenas por
+compatibilidade com bancos já migrados e não recebe avaliações novas. Lexical é
+canônico: `corpo` explícito vence sobre
 `corpo_md`; Markdown é convertido antes de validar. PATCH sem corpo preserva ambos.
 Título, lista, tabela simples, link, citação, separador e upload referenciado são
 testados em round-trip. Upload usa `![midia:ID]()` e verifica o tenant no servidor.
@@ -60,68 +62,62 @@ aceitos como texto degradado. Blocos de código e migração/rehost de imagem ex
 precisam ser resolvidos antes do import completo. Links/relações embutidos no
 Lexical também devem apontar para conteúdo do mesmo tenant.
 Novo post de agente/ingestão deve entrar em `draft`, inclusive na Local API;
-publicação é operação posterior e explícita. Publicações e edições de post já
-publicado passam novamente pelos gates habilitados.
+publicação é operação posterior e explícita. O agente publicador envia o post
+final após pesquisa, redação, validação e revisão feitas inteiramente fora do CMS.
+O CMS não cria papéis editoriais para agentes que não o acessam e não refaz
+checagem de fonte, ano, palavras, estilo, SEO ou capa na publicação.
 
 `tenants.grafo` traz tipos de entidade/relação opcionais (lista vazia permite
-vocabulário livre). `tenants.gates` traz `ativo` (false no início), `g1`, `g2`,
-`g3`, `g4` (true) e limiares `qualidade_minima` (70), `palavras_minimas` (250).
-Somente super-admin configura gates/vocabulários. Um agente não pode desligar sua
-própria validação. `posts.gates` é relatório gerado pelo servidor.
+vocabulário livre). `tenants.gates` também permanece no schema, oculto e inerte,
+para evitar uma migration destrutiva; não altera a publicação.
 
-## Gates implementados nesta fase
+## Divisão de responsabilidades
 
-- G1: pesquisa da entidade principal, qualidade mínima e validade, sem aceitar
-  timestamp inválido ou futuro. Extensão ainda não lançada prioriza `revisado_em`
-  e identifica fallback técnico legado; veja [contrato de frescor](frescor-editorial.md).
-- G2: claim vigente, texto presente na prosa normalizada, ano e link inline da
-  fonte no mesmo parágrafo; estatística com percentual sem fonte ligada reprova.
-- G3: blocklist editorial genérica e excesso de H2 em pergunta.
-- G4: título SEO 30–65, descrição 70–200, mínimo de palavras, sem H1 no corpo e capa.
-- Regras específicas de formato são callbacks do registro; P0 bloqueia com path.
+O Hermes cuida de análise, pesquisa, criação, validação, revisão e decisão de
+publicar. Só o agente da etapa final chama a API do Payload. O CMS persiste o
+rascunho e sua publicação explícita, fornece campos estruturados e contexto de
+pesquisa, mantém versões/auditoria, autentica a credencial e impede referências
+entre tenants. Erros 400 do CMS dizem respeito ao contrato dos dados, não à
+qualidade editorial. A eventual política G1–G4 pertence ao pipeline Hermes.
 
-Funções determinísticas recebem relógio explícito para testes. Não se atribui G5
-completo a esta entrega: resolução das rotas da instância, proteção dos campos de
-afiliado e similaridade exigem integração própria. Nenhum sinal do cliente pode
-forjar aprovação. Relatório é a lista de problemas; lista vazia significa apenas
-aprovação dos gates habilitados, não revisão humana nem publicação verificada.
+Proteções estruturais continuam: tenant imutável, vínculos existentes no mesmo
+tenant, formato conhecido, chave de import estável e conversão fiel Markdown ↔
+Lexical. O CMS não atesta que um texto foi revisado ou que uma fonte é confiável.
 
 ## Endpoints de leitura
 
 `GET /api/grafo/contexto?entidade={slug}&tenant={id}` devolve entidade,
-relações entrada/saída, claims vigentes com fonte, pesquisa mais recente e resumos
+relações entrada/saída, claims com fonte, status e ano, pesquisa mais recente e resumos
 de posts. Só sessão/API key autenticada. Tenant único da credencial é inferido;
 credencial com múltiplos tenants escolhe um deles; super-admin deve escolher.
 Tentativa de escolher tenant alheio falha. Consultas sempre filtram tenant.
 Allowlist limita dados e comprimento; paginação truncada é declarada na resposta.
-Os dois endpoints retornam `Cache-Control: private, no-store`. O filtro de tenant
+O endpoint retorna `Cache-Control: private, no-store`. O filtro de tenant
 também é exercitado nas rotas REST das coleções e na leitura de versões.
 Não inclui corpo de post, ofertas ou URL de afiliado. Esta fase suporta profundidade
 1 apenas; outro valor retorna erro 400, sem fingir travessia de duas camadas.
 
-`POST /api/posts/{id}/gates` avalia o rascunho atual sem escrever/gerar versão;
-usa o mesmo carregador e avaliador da publicação. Não publica conteúdo.
+O CMS não filtra claims por idade ou status: o Hermes recebe esses metadados e
+decide quais usar. `POST /api/posts/{id}/gates` foi desativado (404); um
+diagnóstico editorial, se necessário, deve acontecer no pipeline Hermes.
 
 ## Plano de arquivos e validação
 
 Implementação em `packages/cms-core/src/grafo/{index,colecoes,contratos,acesso,
-validacao,markdown,gates,endpoints,eventos}.ts`, export adicional no package.json,
+validacao,markdown,frescor,endpoints,eventos}.ts`, export adicional no package.json,
 testes em `packages/cms-core/tests/grafo*.spec.ts` e `tests/int/grafo.int.spec.ts`.
-Fixtures cobrem gates, PATCH com null, fronteira de tenant, draft-first e
+Fixtures cobrem contrato estrutural, PATCH com null, fronteira de tenant, draft-first e
 serialização. Integração usa banco de teste separado no Postgres 16 e REST real do
 Payload, além da Local API. `pnpm check` é gate antes de commit/push.
 
-Validação local em 2026-09-25: `pnpm check` verde (47 testes de scripts + 609
-testes Vitest), com Postgres 16 e S3 de teste isolados. Os 46 testes novos cobrem
-19 fixtures de gates, 4 de registro de formatos, 10 de Markdown, 1 de auditoria
-concorrente e 12 de integração real. As cinco sentinelas de ambiente são puladas quando seus serviços estão
-presentes; as integrações de banco e bucket foram executadas. `git diff --check`
-também passou. Nenhuma migration foi aplicada a banco de site, nenhum pacote foi
-publicado e o build/deploy das instâncias permanece uma etapa posterior.
+Validação da mudança de responsabilidade: integração REST com Postgres isolado
+prova publicação com `tenants.gates.ativo=true` sem pesquisa/citação, consulta de
+claims antigas e em revisão e ausência do endpoint de gates. Ainda não houve
+migration de site, publicação do pacote nem deploy de instância nesta mudança.
 
 ## Pendências explícitas de expansão
 
-PRD20: G5, pgvector/pg_trgm, embedding/job/semelhantes, lacunas completas, contexto
+PRD20 histórico: G5, pgvector/pg_trgm, embedding/job/semelhantes, lacunas completas, contexto
 profundidade 2, doc polimórfico, campos de afiliado e proteção de links, frescor em
 cascata, migration versionada de cada instância, prova de round-trip de todos os
 oito tipos ricos, Rich Results e paridade/latência com acervo real.

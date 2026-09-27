@@ -107,7 +107,15 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     expect(r.body.entidade.id).toBe(entidadeA.id)
     expect(JSON.stringify(r.body)).not.toContain('Conceito B privado')
     expect(r.body.claims[0].fonte.url).toBe(fonteURL)
+    expect(r.body.claims[0].status).toBe('vigente')
     expect((await request('/grafo/contexto?entidade=conceito&profundidade=2')).status).toBe(400)
+  })
+  it('contexto não decide relevância editorial por status ou ano da claim', async () => {
+    const antiga = await create('claims', { tenant: tenantA.id, entidade: entidadeA.id, fonte: fonteA.id,
+      texto: 'Dado histórico para avaliação do agente', ano_ancora: 2018, status: 'revisar' })
+    const contexto = await request('/grafo/contexto?entidade=conceito')
+    expect(contexto.status).toBe(200)
+    expect(contexto.body.claims).toContainEqual(expect.objectContaining({ id: antiga.id, ano_ancora: 2018, status: 'revisar' }))
   })
   it('REST genérico e versões não deixam a key do A ler o tenant B', async () => {
     for (const colecao of ['entidades', 'claims', 'eventos']) {
@@ -166,35 +174,23 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
       .rejects.toMatchObject({ status: 400 })
     await expect(payload.delete({ collection: 'eventos' as never, id: eventos.docs[0]!.id })).rejects.toMatchObject({ status: 400 })
   })
-  it('dry-run e publish concordam, não criam versão no dry-run, e usuário não desliga gates', async () => {
+  it('o CMS persiste a publicação do agente sem julgar texto, fonte ou pesquisa', async () => {
     await payload.update({ collection: 'tenants', id: tenantA.id, data: { gates: { ativo: true, g1: true, g2: true, g3: true, g4: false } } })
-    await create('pesquisas', { tenant: tenantA.id, entidade: entidadeA.id, corpo_md: 'Pesquisa registrada', qualidade: 90, validade_dias: 30 })
-    const r = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Evidência publicada depois da revisão', slug: 'evidencia',
-      corpo_md: 'Texto sem a evidência da claim.', entidades: [entidadeA.id], claims: [claimA.id] })
+    const r = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Texto de teste', slug: 'publicacao-pelo-agente',
+      corpo_md: 'Rascunho sem pesquisa ou citação; o julgamento editorial está fora do CMS.', entidades: [entidadeA.id] })
     expect(r.status).toBe(201)
     const id = r.body.doc.id
-    const versoes = () => payload.findVersions({ collection: 'posts', where: { parent: { equals: id } }, limit: 1 }).then(r => r.totalDocs)
-    const antes = await versoes()
-    const dry = await request(`/posts/${id}/gates`, 'POST')
-    expect(dry.status).toBe(200)
-    expect(dry.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(dry.body).toContainEqual(expect.objectContaining({ gate: 'G2', path: 'claims' }))
-    expect(await versoes()).toBe(antes)
-    erroPath(await request(`/posts/${id}`, 'PATCH', { _status: 'published' }), 'claims')
-    const corpo = `A pesquisa de ${new Date().getUTCFullYear()} registra redução de 12% na amostra [na fonte](${fonteURL}).`
-    const atualizado = await request(`/posts/${id}`, 'PATCH', { corpo_md: corpo })
-    expect(atualizado.status).toBe(200)
-    expect(atualizado.body.doc.corpo_md).toContain('redução de 12%')
-    expect((await request(`/posts/${id}/gates`, 'POST')).body).toEqual([])
-    expect((await request(`/posts/${id}`, 'PATCH', { _status: 'published', gates: [] })).status).toBe(200)
-    // Editar post já publicado continua sujeito aos gates mesmo sem reenviar _status.
-    erroPath(await request(`/posts/${id}`, 'PATCH', { corpo_md: 'Evidência removida.' }), 'claims')
+    const published = await request(`/posts/${id}`, 'PATCH', { _status: 'published' })
+    expect(published.status).toBe(200)
+    expect(published.body.doc._status).toBe('published')
+    expect(published.body.doc.gates).toBeNull()
+    expect((await request(`/posts/${id}`, 'PATCH', { titulo: 'Atualização pelo publicador' })).status).toBe(200)
+    expect((await request(`/posts/${id}/gates`, 'POST')).status).toBe(404)
     const agente = await payload.find({ collection: 'users', where: { email: { equals: 'agente-a@example.test' } } })
     await expect(payload.update({ collection: 'tenants', id: tenantA.id, user: { ...agente.docs[0]!, collection: 'users' }, overrideAccess: true,
       data: { gates: { ativo: false } } })).rejects.toMatchObject({ status: 403 })
   })
-  it('pesquisa importada antiga não se torna vigente por updatedAt técnico e bloqueia publish', async () => {
-    await payload.update({ collection: 'tenants', id: tenantA.id, data: { gates: { ativo: true, g1: true, g2: false, g3: false, g4: false } } })
+  it('pesquisa importada antiga conserva sua data sem bloquear publicação editorial', async () => {
     const entidade = await create('entidades', { tenant: tenantA.id, nome: 'Frescor importado', slug: 'frescor-importado', tipo: 'conceito' })
     const pesquisa = await request('/pesquisas', 'POST', { tenant: tenantA.id, entidade: entidade.id, corpo_md: 'Evidência antiga preservada.',
       origem: 'legacy:research:antiga', revisado_em: '2020-01-01T00:00:00Z', qualidade: 90, validade_dias: 30 })
@@ -202,13 +198,10 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     expect(pesquisa.body.doc.revisado_em).toBe('2020-01-01T00:00:00.000Z')
     const post = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Import não substitui revisão', slug: 'frescor-importado',
       corpo_md: 'Conteúdo em rascunho.', entidades: [entidade.id] })
-    const dry = await request(`/posts/${post.body.doc.id}/gates`, 'POST')
-    expect(dry.body).toContainEqual(expect.objectContaining({ gate: 'G1' }))
-    erroPath(await request(`/posts/${post.body.doc.id}`, 'PATCH', { _status: 'published' }), 'entidades')
+    expect((await request(`/posts/${post.body.doc.id}`, 'PATCH', { _status: 'published' })).status).toBe(200)
     const atualizado = await request(`/pesquisas/${pesquisa.body.doc.id}`, 'PATCH', { corpo_md: 'Ajuste incidental, não revisão científica.' })
     expect(atualizado.status).toBe(200)
     expect(atualizado.body.doc.revisado_em).toBe('2020-01-01T00:00:00.000Z')
-    expect((await request(`/posts/${post.body.doc.id}/gates`, 'POST')).body).toContainEqual(expect.objectContaining({ gate: 'G1' }))
     for (const revisado_em of [null, '']) erroPath(await request(`/pesquisas/${pesquisa.body.doc.id}`, 'PATCH', { revisado_em }), 'revisado_em')
     await expect(payload.update({ collection: 'pesquisas' as never, id: pesquisa.body.doc.id, data: { revisado_em: null } as never }))
       .rejects.toMatchObject({ data: { errors: expect.arrayContaining([expect.objectContaining({ path: 'revisado_em' })]) } })
@@ -223,12 +216,10 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
       revisado_em: new Date(Date.now() + 86_400_000).toISOString(), qualidade: 90, validade_dias: 30 })
     const contexto = await request('/grafo/contexto?entidade=revisao-efetiva')
     expect(contexto.body.pesquisa).toMatchObject({ id: vigente.id, revisado_em, data_frescor: revisado_em, base_frescor: 'revisado_em', atualizado_em: vigente.updatedAt })
-    const post = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Seleção documentada', slug: 'selecao-frescor', corpo_md: 'Rascunho.', entidades: [entidade.id] })
-    expect((await request(`/posts/${post.body.doc.id}/gates`, 'POST')).body).toEqual([])
-    // A alternativa mais recente, mesmo futura, é rejeitada; não escondê-la buscando evidência mais conveniente.
+    // A data futura permanece visível para o pipeline editorial; não é julgamento do CMS.
     await create('pesquisas', { tenant: tenantA.id, entidade: entidade.id, corpo_md: 'Data futura inválida para publicar.',
       revisado_em: new Date(Date.now() + 86_400_000).toISOString(), qualidade: 90, validade_dias: 30 })
-    expect((await request(`/posts/${post.body.doc.id}/gates`, 'POST')).body).toContainEqual(expect.objectContaining({ gate: 'G1' }))
+    expect((await request('/grafo/contexto?entidade=revisao-efetiva')).body.pesquisa.revisado_em).not.toBe(revisado_em)
   })
   it('fallback legado é explícito e backfill não pode ser limpo, mesmo quando antes ausente', async () => {
     const entidade = await create('entidades', { tenant: tenantA.id, nome: 'Compatibilidade auditável', slug: 'compatibilidade-frescor', tipo: 'conceito' })
