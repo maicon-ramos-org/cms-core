@@ -6,7 +6,7 @@
  * `afterChange` de um `update` em massa, com o mesmo `req.context`; que a escrita aninhada
  * (hook que grava em outra coleção com o mesmo `req`) não parte o lote; e que, quando o site
  * é avisado, o banco já tem o valor novo — o `afterOperation` roda antes do commit, e por isso
- * o envio não é esperado ali. O "site" é um servidor HTTP local que conta o que recebe e lê o
+ * o envio aguarda o commit do adapter sem prender a transação à rede. O "site" é um servidor HTTP local que conta o que recebe e lê o
  * documento por outra conexão, como leria ao re-renderizar a página.
  *
  * O agendador (`revalidacao.emSegundoPlano`) acumula as promessas do envio, e cada teste as
@@ -164,6 +164,41 @@ describe.skipIf(semBanco)('revalidação agrupada no Payload', () => {
     await entregues()
     expect(vistos).toEqual(['depois'])
     olhar = null
+    await payload.delete({ collection: 'notas' as never, id: doc.id })
+    await entregues()
+  })
+
+  it('um commit propositalmente pausado não deixa o webhook sair antes da gravação', async () => {
+    const doc = await payload.create({ collection: 'notas' as never, data: { titulo: 'antes do commit' } as never })
+    await entregues()
+    recebidos = []
+    vistos = []
+    olhar = doc.id
+
+    const original = payload.db.commitTransaction
+    let libera!: () => void
+    let entrou!: () => void
+    const liberado = new Promise<void>((resolve) => (libera = resolve))
+    const chamado = new Promise<void>((resolve) => (entrou = resolve))
+    payload.db.commitTransaction = async (id) => {
+      entrou()
+      await liberado
+      await original(id)
+    }
+    try {
+      const atualizacao = payload.update({ collection: 'notas' as never, id: doc.id, data: { titulo: 'depois do commit' } as never })
+      await chamado
+      expect(recebidos).toEqual([])
+      libera()
+      await atualizacao
+      await entregues()
+      expect(recebidos).toEqual([[`notas:${doc.id}`]])
+      expect(vistos).toEqual(['depois do commit'])
+    } finally {
+      libera()
+      payload.db.commitTransaction = original
+      olhar = null
+    }
     await payload.delete({ collection: 'notas' as never, id: doc.id })
     await entregues()
   })

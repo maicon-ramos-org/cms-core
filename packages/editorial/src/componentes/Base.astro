@@ -29,6 +29,8 @@ interface Props {
   canonical?: string
   /** gêmeo em markdown da página (agent-readable) */
   markdown?: string
+  /** Projeção pública estruturada da página, sem campos internos do Payload. */
+  json?: string
   /**
    * Nós de JSON-LD que ESTA página acrescenta ao tronco (PRD 02 RF6). O tronco
    * (`Organization → WebSite → WebPage`) sai daqui de graça, em toda página: era ele que
@@ -47,7 +49,7 @@ interface Props {
   tipoOg?: 'website' | 'article'
 }
 
-const { titulo, descricao, noindex = false, canonical, markdown, schema = [], imagem, tipoOg = 'website' } = Astro.props
+const { titulo, descricao, noindex = false, canonical, markdown, json, schema = [], imagem, tipoOg = 'website' } = Astro.props
 
 const tenant = Astro.locals.tenant
 const t = tenant.tema ?? {}
@@ -311,6 +313,7 @@ const grafo = canonical
     */}
     {grafo && <script is:inline type="application/ld+json" set:html={JSON.stringify(grafo)} />}
     {markdown && <link rel="alternate" type="text/markdown" href={markdown} />}
+    {json && <link rel="alternate" type="application/json" href={json} />}
     {/*
       Ordem importa: o navegador escolhe o ÚLTIMO que entende. `.ico` primeiro como piso,
       SVG depois porque é o melhor onde há suporte.

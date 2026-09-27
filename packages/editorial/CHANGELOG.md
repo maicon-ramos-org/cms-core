@@ -1,5 +1,15 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.3 — 2026-09-27 (pré-lançamento)
+
+- Artigos e páginas editoriais publicados ganham `/{slug}.json` allowlist, com
+  canonical da página HTML, `noindex` e as mesmas tags de cache. Não expõe o
+  documento REST bruto nem rascunhos. HTML anuncia JSON e Markdown como
+  alternates; Markdown agora tem canonical/noindex e cache por tag também em
+  páginas. Contrato: `docs/contratos/formatos-publicos.md`.
+- Inclui o memo de leituras SSR opt-in descrito em "Não lançado" abaixo; nenhum
+  consumidor o ativa por este bump.
+
 ## Não lançado — memo de leituras SSR opt-in
 
 - `config.memoLeituras.caminhosPublicos`: deduplica GETs CMS idênticos somente

@@ -22,9 +22,10 @@ import type {
  * que grava em outra coleção com o mesmo `req`) entrega as tags à de fora, e só a de fora
  * envia: uma vez por operação, em lotes de no máximo 100 tags por POST.
  *
- * O envio NÃO é esperado: o `afterOperation` roda antes do commit, e o site avisado antes do
- * commit re-renderiza com o dado anterior. Quem segura a promessa é o `emSegundoPlano` da
- * fábrica — em Node, ninguém (como sempre foi); num Worker, `ctx.waitUntil`.
+ * O `afterOperation` roda antes do commit. Quando há transação, as tags aguardam o
+ * `db.commitTransaction` resolver com sucesso; só então o site recebe o webhook.
+ * Quem segura a promessa de rede é o `emSegundoPlano` da fábrica — em Node, ninguém;
+ * num Worker, `ctx.waitUntil`.
  *
  * Em scripts de import nada muda: `REVALIDATE_URL=` vazio e um purge geral no fim.
  */
@@ -110,10 +111,8 @@ const soltaNoNode: EmSegundoPlano = (envio) => {
 }
 
 /**
- * Inicia o envio e o entrega ao agendador — NUNCA o espera. O Payload roda o `afterOperation`
- * antes do commit da transação (Payload 3.88, `updateByID.js`: `buildAfterOperation` e só
- * depois `commitTransaction`); esperar o POST ali deixaria o site re-renderizar com o dado
- * anterior e guardá-lo em cache, e prenderia a transação (e o save) até o teto de 3 s.
+ * Inicia o envio e o entrega ao agendador — NUNCA o espera. É chamado somente depois do
+ * commit, ou quando não há transação para aguardar.
  */
 function despacha(req: PayloadRequest, tags: string[]): void {
   if (!tags.length) return
@@ -127,6 +126,59 @@ function despacha(req: PayloadRequest, tags: string[]): void {
     req.payload.logger.warn({ err, tags }, 'revalidate: o agendador recusou o envio')
     soltaNoNode(envio)
   }
+}
+
+type Adapter = PayloadRequest['payload']['db']
+type IdTransacao = Parameters<Adapter['commitTransaction']>[0]
+interface Pendente { req: PayloadRequest; tags: string[] }
+
+/** Um observador por adapter; nunca mistura as transações de requests concorrentes. */
+const pendentesPorAdapter = new WeakMap<Adapter, Map<IdTransacao, Pendente>>()
+
+/**
+ * Payload 3.88 não oferece hook pós-commit: `afterOperation` precede o commit. Observamos
+ * os dois métodos públicos do adapter, uma vez por instância, sem interceptar consultas.
+ * O commit original termina ANTES de iniciar o fetch. Rollback descarta as tags.
+ */
+function observaTransacoes(db: Adapter): Map<IdTransacao, Pendente> {
+  const existente = pendentesPorAdapter.get(db)
+  if (existente) return existente
+
+  const pendentes = new Map<IdTransacao, Pendente>()
+  const commitOriginal = db.commitTransaction.bind(db)
+  const rollbackOriginal = db.rollbackTransaction.bind(db)
+  db.commitTransaction = async (id) => {
+    await commitOriginal(id)
+    const pendente = pendentes.get(id)
+    if (pendente) {
+      pendentes.delete(id)
+      despacha(pendente.req, [...new Set(pendente.tags)])
+    }
+  }
+  db.rollbackTransaction = async (id) => {
+    try {
+      await rollbackOriginal(id)
+    } finally {
+      pendentes.delete(id)
+    }
+  }
+  pendentesPorAdapter.set(db, pendentes)
+  return pendentes
+}
+
+function despachaAposCommit(req: PayloadRequest, tags: string[]): void {
+  if (!tags.length || !getEndpoint()) return
+  const db = req.payload?.db
+  const id = req.transactionID
+  if (!db || id === undefined || id === null || id instanceof Promise) {
+    // Hook isolado ou operação sem transação: a escrita já foi concluída pelo adapter.
+    despacha(req, tags)
+    return
+  }
+  const pendentes = observaTransacoes(db)
+  const anterior = pendentes.get(id)
+  if (anterior) anterior.tags.push(...tags)
+  else pendentes.set(id, { req, tags })
 }
 
 /**
@@ -159,7 +211,7 @@ function registra(req: PayloadRequest, tags: string[]) {
     aberto.tags.push(...tags)
     return
   }
-  despacha(req, [...new Set(tags)])
+  despachaAposCommit(req, [...new Set(tags)])
 }
 
 export const revalidateAfterChange =
@@ -182,7 +234,7 @@ export const revalidateAfterDelete =
  *
  * Quadro de outra transação é resto de uma operação que falhou antes do `afterOperation`
  * (a falha desfaz a transação e o `req` perde o `transactionID`) num `req` que seguiu em uso:
- * as tags dele passam para o quadro novo, em vez de prenderem as desta operação para sempre.
+ * suas tags são descartadas. Uma escrita revertida não deve purgar cache após outra.
  * A escrita aninhada, com o mesmo `req`, está na mesma transação da de fora.
  */
 export const revalidateBeforeOperation: CollectionBeforeOperationHook = async ({ args, operation, req }) => {
@@ -192,7 +244,7 @@ export const revalidateBeforeOperation: CollectionBeforeOperationHook = async ({
   const quadro: Quadro = { tags: [], transacao: req.transactionID }
   const pilha = (context.pilhaDeRevalidacao ??= [])
   if (pilha.length && pilha.at(-1)!.transacao !== quadro.transacao) {
-    for (const velho of pilha.splice(0)) quadro.tags.push(...velho.tags)
+    pilha.splice(0)
   }
   pilha.push(quadro)
   ;(args as Record<symbol, unknown>)[QUADRO] = quadro
@@ -213,6 +265,8 @@ export const revalidateAfterOperation: CollectionAfterOperationHook = async ({ a
   if (i < 0) return result
   const tags = pilha!.splice(i).flatMap((q) => q.tags)
   if (i > 0) pilha![i - 1]!.tags.push(...tags)
-  else despacha(req, [...new Set(tags)])
+  else if (quadro!.transacao === req.transactionID) despachaAposCommit(req, [...new Set(tags)])
+  // Uma escrita aninhada pode ter dado rollback e apagado req.transactionID enquanto o
+  // hook externo engole o erro. Tags da transação revertida nunca viram purge imediato.
   return result
 }

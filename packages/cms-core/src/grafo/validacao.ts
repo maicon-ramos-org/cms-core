@@ -26,12 +26,15 @@ export const protegeRevisaoPesquisa: CollectionBeforeOperationHook = ({ args, op
 
 export const validaGrafo = (refs: Record<string, string> = {}, obrigatorias: string[] = []): CollectionBeforeValidateHook =>
   async ({ data, originalDoc, req, collection }) => {
+    // `CollectionSlug` vem do GeneratedTypes de quem importa o pacote. O grafo
+    // opt-in precisa compilar também em instâncias que não o declararam ainda.
+    const slug = String(collection.slug)
     const tenant = idGrafo(efetivo(data, originalDoc, 'tenant'))
     if (tenant === undefined) invalidoGrafo('tenant', 'Tenant obrigatório.')
     if (originalDoc?.id && String(idGrafo(originalDoc.tenant)) !== String(tenant)) invalidoGrafo('tenant', 'Tenant é imutável.')
     exigeTenantAutorizado(req, tenant!)
     // restoreVersion não passa pelo update beforeOperation; o Payload marca este caminho.
-    if (collection.slug === 'pesquisas' && req.context.isRestoringVersion && !data?.revisado_em) {
+    if (slug === 'pesquisas' && req.context.isRestoringVersion && !data?.revisado_em) {
       invalidoGrafo('revisado_em', 'Versão sem revisão editorial não pode reativar frescor técnico; registre a data documentada antes de restaurar.')
     }
     if (originalDoc?.origem && efetivo(data, originalDoc, 'origem') !== originalDoc.origem) invalidoGrafo('origem', 'Chave de origem é imutável.')
@@ -44,12 +47,13 @@ export const validaGrafo = (refs: Record<string, string> = {}, obrigatorias: str
         if (idGrafo(rel) === undefined || !await encontraNoTenant(req, col, rel, tenant!)) invalidoGrafo(campo, 'Referência deve existir no mesmo tenant.')
       }
     }
-    if (collection.slug === 'relacoes' && String(idGrafo(efetivo(data, originalDoc, 'de'))) === String(idGrafo(efetivo(data, originalDoc, 'para')))) {
+    if (slug === 'relacoes' && String(idGrafo(efetivo(data, originalDoc, 'de'))) === String(idGrafo(efetivo(data, originalDoc, 'para')))) {
       invalidoGrafo('para', 'Uma entidade não pode se relacionar consigo mesma.')
     }
-    if (collection.slug === 'entidades' || collection.slug === 'relacoes') {
-      const config = await req.payload.findByID({ collection: 'tenants', id: tenant!, req, depth: 0, overrideAccess: true })
-      const vocab = config.grafo?.[collection.slug === 'entidades' ? 'tipos_de_entidade' : 'tipos_de_relacao'] as string[] | undefined
+    if (slug === 'entidades' || slug === 'relacoes') {
+      const config = await req.payload.findByID({ collection: 'tenants', id: tenant!, req, depth: 0, overrideAccess: true }) as unknown as
+        { grafo?: { tipos_de_entidade?: string[]; tipos_de_relacao?: string[] } }
+      const vocab = config.grafo?.[slug === 'entidades' ? 'tipos_de_entidade' : 'tipos_de_relacao']
       const tipo = efetivo<string>(data, originalDoc, 'tipo')
       if (vocab?.length && !vocab.includes(tipo ?? '')) invalidoGrafo('tipo', 'Tipo fora do vocabulário do tenant.')
     }
@@ -86,7 +90,8 @@ export const validaCorpoGrafo: CollectionBeforeValidateHook = async ({ data, ori
       : node.type === 'link' && node.fields?.linkType === 'internal' ? node.fields.doc : undefined
     if (vinculo) {
       const col = vinculo.relationTo
-      if (typeof col !== 'string' || ['tenants', 'users', 'eventos'].includes(col) || !req.payload.collections[col]
+      if (typeof col !== 'string' || ['tenants', 'users', 'eventos'].includes(col)
+        || !(req.payload.collections as Record<string, unknown>)[col]
         || idGrafo(vinculo.value) === undefined || !await encontraNoTenant(req, col, vinculo.value, tenant)) {
         invalidoGrafo('corpo', 'Referência do corpo deve existir em coleção de conteúdo do mesmo tenant.')
       }

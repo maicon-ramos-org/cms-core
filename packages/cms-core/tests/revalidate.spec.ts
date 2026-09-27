@@ -10,8 +10,8 @@
  * fecha o quadro. A escrita aninhada (hook que grava em outra coleção com o mesmo `req`)
  * entrega as tags à de fora; só a de fora envia, em lotes de no máximo 100 tags por POST.
  *
- * O envio NÃO é esperado: o Payload roda o `afterOperation` antes do commit. A promessa vai
- * para o `emSegundoPlano` da config (num Worker, `ctx.waitUntil`); sem ele, fica solta.
+ * O envio NÃO é esperado pelo save. Com adapter e transação, o webhook só inicia DEPOIS
+ * do commit; a promessa vai ao `emSegundoPlano` da config (num Worker, `ctx.waitUntil`).
  *
  * As tags de cada documento são as mesmas de antes (o teste de contrato do site as confere).
  */
@@ -272,6 +272,68 @@ describe('o save não espera o site (o afterOperation roda antes do commit)', ()
   })
 })
 
+describe('webhook somente após commit confirmado', () => {
+  it('não envia durante afterOperation nem enquanto o commit está pendente', async () => {
+    const { req, entregue } = novaReq()
+    let confirma!: () => void
+    const liberado = new Promise<void>((resolve) => (confirma = resolve))
+    let gravado = false
+    const db = {
+      commitTransaction: vi.fn(async (_id: string) => { await liberado; gravado = true }),
+      rollbackTransaction: vi.fn(async (_id: string) => {}),
+    }
+    ;(req.payload as { db: unknown }).db = db
+    const op = await comecou(req, 'update')
+    await mudou(req, { id: 1 })
+    await terminou(req, 'update', op)
+    expect(enviadas).toEqual([])
+    const commit = db.commitTransaction('tx-1')
+    await Promise.resolve()
+    expect(enviadas).toEqual([])
+    confirma()
+    await commit
+    await entregue()
+    expect(gravado).toBe(true)
+    expect(enviadas).toEqual([['posts:1']])
+  })
+
+  it('rollback descarta as tags; commit falho não envia', async () => {
+    const { req, entregue } = novaReq()
+    const db = {
+      commitTransaction: vi.fn(async (_id: string) => { throw new Error('commit falhou') }),
+      rollbackTransaction: vi.fn(async (_id: string) => {}),
+    }
+    ;(req.payload as { db: unknown }).db = db
+    const op = await comecou(req, 'update')
+    await mudou(req, { id: 2 })
+    await terminou(req, 'update', op)
+    await expect(db.commitTransaction('tx-1')).rejects.toThrow('commit falhou')
+    await db.rollbackTransaction('tx-1')
+    await entregue()
+    expect(enviadas).toEqual([])
+  })
+
+  it('duas transações no mesmo adapter não misturam as tags', async () => {
+    const db = { commitTransaction: vi.fn(async (_id: string) => {}), rollbackTransaction: vi.fn(async (_id: string) => {}) }
+    const primeira = novaReq({ transacao: 'tx-1' })
+    const segunda = novaReq({ transacao: 'tx-2' })
+    ;(primeira.req.payload as { db: unknown }).db = db
+    ;(segunda.req.payload as { db: unknown }).db = db
+    for (const [req, id] of [[primeira.req, 1], [segunda.req, 2]] as const) {
+      const op = await comecou(req, 'update')
+      await mudou(req, { id })
+      await terminou(req, 'update', op)
+    }
+    expect(enviadas).toEqual([])
+    await db.commitTransaction('tx-2')
+    await segunda.entregue()
+    expect(enviadas).toEqual([['posts:2']])
+    await db.commitTransaction('tx-1')
+    await primeira.entregue()
+    expect(enviadas).toEqual([['posts:2'], ['posts:1']])
+  })
+})
+
 describe('escrita aninhada com o mesmo req (o histórico de preço do catálogo)', () => {
   it('as tags da aninhada vão para a operação de fora: um envio só, no fim da de fora', async () => {
     const { req, entregue } = novaReq()
@@ -304,7 +366,24 @@ describe('escrita aninhada com o mesmo req (o histórico de preço do catálogo)
     expect((req.context as { pilhaDeRevalidacao?: unknown[] }).pilhaDeRevalidacao).toEqual([])
   })
 
-  it('operação que falhou num req que segue em uso: a seguinte (outra transação) envia, com as tags da que falhou', async () => {
+  it('a aninhada que deu rollback não despacha tags da transação revertida', async () => {
+    const { req, entregue } = novaReq()
+    const db = { commitTransaction: vi.fn(async (_id: string) => {}), rollbackTransaction: vi.fn(async (_id: string) => {}) }
+    ;(req.payload as { db: unknown }).db = db
+    const fora = await comecou(req, 'update')
+    await mudou(req, { id: 1 }, 'ofertas')
+    await comecou(req, 'create')
+    await mudou(req, { id: 2 }, 'historico')
+    // O Payload faz killTransaction(req) ao falhar a criação aninhada.
+    await db.rollbackTransaction('tx-1')
+    delete (req as { transactionID?: unknown }).transactionID
+    await terminou(req, 'update', fora)
+    await entregue()
+    expect(enviadas).toEqual([])
+    expect((req.context as { pilhaDeRevalidacao?: unknown[] }).pilhaDeRevalidacao).toEqual([])
+  })
+
+  it('operação que falhou num req que segue em uso: a próxima transação descarta tags revertidas', async () => {
     const { req, entregue } = novaReq({ transacao: 'tx-1' })
     await comecou(req, 'update') // falha: o Payload desfaz a transação e apaga o transactionID
     await mudou(req, { id: 1 })
@@ -313,7 +392,7 @@ describe('escrita aninhada com o mesmo req (o histórico de preço do catálogo)
     await mudou(req, { id: 2 })
     await terminou(req, 'update', seguinte)
     await entregue()
-    expect(enviadas).toEqual([['posts:1', 'posts:2']])
+    expect(enviadas).toEqual([['posts:2']])
   })
 })
 

@@ -25,9 +25,11 @@ const ROTAS = [
   ['/ofertas', './rotas/ofertas/index.astro'],
   ['/ofertas/[slug]', './rotas/ofertas/[slug].astro'],
   ['/ofertas/[slug].md', './rotas/ofertas/[slug].md.ts'],
+  ['/ofertas/[slug].json', './rotas/ofertas/[slug].json.ts'],
   ['/empresa/[slug]', './rotas/empresa/[slug].astro'],
   ['/p/[slug]', './rotas/p/[slug].astro'],
   ['/p/[slug].md', './rotas/p/[slug].md.ts'],
+  ['/p/[slug].json', './rotas/p/[slug].json.ts'],
   ['/categoria-oferta/[...caminho]', './rotas/categoria-oferta/[...caminho].astro'],
 ].map(([pattern, arquivo]) => ({ pattern: pattern!, entrypoint: doPacote(arquivo!) }))
 

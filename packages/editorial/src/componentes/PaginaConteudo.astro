@@ -64,7 +64,7 @@ const jsonLd = JSON.stringify({
 })
 ---
 
-<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${page.slug}.md`}>
+<Base titulo={titulo} descricao={descricao} canonical={canonical} markdown={`/${page.slug}.md`} json={`/${page.slug}.json`}>
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a><span> › {page.titulo}</span>
   </nav>

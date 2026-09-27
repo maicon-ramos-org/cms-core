@@ -2,6 +2,19 @@
 
 ## Não lançado
 
+## 0.2.0-next.14 — 2026-09-27 (pré-lançamento)
+
+- `pages.navegacao` opt-in padroniza rótulo, cabeçalho, rodapé e ordem de menu
+  para futuras instâncias; todos os indicadores começam desligados. Cada banco
+  consumidor precisa de migration aditiva antes do deploy que usa os campos.
+- A revalidação de cache por webhook aguarda `commitTransaction` bem-sucedido;
+  rollback descarta tags. Evita purgar a borda antes que a leitura veja o dado
+  novo. Não habilita `REVALIDATE_URL` automaticamente; rede continua fora do
+  caminho crítico da gravação. Contrato: `docs/contratos/revalidacao-pos-commit.md`.
+- O plugin de grafo compila em instâncias com `payload-types.ts` gerado e
+  ampliação global dos tipos do Payload, sem mudar schema, API nem gates de
+  conteúdo. Pesquisa/revisão seguem responsabilidade do pipeline externo.
+
 ## 0.2.0-next.13 — 2026-09-27 (pré-lançamento; publicação pendente)
 
 - O agente da etapa final pode criar um post já aprovado com `_status: published`

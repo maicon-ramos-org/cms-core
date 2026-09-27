@@ -4,35 +4,41 @@
  */
 import type { APIRoute } from 'astro'
 
-import { getOfertaBySlug, type CupomDTO, type LojaDTO } from '../../lib/cms'
+import { caminhoDaOferta, getOfertaBySlug, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { lexicalParaTexto } from '@maicon-ramos-org/editorial/lib/lexical'
+import { ofertaPublicaJson } from '../../lib/publico-json'
+import { ehLinkDeAfiliado } from '../../lib/links-de-afiliado'
+
+const validSlug = (slug: string) => slug.length <= 200 && /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(slug)
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
   const slug = context.params.slug ?? ''
+  if (!validSlug(slug)) return new Response('Oferta não encontrada.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
   const oferta = await getOfertaBySlug(tenant.id, slug)
-  if (!oferta) return new Response('Oferta não encontrada.', { status: 404 })
+  if (!oferta) return new Response('Oferta não encontrada.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
 
   const loja: LojaDTO | null = oferta.loja && typeof oferta.loja === 'object' ? oferta.loja : null
   const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
 
-  if (context.cache.enabled) {
+  if (context.cache?.enabled) {
     context.cache.set({
       maxAge: 300,
       swr: 60,
-      tags: [`tenant:${tenant.slug}`, `ofertas:${oferta.id}`, ...(loja ? [`loja:${loja.slug}`] : [])],
+      tags: [`tenant:${tenant.slug}`, `ofertas:${oferta.id}`, ...(loja ? [`loja:${loja.slug}`] : []),
+        ...(cupom ? [`cupons:${cupom.id}`] : [])],
     })
   }
 
+  const publico = ofertaPublicaJson(tenant, oferta, caminhoDaOferta(oferta))
   const linhas: string[] = [`# ${oferta.titulo}`, '']
-  if (loja) linhas.push(`**Loja:** ${loja.nome}`)
-  if (oferta.tipo) linhas.push(`**Tipo:** ${oferta.tipo}`)
-  if (typeof oferta.preco?.valor === 'number' && oferta.preco.valor > 0) {
-    const ciclo = oferta.preco.ciclo === 'mensal' ? '/mês' : ''
-    const visto = oferta.preco.preco_em ? ` (preço visto em ${String(oferta.preco.preco_em).slice(0, 10)})` : ''
-    linhas.push(`**Preço:** ${oferta.preco.valor} ${oferta.preco.moeda ?? 'BRL'}${ciclo}${visto}`)
+  if (publico.store?.name) linhas.push(`**Loja:** ${publico.store.name}`)
+  if (publico.offerType) linhas.push(`**Tipo:** ${publico.offerType}`)
+  if (publico.price) {
+    const ciclo = publico.price.billingCycle === 'mensal' ? '/mês' : ''
+    linhas.push(`**Preço:** ${publico.price.value} ${publico.price.currency}${ciclo} (observado em ${publico.price.observedAt.slice(0, 10)})`)
   }
-  if (cupom) {
+  if (publico.coupon) {
     /*
      * O CÓDIGO NÃO ENTRA AQUI (ADR-0007). Este arquivo existe pra ser lido por agente de
      * IA — é o lugar onde entregar o literal do cupom custa mais caro, porque a resposta
@@ -41,22 +47,33 @@ export const GET: APIRoute = async (context) => {
      * e por onde resgatar.
      */
     const desconto =
-      cupom.desconto_tipo === 'percentual' && cupom.desconto_valor
-        ? `${cupom.desconto_valor}%`
-        : cupom.desconto_tipo === 'valor' && cupom.desconto_valor
-          ? `R$ ${cupom.desconto_valor}`
-          : cupom.desconto_tipo === 'frete'
+      publico.coupon.discount?.type === 'percentual' && publico.coupon.discount.value
+        ? `${publico.coupon.discount.value}%`
+        : publico.coupon.discount?.type === 'valor' && publico.coupon.discount.value
+          ? `R$ ${publico.coupon.discount.value}`
+          : publico.coupon.discount?.type === 'frete'
             ? 'frete grátis'
             : 'desconto'
     linhas.push(`**Cupom:** ${desconto} — o código aparece ao abrir a oferta`)
-    if (cupom.condicoes) linhas.push(`**Condições:** ${cupom.condicoes}`)
-    if (cupom.verificado_em) linhas.push(`**Verificado em:** ${String(cupom.verificado_em).slice(0, 10)}`)
+    if (publico.coupon.conditions) linhas.push(`**Condições:** ${publico.coupon.conditions}`)
+    if (publico.coupon.discount?.checkedAt) linhas.push(`**Verificado em:** ${publico.coupon.discount.checkedAt.slice(0, 10)}`)
   }
-  linhas.push('', `**Link:** https://${tenant.canonical_host}/r/o${oferta.id}?ref=md`, '')
+  if (publico.action) linhas.push('', `**Link:** https://${tenant.canonical_host}${publico.action.href.replace('ref=json', 'ref=md')}`, '')
   const corpo = lexicalParaTexto(oferta.corpo)
-  if (corpo) linhas.push(corpo)
+  if (corpo) {
+    const destinos = [oferta.url_afiliado_fonte, cupom?.url_afiliado_fonte].filter((url): url is string => Boolean(url))
+    const semDestinoCru = corpo.replace(/https?:\/\/[^\s<>"'`()[\]]+/gi, raw => {
+      const candidato = raw.replace(/[.,;!?]+$/, '')
+      const final = raw.slice(candidato.length)
+      const normaliza = (url: string) => url.replace(/\/$/, '')
+      return destinos.some(url => normaliza(url) === normaliza(candidato)) || ehLinkDeAfiliado(candidato)
+        ? `[link comercial na página]${final}` : raw
+    })
+    linhas.push(semDestinoCru)
+  }
 
   return new Response(linhas.join('\n'), {
-    headers: { 'content-type': 'text/markdown; charset=utf-8' },
+    headers: { 'content-type': 'text/markdown; charset=utf-8', 'X-Robots-Tag': 'noindex',
+      Link: `<${publico.url}>; rel="canonical"` },
   })
 }
