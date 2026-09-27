@@ -1,5 +1,12 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.4 — 2026-09-27 (pré-lançamento)
+
+- `cmsFetch` usa `CMS_SERVICE` no runtime Workers; Node/local mantém HTTP.
+  `CMS_SERVICE_REQUIRED=1` faz o Worker falhar fechado se faltar binding, sem
+  encaminhar credenciais para a rota pública por engano. URL de mídia permanece
+  `CMS_PUBLIC_URL`. Sem alteração de schema ou de contrato REST.
+
 ## 0.2.0-next.3 — 2026-09-27 (pré-lançamento)
 
 - Artigos e páginas editoriais publicados ganham `/{slug}.json` allowlist, com

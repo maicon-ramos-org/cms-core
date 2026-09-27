@@ -146,6 +146,30 @@ export interface FindResult<T> {
   totalDocs: number
 }
 
+type CmsService = { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> }
+
+/**
+ * Em Workers, a leitura interna usa o Service Binding, sem passar pela rota pública
+ * (e pelo Access no ambiente de desenvolvimento). Em Node/Astro local continua HTTP.
+ * Quando o deploy exige o binding, nunca degradamos silenciosamente para HTTP público.
+ */
+async function transporteCms(): Promise<CmsService> {
+  const exigido = variavel('CMS_SERVICE_REQUIRED') === '1'
+  const agente = (globalThis as { navigator?: { userAgent?: unknown } }).navigator?.userAgent
+  if (agente === 'Cloudflare-Workers') {
+    try {
+      const modulo = (await import(/* @vite-ignore */ ['cloudflare', 'workers'].join(':'))) as {
+        env?: { CMS_SERVICE?: CmsService }
+      }
+      if (modulo.env?.CMS_SERVICE) return modulo.env.CMS_SERVICE
+    } catch (erro) {
+      if (exigido) throw new Error('CMS_SERVICE obrigatório e indisponível', { cause: erro })
+    }
+  }
+  if (exigido) throw new Error('CMS_SERVICE obrigatório e não configurado')
+  return { fetch: (input, init) => fetch(input, init) }
+}
+
 export async function cmsFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${CMS_URL()}${path}`
   const opcoes = {
@@ -157,7 +181,8 @@ export async function cmsFetch<T>(path: string, init?: RequestInit): Promise<T> 
     },
   }
   return leituraCmsNaRequisicao(url, opcoes, async () => {
-    const res = await fetch(url, { ...opcoes, signal: init?.signal ?? AbortSignal.timeout(8000) })
+    const transporte = await transporteCms()
+    const res = await transporte.fetch(url, { ...opcoes, signal: init?.signal ?? AbortSignal.timeout(8000) })
     if (!res.ok) throw new Error(`CMS ${path} → HTTP ${res.status}`)
     return { valor: await res.json() as T, headers: res.headers }
   })
