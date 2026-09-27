@@ -1,5 +1,10 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.16 — 2026-09-27 (pré-lançamento)
+
+- Alinha `editorial@0.2.0-next.4` para que também as rotas afiliadas usem o
+  Service Binding interno quando a instância o configurar. Sem mudança de schema.
+
 ## Não lançado
 
 ## 0.2.0-next.15 — 2026-09-27 (pré-lançamento)
