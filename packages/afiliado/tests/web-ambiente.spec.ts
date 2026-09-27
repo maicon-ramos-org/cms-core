@@ -8,12 +8,12 @@ import { createHash } from 'node:crypto'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const cms = vi.hoisted(() => ({ doc: null as unknown, cliques: [] as Array<Record<string, unknown>> }))
+const cms = vi.hoisted(() => ({ doc: null as unknown, consultas: 0, cliques: [] as Array<Record<string, unknown>> }))
 
 vi.mock('virtual:afiliado/config', () => ({ default: {} }))
 vi.mock('../src/web/lib/cms', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/web/lib/cms')>()),
-  cmsFindOneNoTenant: async () => cms.doc,
+  cmsFindOneNoTenant: async () => { cms.consultas++; return cms.doc },
   logClique: async (clique: Record<string, unknown>) => {
     cms.cliques.push(clique)
   },
@@ -26,6 +26,7 @@ afterEach(() => {
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
   cms.doc = null
+  cms.consultas = 0
   cms.cliques = []
 })
 
@@ -53,11 +54,23 @@ const cupom = {
 }
 
 describe('/r/{id}', () => {
+  it.each(['Purpose', 'Sec-Purpose', 'X-Purpose', 'X-Moz'])('%s com prefetch não consulta CMS nem registra clique', async header => {
+    cms.doc = cupom
+    const r = await GET(contexto('c1', { headers: { [header]: 'prefetch' } }))
+    expect(r.status).toBe(204)
+    expect(r.headers.get('Cache-Control')).toBe('no-store')
+    expect(r.headers.get('X-Robots-Tag')).toContain('noindex')
+    expect(r.headers.get('Location')).toBeNull()
+    expect(cms.consultas).toBe(0)
+    expect(cms.cliques).toHaveLength(0)
+  })
+
   it('o ID de afiliado vem da variável que o tenant nomeia', async () => {
     vi.stubEnv('AFF_EXEMPLO_RF3', 'exemplo-20')
     cms.doc = cupom
     const r = await GET(contexto('c1'))
     expect(r.status).toBe(302)
+    expect(cms.consultas).toBe(1)
     expect(new URL(r.headers.get('location')!).searchParams.get('tag')).toBe('exemplo-20')
   })
 

@@ -1,0 +1,27 @@
+{
+  "name": "@maicon-ramos-org/public-contract",
+  "version": "0.1.0",
+  "description": "Auditoria read-only do contrato público HTML/Markdown/JSON para sites do núcleo",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "bin": {
+    "auditar-publico": "./bin/auditar.mjs"
+  },
+  "files": ["src", "bin", "CHANGELOG.md", "README.md"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maicon-ramos-org/cms-core.git",
+    "directory": "packages/public-contract"
+  },
+  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.9",
+    "typescript": "5.7.3"
+  }
+}

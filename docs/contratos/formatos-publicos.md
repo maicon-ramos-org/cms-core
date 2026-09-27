@@ -2,6 +2,8 @@
 
 Estado: contrato para a rota JSON do tema editorial compartilhado. Cada site
 mantém seu layout e pode enriquecer a projeção com dados públicos do seu nicho.
+O contrato operacional multissite está em `leitura-publica-multisite.md`; o
+auditor executável mora em `packages/public-contract/`.
 
 Um artigo publicado deve ter três representações da **mesma URL canônica**:
 `/{slug}/` (HTML completo sem JavaScript), `/{slug}.md` (texto legível por

@@ -35,7 +35,7 @@ describe('redirect comercial explícito, seguro e sem prefetch', () => {
     f.opcoes.slug = 'oferta-abc123'
     expect((await redirecionarOfertaEditorial(f.opcoes)).headers.get('Location')).toBe('/')
   })
-  it.each(['Purpose', 'Sec-Purpose', 'X-Moz'])('prefetch %s retorna 204 antes de qualquer lookup/sinal', async header => {
+  it.each(['Purpose', 'Sec-Purpose', 'X-Purpose', 'X-Moz'])('prefetch %s retorna 204 antes de qualquer lookup/sinal', async header => {
     const f = monta(undefined, { [header]: 'prefetch' })
     expect((await redirecionarOfertaEditorial(f.opcoes)).status).toBe(204)
     expect(f.carregar).not.toHaveBeenCalled()

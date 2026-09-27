@@ -30,6 +30,7 @@ import {
 } from '../../lib/cms'
 import { ipDoCliente, variavel } from '@maicon-ramos-org/editorial/lib/ambiente'
 import { ipHash } from '@maicon-ramos-org/editorial/lib/hash'
+import { requisicaoComercialEspeculativa, respostaComercialEspeculativa } from '../../lib/requisicao-especulativa'
 
 interface Destino {
   tipo_doc: 'cupom' | 'oferta' | 'produto'
@@ -89,6 +90,7 @@ function waitUntilDoWorker(locals: object): ((tarefa: Promise<unknown>) => void)
 }
 
 export const GET: APIRoute = async (context) => {
+  if (requisicaoComercialEspeculativa(context.request)) return respostaComercialEspeculativa()
   const { id } = context.params
   const tenant = context.locals.tenant
   const ref = normalizaRef(context.url.searchParams.get('ref'))

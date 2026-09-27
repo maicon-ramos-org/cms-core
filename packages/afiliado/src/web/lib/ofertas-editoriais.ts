@@ -1,4 +1,5 @@
 import { idOferta, projetarOfertaEditorial, urlPermitida, type IdOferta, type OfertaEditorial, type RegistroProgramasOferta } from '../../ofertas-editoriais/contratos'
+import { requisicaoComercialEspeculativa, respostaComercialEspeculativa } from './requisicao-especulativa'
 export { decimalExato, registrarProgramasOferta, projetarOfertaEditorial, resolverEscolhasEditoriais, urlPermitida } from '../../ofertas-editoriais/contratos'
 export type { EscolhaEditorial, EvidenciaComercial, OfertaEditorial, OfertaEditorialPublica, ProgramaOferta, RegistroProgramasOferta } from '../../ofertas-editoriais/contratos'
 
@@ -53,9 +54,7 @@ async function registraComLimite(opcoes: OpcoesRedirectOferta, sinal: SinalCliqu
 /** Helper explícito: NÃO injeta rota e nunca consulta loja/segue redirect. */
 export async function redirecionarOfertaEditorial(opcoes: OpcoesRedirectOferta): Promise<Response> {
   const { request, tenant, slug } = opcoes
-  if (['purpose', 'sec-purpose', 'x-moz'].some(h => /prefetch|prerender/i.test(request.headers.get(h) ?? ''))) {
-    return new Response(null, { status: 204, headers })
-  }
+  if (requisicaoComercialEspeculativa(request)) return respostaComercialEspeculativa()
   const oferta = await opcoes.carregar(tenant, slug)
   if (!oferta || oferta.slug !== slug || idOferta(oferta.tenant) !== idOferta(tenant) || oferta._status !== 'published' || oferta.estado !== 'ativa') return fallback()
   const canonica = oferta.espelho_de ? await opcoes.carregarPorID(tenant, idOferta(oferta.espelho_de)) : undefined
