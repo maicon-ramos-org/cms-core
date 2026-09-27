@@ -1,5 +1,12 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.17 — 2026-09-27 (pré-lançamento)
+
+- Os redirects físico (`/r/{id}`) e editorial agora respondem a `Purpose`,
+  `Sec-Purpose`, `X-Purpose` e `X-Moz` com `prefetch`/`prerender` antes de consultar
+  o CMS ou registrar clique. O GET afirmativo mantém o comportamento anterior.
+  Não muda schema, dados ou URLs comerciais.
+
 ## 0.2.0-next.16 — 2026-09-27 (pré-lançamento)
 
 - Alinha `editorial@0.2.0-next.4` para que também as rotas afiliadas usem o
