@@ -2,6 +2,18 @@
 
 ## Não lançado
 
+## 0.2.0-next.12 — 2026-09-27 (pré-lançamento)
+
+- `siteReader` aceita projetores opt-in `offerV1` e `indexV1` além de
+  `renderV1`, servidos em `GET /editorial/offer-v1?slug=...` e
+  `GET /editorial/index-v1?slug=...`. O transporte autentica o mesmo reader
+  exclusivo, fixa o tenant, não abre REST genérica e preserva o isolamento de
+  drafts, admin, jobs e GraphQL. O slug comercial admite caixa original; o
+  envelope da oferta é limitado a 32 KB e nunca é cacheável.
+- A instância continua responsável por projetar campos allowlisted e verificar
+  tenant/publicação; ativar os callbacks não publica ofertas, páginas ou índices.
+  Sem callback, o reader não ganha a rota. Não há alteração de schema/migration.
+
 ## 0.2.0-next.11 — 2026-09-26 (pré-lançamento; publicação pendente)
 
 - O grafo opt-in deixa de julgar conteúdo na publicação: remove G1–G4,

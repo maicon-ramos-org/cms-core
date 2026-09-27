@@ -23,9 +23,13 @@ describe('spike: política aplicada à config final sanitizada', () => {
     expect(render.collections.map(c => c.slug)).toEqual(identidade.collections.map(c => c.slug))
     expect(render.endpoints.map(e => e.path)).toEqual(identidade.endpoints.map(e => e.path))
     await expect(cmsCore({ ...base, siteReader: { renderV1: null } as never })).rejects.toThrow(/renderV1 deve ser/)
+    await expect(cmsCore({ ...base, siteReader: { renderV1: projetor, offerV1: null } as never })).rejects.toThrow(/offerV1 deve ser/)
     await expect(cmsCore({ ...base, siteReader: { renderV1: projetor },
       plugins: [c => ({ ...c, endpoints: [...(c.endpoints ?? []), { path: '/editorial/render-v1', method: 'get', handler: async () => new Response() }] })],
     })).rejects.toThrow(/render já ocupado/)
+    await expect(cmsCore({ ...base, siteReader: { renderV1: projetor, offerV1: projetor },
+      plugins: [c => ({ ...c, endpoints: [...(c.endpoints ?? []), { path: '/editorial/offer-v1', method: 'get', handler: async () => new Response() }] })],
+    })).rejects.toThrow(/offer-v1 já ocupado/)
   })
 
   it('rejeita strategy custom em qualquer coleção só quando opt-in está ativo', async () => {

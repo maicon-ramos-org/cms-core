@@ -55,7 +55,7 @@ const FORA_DO_TENANT = new Set(['tenants', 'users'])
 
 export interface OpcoesCmsCore {
   /** SSR de tenant único: exige também wrappers HTTP/admin explícitos no consumidor. */
-  siteReader?: boolean | { renderV1: ProjetorRenderSiteReaderV1 }
+  siteReader?: boolean | { renderV1: ProjetorRenderSiteReaderV1; offerV1?: ProjetorRenderSiteReaderV1; indexV1?: ProjetorRenderSiteReaderV1 }
   /**
    * A pasta `src` do site (`path.dirname(fileURLToPath(import.meta.url))` no
    * `payload.config.ts`): de lá saem o `payload-types.ts` e o mapa de componentes do admin.
@@ -314,9 +314,14 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
     ],
   })
   if (!opcoes.siteReader) return config
-  const renderV1 = typeof opcoes.siteReader === 'object' ? opcoes.siteReader.renderV1 : undefined
-  if (typeof opcoes.siteReader === 'object' && typeof renderV1 !== 'function') {
+  const projectors = typeof opcoes.siteReader === 'object' ? opcoes.siteReader : undefined
+  if (projectors && typeof projectors.renderV1 !== 'function') {
     throw new Error('siteReader.renderV1 deve ser um projetor de página.')
   }
-  return aplicaPoliticaSiteReader(config, renderV1)
+  for (const name of ['offerV1', 'indexV1'] as const) {
+    if (projectors?.[name] !== undefined && typeof projectors[name] !== 'function') {
+      throw new Error(`siteReader.${name} deve ser um projetor.`)
+    }
+  }
+  return aplicaPoliticaSiteReader(config, projectors)
 }

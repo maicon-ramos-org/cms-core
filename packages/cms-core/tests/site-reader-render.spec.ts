@@ -21,6 +21,15 @@ describe('render-v1: projeção privada, pequena e fail-closed', () => {
     expect(r.headers.has('set-cookie')).toBe(false)
   })
 
+  it('permite slug comercial com maiúsculas só no endpoint de oferta', async () => {
+    const request = pedir('https://cms.example.test/api/editorial/offer-v1?slug=Produto-ABC')
+    const projetor = vi.fn(async () => ({ revisao: 'r1', dados: { slug: 'Produto-ABC' } }))
+    expect((await respondeRenderSiteReaderV1(request, identidade, payload, projetor)).status).toBe(400)
+    const response = await respondeRenderSiteReaderV1(request, identidade, payload, projetor, 'offer')
+    expect(response.status).toBe(200)
+    expect(projetor).toHaveBeenCalledWith({ payload, tenantId: '7', slug: 'Produto-ABC' })
+  })
+
   it.each(['', '?slug=guia-alma&tenant=8', '?slug=guia-alma&slug=outro', '?slug=../admin', '?slug=Guia-Alma', `?slug=${'a'.repeat(201)}`])
   ('rejeita consulta fora do contrato: %s', async query => {
     const projetor = vi.fn()

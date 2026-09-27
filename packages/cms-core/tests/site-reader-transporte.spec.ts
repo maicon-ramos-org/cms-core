@@ -130,6 +130,22 @@ describe('spike: Request original e preflight sem lookup anônimo', () => {
     expect((await guard(new Request(render, { headers: key }), { params: Promise.resolve({ slug: ['users', 'me'] }) })).status).toBe(403)
   })
 
+  it.each(['offer-v1', 'index-v1'] as const)('%s expõe só o projetor registrado ao reader exclusivo', async name => {
+    const projetor = vi.fn(async () => ({ revisao: 'r1', dados: { seguro: true } }))
+    const configurado = { ...config, custom: { siteReader: { ativo: true, renderV1: vi.fn(),
+      [name === 'offer-v1' ? 'offerV1' : 'indexV1']: projetor } } } as SanitizedConfig
+    const guard = protegerTransporteSiteReader({ config: configurado, handler: vi.fn(), superficie: 'rest' })
+    const url = `https://cms.example.test/api/editorial/${name}?slug=guia-alma`
+    expect((await guard(new Request(url))).status).toBe(401)
+    expect(mock.auth).not.toHaveBeenCalled()
+    expect((await guard(new Request(url, { headers: key }), { params: Promise.resolve({ slug: ['editorial', name] }) })).status).toBe(200)
+    expect(projetor).toHaveBeenCalledWith({ payload: mock.payload, tenantId: '1', slug: 'guia-alma' })
+    expect((await guard(new Request(url + '&tenant=2', { headers: key }))).status).toBe(400)
+    expect((await guard(new Request(url, { method: 'POST', headers: key, body: '{}' }))).status).toBe(405)
+    expect((await guard(new Request(url, { headers: key }), { params: Promise.resolve({ slug: ['users', 'me'] }) })).status).toBe(403)
+    expect(projetor).toHaveBeenCalledTimes(1)
+  })
+
   it('render-v1 é privado: anônimo 401, editor 403, reader misto 403, sem callback 403', async () => {
     const projetor = vi.fn(async () => ({ revisao: 'r1', dados: {} }))
     const configurado = { ...config, custom: { siteReader: { ativo: true, renderV1: projetor } } } as SanitizedConfig
