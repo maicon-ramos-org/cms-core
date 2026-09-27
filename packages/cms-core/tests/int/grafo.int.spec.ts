@@ -16,10 +16,10 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
   let tenantA: any, tenantB: any, entidadeA: any, entidadeB: any, fonteA: any, claimA: any
   const key = 'grafo-integracao-chave-a'
   const fonteURL = 'https://pesquisa.example/estudo'
-  const request = async (path: string, method = 'GET', body?: unknown, autenticar = true) => {
+  const request = async (path: string, method = 'GET', body?: unknown, autenticar = true, apiKey = key) => {
     const resposta = await handleEndpoints({ config, payloadInstanceCacheKey: 'grafo-integracao',
       request: new Request(`http://teste.local/api${path}`, { method,
-        headers: { 'Content-Type': 'application/json', ...(autenticar ? { Authorization: `users API-Key ${key}` } : {}) },
+        headers: { 'Content-Type': 'application/json', ...(autenticar ? { Authorization: `users API-Key ${apiKey}` } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }) }) })
     return { status: resposta.status, body: await resposta.json(), headers: resposta.headers }
   }
@@ -46,6 +46,8 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     tenantB = await create('tenants', { nome: 'Tenant B', slug: 'tenant-b', canonical_host: 'b.example' })
     await create('users', { nome: 'Agente A', email: 'agente-a@example.test', password: 'senha-fixture-exclusiva',
       roles: ['agente'], enableAPIKey: true, apiKey: key, tenants: [{ tenant: tenantA.id }] })
+    await create('users', { nome: 'Importador A', email: 'importador-a@example.test', password: 'senha-fixture-exclusiva',
+      roles: ['ingestao'], enableAPIKey: true, apiKey: 'grafo-importador-chave-a', tenants: [{ tenant: tenantA.id }] })
     entidadeA = await create('entidades', { tenant: tenantA.id, nome: 'Conceito A', slug: 'conceito', tipo: 'conceito', origem: 'legacy:entity:1' })
     entidadeB = await create('entidades', { tenant: tenantB.id, nome: 'Conceito B privado', slug: 'conceito', tipo: 'conceito' })
     fonteA = await create('fontes', { tenant: tenantA.id, url: fonteURL, publisher: 'Instituto de pesquisa', tier: 1 })
@@ -131,7 +133,7 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     expect((await request(`/entidades/versions/${doB.docs[0]!.id}`)).status).toBe(403)
     expect((await request(`/entidades/${entidadeB.id}`)).status).toBe(404)
   })
-  it('agente cria draft e Markdown vira Lexical; Lexical explícito vence', async () => {
+  it('agente pode criar draft e Markdown vira Lexical; Lexical explícito vence', async () => {
     const r = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Artigo de teste em rascunho', slug: 'rascunho',
       tipo: 'guia', corpo_md: '## Introdução\n\nTexto com [fonte](https://pesquisa.example/estudo).', entidades: [entidadeA.id] })
     expect(r.status).toBe(201)
@@ -144,7 +146,13 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
     const contexto = await request('/grafo/contexto?entidade=conceito')
     expect(contexto.body.posts[0]).not.toHaveProperty('corpo')
     expect(contexto.body.posts[0]).not.toHaveProperty('corpo_md')
-    expect((await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Publicação proibida', slug: 'proibido', corpo_md: 'Texto', _status: 'published' })).status).toBe(403)
+    const aprovado = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Publicação aprovada fora do CMS',
+      slug: 'aprovado-antes-do-cms', corpo_md: 'Texto final.', _status: 'published' })
+    expect(aprovado.status).toBe(201)
+    expect(aprovado.body.doc._status).toBe('published')
+    expect(aprovado.body.doc.gates).toBeNull()
+    expect((await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Ingestão não publica',
+      slug: 'ingestao-nao-publica', corpo_md: 'Texto.', _status: 'published' }, true, 'grafo-importador-chave-a')).status).toBe(403)
   })
   it('posts do grafo também recusam select em escrita antes de conteúdo, versão e evento mudar', async () => {
     const origem = { tenant: tenantA.id, titulo: 'Post auditado', slug: 'post-auditado', corpo_md: 'Rascunho auditado.' }
@@ -174,16 +182,14 @@ describe.skipIf(semBanco)('grafo editorial no Payload e Postgres', () => {
       .rejects.toMatchObject({ status: 400 })
     await expect(payload.delete({ collection: 'eventos' as never, id: eventos.docs[0]!.id })).rejects.toMatchObject({ status: 400 })
   })
-  it('o CMS persiste a publicação do agente sem julgar texto, fonte ou pesquisa', async () => {
+  it('o CMS persiste a publicação direta do agente sem julgar texto, fonte ou pesquisa', async () => {
     await payload.update({ collection: 'tenants', id: tenantA.id, data: { gates: { ativo: true, g1: true, g2: true, g3: true, g4: false } } })
     const r = await request('/posts', 'POST', { tenant: tenantA.id, titulo: 'Texto de teste', slug: 'publicacao-pelo-agente',
-      corpo_md: 'Rascunho sem pesquisa ou citação; o julgamento editorial está fora do CMS.', entidades: [entidadeA.id] })
+      corpo_md: 'Texto aprovado fora do CMS; o julgamento editorial está no Hermes.', entidades: [entidadeA.id], _status: 'published' })
     expect(r.status).toBe(201)
     const id = r.body.doc.id
-    const published = await request(`/posts/${id}`, 'PATCH', { _status: 'published' })
-    expect(published.status).toBe(200)
-    expect(published.body.doc._status).toBe('published')
-    expect(published.body.doc.gates).toBeNull()
+    expect(r.body.doc._status).toBe('published')
+    expect(r.body.doc.gates).toBeNull()
     expect((await request(`/posts/${id}`, 'PATCH', { titulo: 'Atualização pelo publicador' })).status).toBe(200)
     expect((await request(`/posts/${id}/gates`, 'POST')).status).toBe(404)
     const agente = await payload.find({ collection: 'users', where: { email: { equals: 'agente-a@example.test' } } })

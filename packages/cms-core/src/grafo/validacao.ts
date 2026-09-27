@@ -1,5 +1,4 @@
-import { APIError, ValidationError, type CollectionBeforeOperationHook, type CollectionBeforeValidateHook, type PayloadRequest, type Where } from 'payload'
-import { hasRole, isSuperAdmin } from '../access/roles'
+import { ValidationError, type CollectionBeforeOperationHook, type CollectionBeforeValidateHook, type PayloadRequest, type Where } from 'payload'
 import { efetivo } from '../hooks/validations'
 import { exigeTenantAutorizado, idGrafo } from './acesso'
 
@@ -67,14 +66,6 @@ export const unicoGrafo = (campos: string[]): CollectionBeforeValidateHook => as
   const existentes = await req.payload.find({ collection: collection.slug as never, req, depth: 0, limit: 1,
     overrideAccess: true, where: { and: condicoes } })
   if (existentes.totalDocs) invalidoGrafo(campos[campos.length - 1]!, 'Já existe um registro com esta identidade no tenant.')
-  return data
-}
-
-export const draftPrimeiro: CollectionBeforeValidateHook = ({ data, operation, req }) => {
-  if (operation === 'create' && (hasRole(req.user, 'agente') || hasRole(req.user, 'ingestao')) && !isSuperAdmin(req.user)) {
-    if (data?._status === 'published') throw new APIError('Conteúdo novo de agente entra em draft. Publicação exige atualização explícita posterior.', 403)
-    if (data) data._status = 'draft'
-  }
   return data
 }
 

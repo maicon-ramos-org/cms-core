@@ -38,9 +38,11 @@ gera e revisa sua migration; esta PR não altera a migration da referência padr
 
 ## Coleção `ofertas_editoriais`
 
-Tenant obrigatório/imutável; versões e `_status: draft|published`. Toda criação
-automatizada nasce draft, independentemente de `estado: ativa`. Publicar exige
-operação explícita posterior. Não há delete que deixe referências pendentes.
+Tenant obrigatório/imutável; versões e `_status: draft|published`. A partir de
+`afiliado@0.2.0-next.14`, o agente publicador pode criar uma oferta já aprovada
+com `_status: published`; sem esse campo, ela nasce draft, independentemente de
+`estado: ativa`. A credencial de ingestão não publica. Não há delete que deixe
+referências pendentes.
 
 | Campos | Contrato |
 | --- | --- |
