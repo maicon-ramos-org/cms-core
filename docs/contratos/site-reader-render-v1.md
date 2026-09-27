@@ -43,3 +43,20 @@ responsabilidade do site. Nada aqui garante TTFB ou número de queries do
 projetor: medir o caso real antes do cutover. A integração do Alma requer
 projetor fechado e substituição do cliente legado `/users/me`; não está
 automaticamente pronta por instalar esta rota.
+
+## Recursos opt-in de índice e oferta
+
+`siteReader` também pode receber `offerV1` e `indexV1` com a mesma assinatura
+de projetor `{ payload, tenantId, slug }`, envelope, autenticação e política
+`private, no-store`. As rotas são `/api/editorial/offer-v1?slug=...` e
+`/api/editorial/index-v1?slug=...`. São exclusivas da credencial `site-reader`;
+não concedem GET de coleção. O slug de oferta aceita letras maiúsculas para
+preservar URLs comerciais existentes e a resposta tem limite de 32 KB. O índice
+usa slug minúsculo, por exemplo `all` ou `guias`, e limite de 2 MB.
+
+Cada instância deve fornecer DTO fechado, consultar somente itens publicados
+do tenant autenticado e retornar `null` para ausência; espelho de oferta deve
+resolver sua canônica publicada no mesmo tenant. O endpoint de oferta carrega
+**dados privados de destino**, que só podem existir na memória do servidor do
+site/Worker para efetuar o 302 após clique humano; jamais entram em HTML,
+JSON público, cache ou log. O índice deve conter apenas metadados públicos.

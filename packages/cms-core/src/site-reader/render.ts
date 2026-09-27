@@ -22,7 +22,8 @@ export const caminhoRenderSiteReaderV1 = (config: SanitizedConfig): string =>
   `${config.routes.api.replace(/\/$/, '')}/editorial/render-v1`
 
 const LIMITE_BYTES = 2_000_000
-const slugValido = (slug: string): boolean => slug.length <= 200 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+const slugValido = (slug: string, offer = false): boolean => slug.length <= 200 &&
+  (offer ? /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/ : /^[a-z0-9]+(?:-[a-z0-9]+)*$/).test(slug)
 const revisaoValida = (revisao: unknown): revisao is string =>
   typeof revisao === 'string' && revisao.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(revisao)
 
@@ -74,21 +75,22 @@ export async function respondeRenderSiteReaderV1(
   identidade: IdentidadeSiteReader,
   payload: Payload,
   projetor: ProjetorRenderSiteReaderV1,
+  tipo: 'page' | 'offer' = 'page',
 ): Promise<Response> {
   if (request.method !== 'GET' || temMethodOverride(request.headers)) return erroSiteReader(405)
   const params = new URL(request.url).searchParams
   if (params.size !== 1 || params.getAll('slug').length !== 1) return erroSiteReader(400)
   const slug = params.get('slug')!
-  if (!slugValido(slug)) return erroSiteReader(400)
+  if (!slugValido(slug, tipo === 'offer')) return erroSiteReader(400)
   try {
     const pagina = await projetor({ payload, tenantId: identidade.tenantId, slug })
-    if (pagina === null) return respostaPrivada(404, '{"errors":[{"message":"Página não encontrada."}]}')
+    if (pagina === null) return respostaPrivada(404, '{"errors":[{"message":"Recurso não encontrado."}]}')
     if (!pagina || !revisaoValida(pagina.revisao) || !pagina.dados || Array.isArray(pagina.dados)) {
       throw new Error('render-v1 inválido')
     }
     const dados = materializaJson(pagina.dados)
     const body = JSON.stringify({ versao: 1, tenantId: identidade.tenantId, slug, revisao: pagina.revisao, dados })
-    if (new TextEncoder().encode(body).byteLength > LIMITE_BYTES) throw new Error('render-v1 grande demais')
+    if (new TextEncoder().encode(body).byteLength > (tipo === 'offer' ? 32_000 : LIMITE_BYTES)) throw new Error('render-v1 grande demais')
     return respostaPrivada(200, body)
   } catch {
     // Nunca emitir a exceção/SQL/documento do projetor na resposta ou em logs.

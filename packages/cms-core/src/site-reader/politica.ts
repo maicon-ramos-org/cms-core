@@ -3,6 +3,8 @@ import { erroSiteReader, respondeIdentidadeSiteReader } from './identidade'
 import { restringirPorPrincipalSiteReader } from './principal'
 import type { ProjetorRenderSiteReaderV1 } from './render'
 
+export interface ProjetoresSiteReaderV1 { renderV1: ProjetorRenderSiteReaderV1; offerV1?: ProjetorRenderSiteReaderV1; indexV1?: ProjetorRenderSiteReaderV1 }
+
 const restringe = (original?: Access): Access => args =>
   restringirPorPrincipalSiteReader(args.req.user) ? false : original ? original(args) : Boolean(args.req.user)
 
@@ -18,7 +20,7 @@ function endpointsRestritos<T extends Endpoint[] | false>(endpoints: T): T {
  * Recebe SOMENTE a config já sanitizada: internos do Payload e plugins já existem.
  * Não envolve find/afterRead, usados pela própria autenticação com overrideAccess.
  */
-export function aplicaPoliticaSiteReader(config: SanitizedConfig, renderV1?: ProjetorRenderSiteReaderV1): SanitizedConfig {
+export function aplicaPoliticaSiteReader(config: SanitizedConfig, projectors?: ProjetoresSiteReaderV1): SanitizedConfig {
   if (config.collections.some(c => c.auth && c.auth.strategies.length > 0)) {
     throw new Error('siteReader não admite auth strategies custom: o transporte exige credenciais nativas conhecidas.')
   }
@@ -26,8 +28,13 @@ export function aplicaPoliticaSiteReader(config: SanitizedConfig, renderV1?: Pro
     throw new Error('siteReader não admite autoLogin: requisição sem credencial deve permanecer anônima.')
   }
   if (config.endpoints.some(e => e.path === '/editorial/identity-v1')) throw new Error('siteReader: endpoint de identidade já ocupado.')
-  if (renderV1 && config.endpoints.some(e => e.path === '/editorial/render-v1')) throw new Error('siteReader: endpoint de render já ocupado.')
-  config.custom = { ...config.custom, siteReader: { ativo: true, ...(renderV1 ? { renderV1 } : {}) } }
+  for (const [name, enabled] of [['render-v1', !!projectors?.renderV1], ['offer-v1', !!projectors?.offerV1],
+    ['index-v1', !!projectors?.indexV1]] as const) {
+    if (enabled && config.endpoints.some(e => e.path === `/editorial/${name}`)) {
+      throw new Error(`siteReader: endpoint de ${name === 'render-v1' ? 'render' : name} já ocupado.`)
+    }
+  }
+  config.custom = { ...config.custom, siteReader: { ativo: true, ...projectors } }
   for (const collection of config.collections) {
     for (const op of ['admin', 'create', 'read', 'readVersions', 'update', 'delete', 'unlock'] as const) {
       // admin/unlock aceitam subconjuntos dos argumentos de Access; repasse sem alteração.

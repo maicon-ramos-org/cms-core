@@ -25,7 +25,7 @@ async function autentica(config: SanitizedConfig, headers: Headers, isGraphQL: b
   return { payload, user }
 }
 
-async function destinoNextCompativel(args: unknown[], nome: 'identity-v1' | 'render-v1'): Promise<boolean> {
+async function destinoNextCompativel(args: unknown[], nome: 'identity-v1' | 'render-v1' | 'offer-v1' | 'index-v1'): Promise<boolean> {
   const contexto = args[0] as { params?: Promise<unknown> | unknown } | undefined
   if (!contexto || !('params' in contexto)) return true // Fetch puro não tem params.
   const params = await contexto.params as { slug?: unknown } | undefined
@@ -41,21 +41,29 @@ export function protegerTransporteSiteReader<A extends unknown[]>({ config: conf
     const config = await configPromise
     if (!ativo(config)) return handler(request, ...args)
     const identidade = superficie === 'rest' && new URL(request.url).pathname === caminhoIdentidadeSiteReader(config)
-    const projetor = config.custom?.siteReader?.renderV1 as ProjetorRenderSiteReaderV1 | undefined
-    const render = superficie === 'rest' && typeof projetor === 'function' && new URL(request.url).pathname === caminhoRenderSiteReaderV1(config)
-    if ((identidade || render) && (request.method !== 'GET' || temMethodOverride(request.headers))) return erroSiteReader(405)
-    if (!temCredencial(request.headers, config)) return identidade || render ? erroSiteReader(401) : handler(request, ...args)
+    const path = new URL(request.url).pathname
+    const readers = config.custom?.siteReader as { renderV1?: ProjetorRenderSiteReaderV1; offerV1?: ProjetorRenderSiteReaderV1;
+      indexV1?: ProjetorRenderSiteReaderV1 } | undefined
+    const routes = [
+      { name: 'render-v1' as const, path: caminhoRenderSiteReaderV1(config), projector: readers?.renderV1 },
+      { name: 'offer-v1' as const, path: `${config.routes.api.replace(/\/$/, '')}/editorial/offer-v1`, projector: readers?.offerV1 },
+      { name: 'index-v1' as const, path: `${config.routes.api.replace(/\/$/, '')}/editorial/index-v1`, projector: readers?.indexV1 },
+    ]
+    const resource = superficie === 'rest' ? routes.find(route => route.path === path && typeof route.projector === 'function') : undefined
+    if ((identidade || resource) && (request.method !== 'GET' || temMethodOverride(request.headers))) return erroSiteReader(405)
+    if (!temCredencial(request.headers, config)) return identidade || resource ? erroSiteReader(401) : handler(request, ...args)
     const { payload, user } = await autentica(config, request.headers, superficie === 'graphql')
     // Não delegar credencial inválida para uma segunda auth potencialmente divergente.
     if (!user) return erroSiteReader(401)
     if (usuarioUsersSemPapeisValidos(user)) return erroSiteReader(403)
     if (temPapelSiteReader(user)) {
       const papel = identidadeSiteReader(user)
-      if (!papel || (!identidade && !render) || !(await destinoNextCompativel(args, identidade ? 'identity-v1' : 'render-v1'))) return erroSiteReader(403)
+      if (!papel || (!identidade && !resource) || !(await destinoNextCompativel(args, identidade ? 'identity-v1' : resource!.name))) return erroSiteReader(403)
       // Identidade é DTO direto: uma autenticação, não chama o handler de novo.
-      return identidade ? respondeIdentidadeSiteReader(request, user) : respondeRenderSiteReaderV1(request, papel, payload, projetor!)
+      return identidade ? respondeIdentidadeSiteReader(request, user) : respondeRenderSiteReaderV1(request, papel, payload,
+        resource!.projector!, resource!.name === 'offer-v1' ? 'offer' : 'page')
     }
-    return identidade || render ? erroSiteReader(403) : handler(request, ...args)
+    return identidade || resource ? erroSiteReader(403) : handler(request, ...args)
   }
 }
 
