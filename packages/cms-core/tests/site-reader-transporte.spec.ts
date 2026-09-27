@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SanitizedConfig } from 'payload'
-import { protegerTransporteSiteReader, leitorNoPreflightSiteReader } from '../src/site-reader/transporte'
+import { protegerTransporteSiteReader, protegerLeituraCustomSiteReader, leitorNoPreflightSiteReader } from '../src/site-reader/transporte'
 
 const mock = vi.hoisted(() => ({ payload: {}, getPayload: vi.fn(), auth: vi.fn() }))
 vi.mock('payload', () => ({ getPayload: mock.getPayload, executeAuthStrategies: mock.auth }))
@@ -17,6 +17,42 @@ beforeEach(() => {
 })
 
 describe('spike: Request original e preflight sem lookup anônimo', () => {
+  it('leitura custom usa somente API key reader single-tenant, envelope privado e caminho exato', async () => {
+    const projetor = vi.fn(async () => ({ revisao: 'catalogo-r1', dados: { kind: 'offer', action: '/ofertas/item/' } }))
+    const caminho = '/api/editorial/catalog-offer-v1'
+    const url = `https://cms.example.test${caminho}?slug=Item-1`
+    const guard = protegerLeituraCustomSiteReader({ config, caminho, projetor, tipo: 'offer' })
+    expect((await guard(new Request(url))).status).toBe(401)
+    expect(mock.auth).not.toHaveBeenCalled()
+    const valid = await guard(new Request(url, { headers: key }))
+    expect(valid.status).toBe(200)
+    expect(valid.headers.get('cache-control')).toBe('private, no-store')
+    expect(valid.headers.get('vary')).toBe('Authorization')
+    expect(await valid.json()).toMatchObject({ tenantId: '1', dados: { action: '/ofertas/item/' } })
+    expect(projetor).toHaveBeenCalledWith({ payload: mock.payload, tenantId: '1', slug: 'Item-1' })
+    expect((await guard(new Request(url + '&tenant=2', { headers: key }))).status).toBe(400)
+    expect((await guard(new Request(`https://cms.example.test/api/users?slug=Item-1`, { headers: key }))).status).toBe(403)
+    expect((await guard(new Request(url, { method: 'POST', headers: key, body: '{}' }))).status).toBe(405)
+    expect((await guard(new Request(url, { headers: { ...key, 'X-HTTP-Method-Override': 'POST' } }))).status).toBe(405)
+    expect(projetor).toHaveBeenCalledTimes(1)
+  })
+
+  it('leitura custom nega key inválida, admin, cookie e papéis mistos', async () => {
+    const projetor = vi.fn(async () => ({ revisao: 'r1', dados: {} }))
+    const guard = protegerLeituraCustomSiteReader({ config, caminho: '/api/editorial/catalog-store-v1', projetor })
+    const url = 'https://cms.example.test/api/editorial/catalog-store-v1?slug=catalogo'
+    mock.auth.mockResolvedValue({ user: null })
+    expect((await guard(new Request(url, { headers: key }))).status).toBe(401)
+    mock.auth.mockResolvedValue({ user: { ...reader, roles: ['super-admin'] } })
+    expect((await guard(new Request(url, { headers: key }))).status).toBe(403)
+    mock.auth.mockResolvedValue({ user: { ...reader, _strategy: 'local-jwt' } })
+    expect((await guard(new Request(url, { headers: { cookie: 'payload-token=fixture' } }))).status).toBe(403)
+    mock.auth.mockResolvedValue({ user: { ...reader, roles: ['site-reader', 'super-admin'] } })
+    expect((await guard(new Request(url, { headers: key }))).status).toBe(403)
+    mock.auth.mockResolvedValue({ user: { ...reader, tenants: [{ tenant: 1 }, { tenant: 2 }] } })
+    expect((await guard(new Request(url, { headers: key }))).status).toBe(403)
+    expect(projetor).not.toHaveBeenCalled()
+  })
   it('default-off delega o MESMO Request/contexto, sem inicializar Payload nem autenticar', async () => {
     const handler = vi.fn(async (_request: Request, ..._args: unknown[]) => new Response('default'))
     const guard = protegerTransporteSiteReader({ config: { ...config, custom: {} }, handler, superficie: 'rest' })

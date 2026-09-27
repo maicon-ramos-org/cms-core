@@ -4,6 +4,9 @@
 
 ## 0.2.0-next.14 — 2026-09-27 (pré-lançamento)
 
+- `protegerLeituraCustomSiteReader` permite endpoints GET locais de projeção
+  privada com a mesma autenticação exclusiva do site-reader, tenant da key,
+  limite de tamanho e envelope `no-store`; não abre coleções REST ao reader.
 - `pages.navegacao` opt-in padroniza rótulo, cabeçalho, rodapé e ordem de menu
   para futuras instâncias; todos os indicadores começam desligados. Cada banco
   consumidor precisa de migration aditiva antes do deploy que usa os campos.
