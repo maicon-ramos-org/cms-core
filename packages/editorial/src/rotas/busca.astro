@@ -51,7 +51,7 @@ const titulo = termo ? `Busca: ${termo}` : 'Busca'
     tooldescription={config.busca?.descricaoDaFerramenta ?? 'Refaz a busca do site com outro termo.'}
   >
     <label class="sr-only" for="q">Buscar no site</label>
-    <input id="q" type="search" name="q" value={termo} placeholder={config.busca?.placeholder ?? 'Buscar artigo'} />
+    <input id="q" type="search" name="q" value={termo} placeholder={config.busca?.placeholder ?? 'Buscar artigo'} toolparamdescription="Novo termo para pesquisar no conteúdo deste site" />
     <button type="submit">Buscar</button>
   </form>
 

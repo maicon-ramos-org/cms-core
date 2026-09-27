@@ -24,9 +24,16 @@ const largura = logo?.width && logo?.height ? Math.round((ALTURA * logo.width) /
     <nav aria-label="Principal">
       <a href="/blog/">Blog</a>
     </nav>
-    <form class="busca" action="/busca/" method="get" role="search">
+    <form
+      class="busca"
+      action="/busca/"
+      method="get"
+      role="search"
+      toolname="buscar_no_site"
+      tooldescription={`Busca artigos e outros conteúdos publicados em ${tenant.nome} pelo termo informado.`}
+    >
       <label for="busca-q">Buscar</label>
-      <input id="busca-q" name="q" type="search" placeholder="Buscar" />
+      <input id="busca-q" name="q" type="search" placeholder="Buscar" toolparamdescription="Texto que a pessoa quer pesquisar no conteúdo deste site" />
     </form>
   </div>
 </header>

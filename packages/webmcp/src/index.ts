@@ -51,6 +51,8 @@ export interface OpcoesDoRegistro {
   polyfill?: () => Promise<void>
 }
 
+export { withWebMcpOriginTrial } from './origin-trial'
+
 interface ModelContext {
   registerTool: (ferramenta: Ferramenta) => Promise<void> | void
 }

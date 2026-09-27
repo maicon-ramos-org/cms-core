@@ -1,6 +1,6 @@
 {
   "name": "@maicon-ramos-org/webmcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Casca única sobre a API WebMCP do navegador — PRD 11 RF1",
   "type": "module",
   "main": "./src/index.ts",
