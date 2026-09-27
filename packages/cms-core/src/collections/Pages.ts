@@ -43,6 +43,15 @@ const exigeCampoDoTemplate = (exigemDados: ReadonlySet<string>): CollectionBefor
   return data
 }
 
+/** Menu é dado de publicação, não uma segunda fonte de páginas. Sem opt-in, nada entra na navegação. */
+const validaNavegacao: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
+  const menu = { ...(originalDoc?.navegacao ?? {}), ...(data?.navegacao ?? {}) }
+  if ((menu.cabecalho || menu.rodape) && (typeof menu.rotulo !== 'string' || !menu.rotulo.trim())) {
+    throw new ValidationError({ collection: 'pages', errors: [{ path: 'navegacao.rotulo', message: 'Página no menu exige rótulo.' }] })
+  }
+  return data
+}
+
 /** Pages: corpo livre OU template com `dados` (os do site; ex.: ficha renderizada de um json). */
 export function paginas(templatesDoSite: readonly TemplateDePagina[] = []): CollectionConfig {
   const comDados = new Set(templatesDoSite.map((t) => t.valor))
@@ -64,7 +73,7 @@ export function paginas(templatesDoSite: readonly TemplateDePagina[] = []): Coll
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), exigeCampoDoTemplate(exigemDados)],
+    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), exigeCampoDoTemplate(exigemDados), validaNavegacao],
     beforeChange: [draftOnlyIngestao],
     afterChange: [revalidateAfterChange('pages')],
     afterDelete: [revalidateAfterDelete('pages')],
@@ -90,6 +99,13 @@ export function paginas(templatesDoSite: readonly TemplateDePagina[] = []): Coll
       },
     },
     { name: 'ancoras_alvo', type: 'text', hasMany: true },
+    { name: 'navegacao', type: 'group', fields: [
+      { name: 'rotulo', type: 'text', maxLength: 80 },
+      { name: 'cabecalho', type: 'checkbox', defaultValue: false },
+      { name: 'rodape', type: 'checkbox', defaultValue: false },
+      { name: 'ordem', type: 'number', min: 0, max: 10000, defaultValue: 100,
+        validate: (value: number | null | undefined) => value == null || Number.isInteger(value) || 'Ordem deve ser um inteiro.' },
+    ] },
     { name: 'wordpress_id', type: 'text', unique: true, index: true },
     { name: 'slug_wp', type: 'text', index: true },
     chaveDeOrigem,

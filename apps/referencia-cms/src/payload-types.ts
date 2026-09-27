@@ -660,6 +660,12 @@ export interface Page {
     | boolean
     | null;
   ancoras_alvo?: string[] | null;
+  navegacao?: {
+    rotulo?: string | null;
+    cabecalho?: boolean | null;
+    rodape?: boolean | null;
+    ordem?: number | null;
+  };
   wordpress_id?: string | null;
   slug_wp?: string | null;
   /**
@@ -1865,6 +1871,14 @@ export interface PagesSelect<T extends boolean = true> {
   corpo?: T;
   dados?: T;
   ancoras_alvo?: T;
+  navegacao?:
+    | T
+    | {
+        rotulo?: T;
+        cabecalho?: T;
+        rodape?: T;
+        ordem?: T;
+      };
   wordpress_id?: T;
   slug_wp?: T;
   origem?: T;

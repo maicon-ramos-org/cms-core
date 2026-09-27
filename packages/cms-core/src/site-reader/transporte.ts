@@ -67,6 +67,27 @@ export function protegerTransporteSiteReader<A extends unknown[]>({ config: conf
   }
 }
 
+/** Endpoint local de leitura da instância, sem abrir a REST bruta ao site-reader.
+ * Reusa a mesma autenticação estrita e o mesmo envelope privado do transporte padrão. */
+export function protegerLeituraCustomSiteReader({ config: configPromise, caminho, projetor, tipo = 'page' }: {
+  config: ConfigReader
+  caminho: string
+  projetor: ProjetorRenderSiteReaderV1
+  tipo?: 'page' | 'offer'
+}): (request: Request) => Promise<Response> {
+  return async request => {
+    const config = await configPromise
+    if (!ativo(config) || new URL(request.url).pathname !== caminho) return erroSiteReader(403)
+    if (request.method !== 'GET' || temMethodOverride(request.headers)) return erroSiteReader(405)
+    if (!temCredencial(request.headers, config)) return erroSiteReader(401)
+    const { payload, user } = await autentica(config, request.headers, false)
+    if (!user) return erroSiteReader(401)
+    const papel = identidadeSiteReader(user)
+    if (!papel) return erroSiteReader(403)
+    return respondeRenderSiteReaderV1(request, papel, payload, projetor, tipo)
+  }
+}
+
 /** Antes de RootLayout e handleServerFunctions; o consumidor escolhe notFound/erro. */
 export async function leitorNoPreflightSiteReader({ config: configPromise, headers }: {
   config: ConfigReader; headers: Headers

@@ -6,7 +6,7 @@ import type { APIRoute } from 'astro'
 
 import config from 'virtual:editorial/config'
 
-import { getPageBySlug, getPostBySlug, getPostsRelacionados } from '../lib/cms'
+import { caminhoCanonico, getPageBySlug, getPostBySlug, getPostsRelacionados } from '../lib/cms'
 import { lexicalParaTexto } from '../lib/lexical'
 
 /** Mesma regra da página HTML: arquivo do builder tem rota própria, não sai daqui. */
@@ -21,22 +21,30 @@ export const GET: APIRoute = async (context) => {
   if (!post) {
     // páginas institucionais/de conteúdo dividem a URL com os posts
     const page = ARQUIVOS_DO_BUILDER.has(slug) ? null : await getPageBySlug(tenant.id, slug)
-    if (!page || FORA_DA_RAIZ.has(page.template)) return new Response('Página não encontrada.', { status: 404 })
+    if (!page || FORA_DA_RAIZ.has(page.template)) return new Response('Página não encontrada.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
+    if (context.cache?.enabled) {
+      context.cache.set({ maxAge: 600, swr: 120, tags: [`tenant:${tenant.slug}`, `pages:${page.id}`] })
+    }
+    const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(page.slug)}/`
     const texto = lexicalParaTexto(page.corpo)
     const corpoMd = [
       `# ${page.titulo}`,
       '',
-      `**Canonical:** https://${tenant.canonical_host}/${page.slug}`,
+      `**Canonical:** ${canonical}`,
       '',
       texto,
     ].join('\n')
-    return new Response(corpoMd, { headers: { 'content-type': 'text/markdown; charset=utf-8' } })
+    return new Response(corpoMd, { headers: {
+      'content-type': 'text/markdown; charset=utf-8',
+      'X-Robots-Tag': 'noindex',
+      Link: `<${canonical}>; rel="canonical"`,
+    } })
   }
 
   const categoria = post.categoria && typeof post.categoria === 'object' ? post.categoria : null
   const autor = post.autor && typeof post.autor === 'object' ? post.autor : null
 
-  if (context.cache.enabled) {
+  if (context.cache?.enabled) {
     context.cache.set({ maxAge: 3600, swr: 300, tags: [`tenant:${tenant.slug}`, `posts:${post.id}`] })
   }
 
@@ -45,7 +53,8 @@ export const GET: APIRoute = async (context) => {
   if (categoria) linhas.push(`**Categoria:** ${categoria.nome}`)
   if (post.publicado_em) linhas.push(`**Publicado:** ${post.publicado_em.slice(0, 10)}`)
   if (post.atualizado_em) linhas.push(`**Atualizado:** ${post.atualizado_em.slice(0, 10)}`)
-  linhas.push(`**Canonical:** https://${tenant.canonical_host}/${post.slug}`, '')
+  const canonical = `https://${tenant.canonical_host}/${caminhoCanonico(post.slug)}/`
+  linhas.push(`**Canonical:** ${canonical}`, '')
   const corpo = lexicalParaTexto(post.corpo)
   if (corpo) linhas.push(corpo)
 
@@ -60,6 +69,10 @@ export const GET: APIRoute = async (context) => {
   }
 
   return new Response(linhas.join('\n'), {
-    headers: { 'content-type': 'text/markdown; charset=utf-8' },
+    headers: {
+      'content-type': 'text/markdown; charset=utf-8',
+      'X-Robots-Tag': 'noindex',
+      Link: `<${canonical}>; rel="canonical"`,
+    },
   })
 }

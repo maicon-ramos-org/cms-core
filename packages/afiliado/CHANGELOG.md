@@ -2,6 +2,19 @@
 
 ## Não lançado
 
+## 0.2.0-next.15 — 2026-09-27 (pré-lançamento)
+
+- `catalogoEditorial()` é extensão opt-in da coleção única
+  `ofertas_editoriais`: lojas, cupons e categorias relacionados, sem criar uma
+  segunda coleção de ofertas e sem monitoramento automático. Ativar exige
+  migration aditiva por instância.
+- Ofertas e produtos públicos ganham JSON allowlist em paralelo a HTML/Markdown.
+  Dados comerciais sensíveis (destino afiliado, comissão e código do cupom)
+  continuam ocultos; CTA passa por `/r`. A ficha física ganha Markdown; ofertas
+  antigas em `/apps/` anunciam alternates nesse caminho canônico.
+- Alinha as dependências distribuídas a `cms-core@0.2.0-next.14` e
+  `editorial@0.2.0-next.3`. Não ativa catálogo, purge ou cron em nenhum site.
+
 ## 0.2.0-next.14 — 2026-09-27 (pré-lançamento; publicação pendente)
 
 - A credencial publicadora pode criar uma oferta editorial já aprovada com

@@ -230,6 +230,7 @@ export interface PageDTO {
      para a que corresponde ao `template` que ele pediu */
   dados?: DadosDePagina | null
   meta?: { title?: string | null; description?: string | null } | null
+  createdAt?: string
   updatedAt?: string
 }
 
@@ -290,6 +291,10 @@ export interface CategoriaChip {
 }
 
 export interface PostDTO {
+  /** Formato/intenção só existem quando a instância instala o grafo editorial. */
+  tipo?: string | null
+  intencao?: string | null
+  resumo?: string | null
   /**
    * O subtipo de `Article` que o WordPress declarava nesta URL. Vazio = `BlogPosting`.
    * Existe porque 63% do acervo mudaria de tipo na virada sem ele (ver contrato).

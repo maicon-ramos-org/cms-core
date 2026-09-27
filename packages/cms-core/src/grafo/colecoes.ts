@@ -1,4 +1,4 @@
-import type { CollectionConfig, Field } from 'payload'
+import type { CollectionConfig, CollectionSlug, Field } from 'payload'
 import { authenticated, nunca, podeEscreverConteudo } from '../access/roles'
 import { chaveDeOrigem } from '../fields/origem'
 import { validaSlugKebab } from '../hooks/validations'
@@ -7,7 +7,10 @@ import { invalidoGrafo, protegeRevisaoPesquisa, unicoGrafo, urlFonte, validaGraf
 import { preparaOperacaoValorClaim, preservaValorClaim } from './valor-claim'
 
 export const campoTenantGrafo = (): Field => ({ name: 'tenant', type: 'relationship', relationTo: 'tenants', required: true, index: true })
-const rel = (name: string, relationTo: string, required = false): Field => ({ name, type: 'relationship', relationTo, required })
+// Este plugin é opt-in: o GeneratedTypes global de outra instância pode ainda
+// não listar as coleções do grafo quando o pacote fonte é compilado nela.
+const rel = (name: string, relationTo: string, required = false): Field =>
+  ({ name, type: 'relationship', relationTo: relationTo as CollectionSlug, required })
 const slug: Field = { name: 'slug', type: 'text', required: true, validate: validaSlugKebab, maxLength: 200 }
 const nome: Field = { name: 'nome', type: 'text', required: true, maxLength: 300 }
 

@@ -13,6 +13,7 @@ describe('padraoDoArquivo', () => {
     ['blog/index.astro', '/blog'],
     ['[slug].astro', '/[slug]'],
     ['[slug].md.ts', '/[slug].md'],
+    ['[slug].json.ts', '/[slug].json'],
     ['categoria/[slug].astro', '/categoria/[slug]'],
     ['categoria-oferta/[...caminho].astro', '/categoria-oferta/[...caminho]'],
     ['sitemap-[tipo].xml.ts', '/sitemap-[tipo].xml'],

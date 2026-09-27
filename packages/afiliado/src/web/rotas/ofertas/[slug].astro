@@ -248,7 +248,8 @@ const nosDaPagina = [
   titulo={tituloPagina}
   descricao={descricao}
   canonical={canonical}
-  markdown={`/ofertas/${oferta.slug}.md`}
+  markdown={`${caminhoDaOferta(oferta).replace(/\/$/, '')}.md`}
+  json={`${caminhoDaOferta(oferta).replace(/\/$/, '')}.json`}
   schema={nosDaPagina}
   imagem={img}
 >

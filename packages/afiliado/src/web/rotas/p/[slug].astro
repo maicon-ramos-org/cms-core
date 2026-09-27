@@ -203,6 +203,8 @@ const nosDaPagina = produto
       descricao={catalogo.produto.descricao}
       canonical={canonical}
       noindex
+      markdown={`/p/${catalogo.produto.slug}.md`}
+      json={`/p/${catalogo.produto.slug}.json`}
       schema={[schemaProduto(catalogo, canonical)]}
     >
       <FichaProduto catalogo={catalogo} />
@@ -214,6 +216,7 @@ const nosDaPagina = produto
       canonical={canonical}
       noindex={!indexavel}
       markdown={`/p/${produto!.slug}.md`}
+      json={`/p/${produto!.slug}.json`}
       schema={nosDaPagina}
     >
       <nav class="trilha" aria-label="Você está em">

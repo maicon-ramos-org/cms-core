@@ -1,5 +1,5 @@
 import { tenantField } from '@payloadcms/plugin-multi-tenant/fields'
-import { authenticated, draftOnlyIngestao, isSuperAdmin, nunca, podeEscreverConteudo, validaSlugKebab } from '@maicon-ramos-org/cms-core'
+import { authenticated, draftOnlyIngestao, isSuperAdmin, nunca, podeEscreverConteudo, revalidateAfterChange, validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { APIError, type CollectionConfig, type CollectionSlug, type Field, type FieldAccess, type Plugin, type RelationshipField } from 'payload'
 import { registrarProgramasOferta, type ProgramaOferta, type RegistroProgramasOferta } from '../../ofertas-editoriais/contratos'
 import { internoOferta, normalizaOfertaEditorial, normalizaVerificacao, semDeleteOferta, validaEscolhas, validaOfertaEditorial, validaVerificacao } from './validacao'
@@ -33,7 +33,8 @@ function colecoes(programas: RegistroProgramasOferta): CollectionConfig[] {
       rel('espelho_de', 'ofertas_editoriais'), { name: 'correspondencia', type: 'select', options: ['exato', 'equivalente', 'busca'] }, data('atualizado_na_origem'),
     ],
     indexes: [{ fields: ['tenant', 'origem'], unique: true }, { fields: ['tenant', 'slug'], unique: true }, { fields: ['tenant', 'programa', 'external_id'], unique: true }],
-    hooks: { beforeValidate: [normalizaOfertaEditorial], beforeChange: [draftOnlyIngestao, validaOfertaEditorial(programas)], beforeDelete: [semDeleteOferta] },
+    hooks: { beforeValidate: [normalizaOfertaEditorial], beforeChange: [draftOnlyIngestao, validaOfertaEditorial(programas)],
+      afterChange: [revalidateAfterChange('ofertas_editoriais')], beforeDelete: [semDeleteOferta] },
   }
   const verificacoes: CollectionConfig = {
     slug: 'verificacoes_ofertas_editoriais' as CollectionSlug, custom: { tenantCampoProprio: true }, admin: { group: 'Ofertas editoriais' },
@@ -42,7 +43,8 @@ function colecoes(programas: RegistroProgramasOferta): CollectionConfig[] {
       { name: 'link_ativo', type: 'checkbox', defaultValue: () => null }, texto('preco_visto'), { name: 'disponivel', type: 'checkbox', defaultValue: () => null },
       { name: 'nota', type: 'textarea' }, { ...rel('ator', 'users'), admin: { readOnly: true } }],
     indexes: [{ fields: ['tenant', 'origem'], unique: true }, { fields: ['tenant', 'oferta', 'verificado_em'] }],
-    hooks: { beforeValidate: [normalizaVerificacao], beforeChange: [validaVerificacao], beforeDelete: [semDeleteOferta] },
+    hooks: { beforeValidate: [normalizaVerificacao], beforeChange: [validaVerificacao],
+      afterChange: [revalidateAfterChange('verificacoes_ofertas_editoriais')], beforeDelete: [semDeleteOferta] },
   }
   return [ofertas, verificacoes]
 }

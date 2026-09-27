@@ -1,28 +1,47 @@
 /**
  * Gêmeo em markdown de /p/{slug} — o `.md` paralelo do checklist agent-readable.
  *
- * Só responde pela coleção `produtos`. O piloto físico serve a mesma URL em HTML mas não
- * publica `.md`, e a página dele não anuncia `<link rel="alternate">` — então não existe
- * link apontando pra cá que caia em 404.
+ * Mesma precedência da página HTML: primeiro o piloto físico, depois o produto legado.
+ * O piloto não tem preço confiável e só anuncia os redirects internos válidos.
  */
 import type { APIRoute } from 'astro'
 
+import { getCatalogoProduto } from '../../lib/catalogo'
 import { getProdutoBySlug, PRODUTO_MONETIZAVEL, type CupomDTO, type LojaDTO } from '../../lib/cms'
+import { produtoFisicoPublicoJson } from '../../lib/publico-json'
+
+const validSlug = (slug: string) => slug.length <= 200 && /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(slug)
+const linha = (value: string) => value.replace(/[\r\n]+/g, ' ').replace(/[<>\[\]`]/g, '').trim()
 
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
   const slug = context.params.slug ?? ''
+  if (!validSlug(slug)) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
+  const catalogo = await getCatalogoProduto(tenant.id, slug)
+  if (catalogo) {
+    const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas)
+    const linhas = [`# ${linha(body.title)}`, '', '**Preço:** não publicado — consulte a loja pelo link abaixo.']
+    if (body.brand) linhas.push(`**Marca:** ${linha(body.brand)}`)
+    if (body.model) linhas.push(`**Modelo:** ${linha(body.model)}`)
+    if (body.summary) linhas.push('', linha(body.summary))
+    for (const oferta of body.offers) linhas.push('', `**Link:** https://${tenant.canonical_host}${oferta.href.replace('ref=json', 'ref=md')}`)
+    return new Response(`${linhas.join('\n')}\n`, { headers: {
+      'content-type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex', Link: `<${body.url}>; rel="canonical"`,
+    } })
+  }
   const produto = await getProdutoBySlug(tenant.id, slug)
-  if (!produto) return new Response('Produto não encontrado.', { status: 404 })
+  if (!produto) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
 
   const loja: LojaDTO | null = produto.loja && typeof produto.loja === 'object' ? produto.loja : null
   const cupom: CupomDTO | null = produto.cupom && typeof produto.cupom === 'object' ? produto.cupom : null
 
-  if (context.cache.enabled) {
+  if (context.cache?.enabled) {
     context.cache.set({
       maxAge: 300,
       swr: 60,
-      tags: [`tenant:${tenant.slug}`, `produtos:${produto.id}`, ...(loja ? [`loja:${loja.slug}`] : [])],
+      tags: [`tenant:${tenant.slug}`, `produtos:${produto.id}`, ...(loja ? [`loja:${loja.slug}`] : []),
+        ...(cupom ? [`cupons:${cupom.id}`] : [])],
     })
   }
 
@@ -43,7 +62,7 @@ export const GET: APIRoute = async (context) => {
     linhas.push('**Preço:** não publicado — consulte o valor atual na loja pelo link abaixo.')
   }
 
-  if (cupom) {
+  if (cupom && ['publicado', 'expirando'].includes(cupom.estado)) {
     // o CÓDIGO não entra aqui (ADR-0007): este arquivo é lido por agente de IA, e é onde
     // entregar o literal custa mais caro — a resposta sai pronta e a compra acontece fora
     // do link que paga o site. O que o agente precisa saber continua.
@@ -69,6 +88,7 @@ export const GET: APIRoute = async (context) => {
   }
 
   return new Response(linhas.join('\n'), {
-    headers: { 'content-type': 'text/markdown; charset=utf-8' },
+    headers: { 'content-type': 'text/markdown; charset=utf-8', 'X-Robots-Tag': 'noindex',
+      Link: `<https://${tenant.canonical_host}/p/${encodeURIComponent(produto.slug)}/>; rel="canonical"` },
   })
 }

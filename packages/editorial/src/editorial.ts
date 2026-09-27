@@ -48,6 +48,7 @@ const ROTAS = [
   // o curinga de um segmento: post, ou página por rewrite para `/pagina/{slug}`
   ['/[slug]', './rotas/[slug].astro'],
   ['/[slug].md', './rotas/[slug].md.ts'],
+  ['/[slug].json', './rotas/[slug].json.ts'],
   ['/pagina/[slug]', './rotas/pagina/[slug].astro'],
 ].map(([pattern, arquivo]) => ({ pattern: pattern!, entrypoint: doPacote(arquivo!) }))
 

@@ -25,6 +25,12 @@ consumo depende de publicação confirmada, não apenas desta versão no reposit
 Ofertas sem identidade física têm o plugin separado `ofertasEditoriais({ programas })`
 em `afiliado/cms`. O [contrato](docs/contratos/ofertas-editoriais.md) descreve drafts,
 espelhos, histórico, escolhas e redirect opt-in, versionados em `afiliado@0.2.0-next.7`.
+O complemento opcional `catalogoEditorial()` acrescenta lojas, cupons e categorias
+à mesma coleção de ofertas, sem duplicá-la nem ligar monitoramento automático.
+O [contrato dos formatos públicos](docs/contratos/formatos-publicos.md) define
+HTML canônico, Markdown e JSON allowlist para conteúdo publicado. A
+[revalidação pós-commit](docs/contratos/revalidacao-pos-commit.md) evita purgar
+o cache antes de o dado novo ficar visível no PostgreSQL.
 Consuma as versões exatas somente após o workflow de publicação e a disponibilidade
 no registry serem confirmados; merge/CI, isoladamente, não publicam um pacote.
 
