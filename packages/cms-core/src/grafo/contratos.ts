@@ -1,11 +1,8 @@
-import type { ProblemaGate, RegistroGrafo } from './gates'
-
 export type IntencaoEditorial = 'aprender' | 'comparar' | 'resolver' | 'comprar'
 export interface FormatoEditorial {
   slug: string
   rotulo: string
   intencao: IntencaoEditorial
-  validarPublicacao?: (post: RegistroGrafo) => ProblemaGate[]
 }
 export interface OpcoesGrafoEditorial { formatos?: FormatoEditorial[] }
 

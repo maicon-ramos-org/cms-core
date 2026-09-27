@@ -1,37 +1,9 @@
-import { APIError, type Endpoint, type PayloadRequest } from 'payload'
+import { APIError, type Endpoint } from 'payload'
 import { idGrafo, tenantDaConsulta } from './acesso'
-import type { FormatoEditorial } from './contratos'
-import { avaliarGates, dataFrescorPesquisa, type ClaimGate, type ConfigGates, type ProblemaGate, type RegistroGrafo } from './gates'
-import { markdownCanonico } from './markdown'
+import { dataFrescorPesquisa } from './frescor'
 import { pesquisaMaisRecente } from './pesquisas'
-import { encontraNoTenant, invalidoGrafo } from './validacao'
 
-export async function avaliaPost(req: PayloadRequest, post: RegistroGrafo, formatos: FormatoEditorial[]): Promise<ProblemaGate[]> {
-  const tenant = idGrafo(post.tenant)
-  if (tenant === undefined) return invalidoGrafo('tenant', 'Tenant obrigatório.')
-  const configTenant = await req.payload.findByID({ collection: 'tenants', id: tenant, req, depth: 0, overrideAccess: true })
-  const config = (configTenant.gates ?? {}) as ConfigGates
-  if (!config.ativo) return []
-  const entidades = Array.isArray(post.entidades) ? post.entidades : []
-  const entidade = idGrafo(entidades[0])
-  const pesquisa = entidade === undefined ? undefined : await pesquisaMaisRecente(req, tenant, entidade, true)
-  const claims: ClaimGate[] = []
-  for (const id of Array.isArray(post.claims) ? post.claims : []) {
-    const claim = await encontraNoTenant(req, 'claims', id, tenant)
-    if (!claim) return invalidoGrafo('claims', 'Claim deve existir no mesmo tenant.')
-    const fonte = await encontraNoTenant(req, 'fontes', claim.fonte, tenant)
-    if (!fonte) return invalidoGrafo('claims', 'Fonte deve existir no mesmo tenant.')
-    claims.push({ id: claim.id, texto: claim.texto, ano_ancora: claim.ano_ancora, status: claim.status, fonte: { url: fonte.url } })
-  }
-  const canonico = { ...post, corpo_md: markdownCanonico(req, post.corpo) }
-  const problemas = avaliarGates({ agora: new Date(), config, post: canonico,
-    pesquisa, claims })
-  const formato = formatos.find(f => f.slug === (post.tipo ?? 'artigo'))
-  if (!formato) problemas.push({ gate: 'formato', severidade: 'P0', path: 'tipo', mensagem: 'Formato não registrado nesta instância.' })
-  else if (formato.validarPublicacao) problemas.push(...formato.validarPublicacao(canonico))
-  return problemas
-}
-
+type RegistroGrafo = Record<string, unknown>
 const recorta = (v: unknown, max = 2000) => typeof v === 'string' ? v.slice(0, max) : null
 const entidadeDTO = (d: RegistroGrafo) => ({ id: d.id, nome: recorta(d.nome, 300), slug: recorta(d.slug, 200),
   tipo: recorta(d.tipo, 100), resumo: recorta(d.resumo), wikidata_qid: recorta(d.wikidata_qid, 100), ymyl: d.ymyl === true })
@@ -51,8 +23,10 @@ export const contextoGrafo: Endpoint = {
     const [relacoes, claims, posts, pesquisa] = await Promise.all([
       req.payload.find({ ...base, collection: 'relacoes' as never, where: { and: [{ tenant: { equals: tenant } },
         { or: [{ de: { equals: entidade.id } }, { para: { equals: entidade.id } }] }] } }),
+      // O agente editorial decide quais claims usar. O CMS entrega os registros
+      // e seus metadados, sem esconder fontes por status ou ano.
       req.payload.find({ ...base, collection: 'claims' as never, where: { and: [{ tenant: { equals: tenant } },
-        { entidade: { equals: entidade.id } }, { status: { equals: 'vigente' } }, { ano_ancora: { greater_than_equal: new Date().getUTCFullYear() - 2 } }] } }),
+        { entidade: { equals: entidade.id } }] } }),
       req.payload.find({ ...base, collection: 'posts', select: { slug: true, titulo: true, tipo: true, resumo: true, publicado_em: true, _status: true },
         where: { and: [{ tenant: { equals: tenant } }, { entidades: { contains: entidade.id } }] } }),
       pesquisaMaisRecente(req, tenant, entidade.id),
@@ -67,7 +41,7 @@ export const contextoGrafo: Endpoint = {
         entrada: relacoes.docs.filter(r => String(idGrafo(r.para)) === String(entidade.id)).map(aresta) },
       claims: claims.docs.flatMap(c => {
         const fonte = porID.get(String(idGrafo(c.fonte)))
-        return fonte ? [{ id: c.id, texto: recorta(c.texto), ano_ancora: c.ano_ancora,
+        return fonte ? [{ id: c.id, texto: recorta(c.texto), ano_ancora: c.ano_ancora, status: c.status,
           fonte: { id: fonte.id, url: recorta(fonte.url), publisher: recorta(fonte.publisher, 300), tier: fonte.tier } }] : []
       }),
       posts: posts.docs.map(p => ({ id: p.id, slug: recorta(p.slug, 200), titulo: recorta(p.titulo, 300),
@@ -80,16 +54,3 @@ export const contextoGrafo: Endpoint = {
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   },
 }
-
-export const endpointGates = (formatos: FormatoEditorial[]): Endpoint => ({
-  path: '/:id/gates', method: 'post', handler: async req => {
-    const tenant = tenantDaConsulta(req)
-    const id = req.routeParams?.id
-    if (typeof id !== 'string' && typeof id !== 'number') throw new APIError('Informe o id do post.', 400)
-    const posts = await req.payload.find({ collection: 'posts', req, overrideAccess: false, depth: 0, limit: 1, draft: true,
-      where: { and: [{ tenant: { equals: tenant } }, { id: { equals: id } }] } })
-    const post = posts.docs[0]
-    if (!post) throw new APIError('Post não encontrado.', 404)
-    return Response.json(await avaliaPost(req, post, formatos), { headers: { 'Cache-Control': 'private, no-store' } })
-  },
-})

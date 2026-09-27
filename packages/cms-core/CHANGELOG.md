@@ -2,6 +2,23 @@
 
 ## Não lançado
 
+## 0.2.0-next.11 — 2026-09-26 (pré-lançamento; publicação pendente)
+
+- O grafo opt-in deixa de julgar conteúdo na publicação: remove G1–G4,
+  `avaliarGates`, callbacks `validarPublicacao` e `POST /posts/:id/gates`.
+  Pesquisa, fontes, revisão, estilo, SEO e decisão editorial ficam no pipeline
+  externo; o agente publicador envia o post final por sua API key, primeiro como
+  draft e depois em atualização explícita para published.
+- O contexto autenticado retorna claims com status e ano, sem descartá-las por
+  idade/status; o agente escolhe quais usar. Isolamento de tenant, contrato de
+  campos/vínculos, versões, auditoria e proteção de chaves permanecem no CMS.
+- `tenants.gates` e `posts.gates` seguem no schema apenas para compatibilidade
+  com bancos existentes, ocultos e inertes; `posts.gates` é limpo em novas
+  escritas. Sem migration destrutiva, ativação automática ou deploy de site.
+- Mudança de API no pré-lançamento: consumidores de `avaliarGates` ou
+  `FormatoEditorial.validarPublicacao` precisam mover essas regras para seu
+  pipeline antes de atualizar o pin.
+
 ## 0.2.0-next.10 — 2026-09-26 (pré-lançamento)
 
 - Opt-in `siteReader: { renderV1: projetor }` entrega DTO editorial privado em

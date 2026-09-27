@@ -1,7 +1,7 @@
 import type { PayloadRequest, Where } from 'payload'
-import { dataFrescorPesquisa, type PesquisaGate } from './gates'
+import { dataFrescorPesquisa, type PesquisaGrafo } from './frescor'
 
-type Pesquisa = PesquisaGate & Record<string, any>
+type Pesquisa = PesquisaGrafo & Record<string, any>
 
 /** Dois candidatos limitados: editorial explícito e compatibilidade legada, sempre no tenant. */
 export async function pesquisaMaisRecente(req: PayloadRequest, tenant: string | number, entidade: string | number, overrideAccess = false): Promise<Pesquisa | undefined> {
@@ -14,7 +14,7 @@ export async function pesquisaMaisRecente(req: PayloadRequest, tenant: string | 
   const a = editorial.docs[0] as Pesquisa | undefined
   const b = legado.docs[0] as Pesquisa | undefined
   if (!a || !b) return a ?? b
-  // Se um adapter devolver data inválida, selecioná-la faz G1 falhar fechado.
+  // Seleção cronológica apenas; o pipeline decide se a pesquisa serve ao conteúdo.
   const dataA = Date.parse(dataFrescorPesquisa(a) ?? ''), dataB = Date.parse(dataFrescorPesquisa(b) ?? '')
   if (!Number.isFinite(dataA)) return a
   if (!Number.isFinite(dataB)) return b
