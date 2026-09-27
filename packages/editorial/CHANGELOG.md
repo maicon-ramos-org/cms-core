@@ -1,5 +1,12 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.5 — 2026-09-27 (pré-lançamento)
+
+- A busca do cabeçalho do tema padrão declara uma ferramenta WebMCP e descreve o
+  parâmetro `q`; a busca da página de resultados também descreve seu parâmetro.
+  O formulário de contato já possui anotações completas. São apenas atributos
+  HTML adicionais, sem JavaScript ou alterações nas rotas.
+
 ## 0.2.0-next.4 — 2026-09-27 (pré-lançamento)
 
 - `cmsFetch` usa `CMS_SERVICE` no runtime Workers; Node/local mantém HTTP.
