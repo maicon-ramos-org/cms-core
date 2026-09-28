@@ -40,6 +40,8 @@ const ROTAS = [
   ['/api/revalidate', './rotas/api/revalidate.ts'],
   ['/api/uso-agente', './rotas/api/uso-agente.ts'],
   ['/llms.txt', './rotas/llms.txt.ts'],
+  ['/.well-known/ard.json', './rotas/.well-known/ard.json.ts'],
+  ['/.well-known/ai-catalog.json', './rotas/.well-known/ai-catalog.json.ts'],
   ['/busca', './rotas/busca.astro'],
   ['/search-index.json', './rotas/search-index.json.ts'],
   ['/.well-known/mcp.json', './rotas/.well-known/mcp.json.ts'],

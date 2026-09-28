@@ -143,11 +143,11 @@ export const onRequest = defineMiddleware((context, next) => semContextoLeituraC
     return varia(await next(), metodo)
   }
 
-  // O llms.txt de um host conhecido é um índice estável. Resolver o tenant no CMS aqui
-  // ainda podia estourar o prazo curto do Lighthouse mesmo sem leituras de catálogo.
+  // Descoberta de host conhecido é estável: llms e ARD não consultam o CMS
+  // nem para resolver o tenant na primeira visita.
   const perfisLlms = config.llms?.tenantsPorHost
   if (
-    context.url.pathname === '/llms.txt' &&
+    ['/llms.txt', '/.well-known/ard.json', '/.well-known/ai-catalog.json'].includes(context.url.pathname) &&
     perfisLlms &&
     Object.hasOwn(perfisLlms, context.url.hostname.toLowerCase())
   ) {

@@ -8,6 +8,7 @@
  */
 import type { APIRoute } from 'astro'
 import config from 'virtual:editorial/config'
+import { textoLlmsPublico } from '../lib/descoberta'
 
 const COMO_LER_PADRAO = [
   'Toda página tem gêmeo em Markdown: acrescente `.md` à URL.',
@@ -21,30 +22,23 @@ export const GET: APIRoute = (context) => {
   const perfil = perfis && Object.hasOwn(perfis, host) ? perfis[host] : undefined
   const slug = perfil?.slug ?? context.locals.tenant.slug
   const nome = perfil?.nome ?? context.locals.tenant.nome
-  const base = `https://${perfil?.canonicalHost ?? context.locals.tenant.canonical_host}`
+  const canonicalHost = perfil?.canonicalHost ?? context.locals.tenant.canonical_host
   const indices = [...(config.llms?.indices ?? []), ...(config.llms?.indicesPorTenant?.[slug] ?? [])]
 
   if (context.cache.enabled) {
     context.cache.set({ maxAge: 3600, swr: 600, tags: [`tenant:${slug}`, 'llms'] })
   }
 
-  const intro = config.llms?.intro ?? []
-  const linhas = [
-    `# ${nome}`,
-    '',
-    ...(intro.length ? [...intro.map((l) => `> ${l}`), ''] : []),
-    '## Como ler este site',
-    '',
-    ...(config.llms?.comoLer ?? COMO_LER_PADRAO).map((l) => `- ${l}`),
-    '',
-    '## Índices',
-    '',
-    `- [Blog](${base}/blog/)`,
-    ...indices.map((i) => `- [${i.titulo}](${base}${i.caminho})${i.descricao ? ` — ${i.descricao}` : ''}`),
-    `- [Busca](${base}/busca/)`,
-    `- [Sitemap](${base}/sitemap_index.xml)`,
-    '',
-  ]
+  const corpo = textoLlmsPublico({ nome, canonicalHost }, {
+    intro: config.llms?.intro,
+    comoLer: config.llms?.comoLer ?? COMO_LER_PADRAO,
+    indices: [
+      { titulo: 'Blog', caminho: '/blog/' },
+      ...indices,
+      { titulo: 'Busca', caminho: '/busca/' },
+      { titulo: 'Sitemap', caminho: '/sitemap_index.xml' },
+    ],
+  })
 
-  return new Response(linhas.join('\n'), { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+  return new Response(corpo, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
 }
