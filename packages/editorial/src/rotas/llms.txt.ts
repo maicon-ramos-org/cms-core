@@ -16,17 +16,21 @@ const COMO_LER_PADRAO = [
 ]
 
 export const GET: APIRoute = (context) => {
-  const tenant = context.locals.tenant
-  const base = `https://${tenant.canonical_host}`
-  const indices = [...(config.llms?.indices ?? []), ...(config.llms?.indicesPorTenant?.[tenant.slug] ?? [])]
+  const perfis = config.llms?.tenantsPorHost
+  const host = context.url.hostname.toLowerCase()
+  const perfil = perfis && Object.hasOwn(perfis, host) ? perfis[host] : undefined
+  const slug = perfil?.slug ?? context.locals.tenant.slug
+  const nome = perfil?.nome ?? context.locals.tenant.nome
+  const base = `https://${perfil?.canonicalHost ?? context.locals.tenant.canonical_host}`
+  const indices = [...(config.llms?.indices ?? []), ...(config.llms?.indicesPorTenant?.[slug] ?? [])]
 
   if (context.cache.enabled) {
-    context.cache.set({ maxAge: 3600, swr: 600, tags: [`tenant:${tenant.slug}`, 'llms'] })
+    context.cache.set({ maxAge: 3600, swr: 600, tags: [`tenant:${slug}`, 'llms'] })
   }
 
   const intro = config.llms?.intro ?? []
   const linhas = [
-    `# ${tenant.nome}`,
+    `# ${nome}`,
     '',
     ...(intro.length ? [...intro.map((l) => `> ${l}`), ''] : []),
     '## Como ler este site',

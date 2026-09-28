@@ -143,6 +143,17 @@ export const onRequest = defineMiddleware((context, next) => semContextoLeituraC
     return varia(await next(), metodo)
   }
 
+  // O llms.txt de um host conhecido é um índice estável. Resolver o tenant no CMS aqui
+  // ainda podia estourar o prazo curto do Lighthouse mesmo sem leituras de catálogo.
+  const perfisLlms = config.llms?.tenantsPorHost
+  if (
+    context.url.pathname === '/llms.txt' &&
+    perfisLlms &&
+    Object.hasOwn(perfisLlms, context.url.hostname.toLowerCase())
+  ) {
+    return varia(await next(), metodo)
+  }
+
   // /feed/ é a URL do WP; internamente a rota é feed.xml
   if (context.url.pathname === '/feed' || context.url.pathname === '/feed/') {
     return varia(await context.rewrite('/feed.xml'), metodo)

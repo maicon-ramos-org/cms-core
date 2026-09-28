@@ -1,5 +1,12 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.7 — 2026-09-28 (pré-lançamento)
+
+- `config.llms.tenantsPorHost` permite declarar a identidade pública de hosts
+  conhecidos. Para esses hosts, `/llms.txt` pula a resolução de tenant no CMS e monta
+  o arquivo só da configuração, sem qualquer consulta ao banco no acesso frio.
+  Hosts não declarados continuam usando a resolução normal e não são inventados.
+
 ## 0.2.0-next.6 — 2026-09-28 (pré-lançamento)
 
 - `llms.txt` não consulta mais posts nem executa extensões de catálogo no acesso frio:
