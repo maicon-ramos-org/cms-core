@@ -92,5 +92,11 @@ export interface ConfigDoEditorial {
     indices?: Array<{ titulo: string; caminho: string; descricao?: string }>
     /** Índices exclusivos de um tenant, por slug. */
     indicesPorTenant?: Record<string, Array<{ titulo: string; caminho: string; descricao?: string }>>
+    /**
+     * Identidade pública de hosts conhecidos. Só `/llms.txt` usa este retrato: dispensa
+     * a busca de tenant no CMS no acesso frio. Sites que não configuram continuam com
+     * a resolução normal. O nome/host devem acompanhar mudanças de identidade no CMS.
+     */
+    tenantsPorHost?: Record<string, { slug: string; nome: string; canonicalHost: string }>
   }
 }

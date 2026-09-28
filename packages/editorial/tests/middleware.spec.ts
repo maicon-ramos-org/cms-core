@@ -24,6 +24,11 @@ vi.mock('virtual:editorial/config', () => ({
     semBarra: ['r'],
     pastasComMd: ['ofertas'],
     semTenant: ['/wp-content/uploads'],
+    llms: {
+      tenantsPorHost: {
+        'estatico.test': { slug: 'principal', nome: 'Site estático', canonicalHost: 'estatico.test' },
+      },
+    },
   },
 }))
 /**
@@ -36,6 +41,7 @@ let falhaCmsHost: string | null = null
 
 vi.mock('../src/lib/cms', () => ({
   getTenantByHost: async (host: string) => {
+    if (host === 'estatico.test') throw new Error('llms.txt estático não pode consultar o CMS')
     if (host === falhaCmsHost) throw new Error('CMS /api/tenants → HTTP 502')
     return host === 'exemplo.test' || host === 'cache-bom.test' ? { id: 1, slug: 'principal' } : null
   },
@@ -145,6 +151,23 @@ describe('charset HTTP do HTML', () => {
       })
       expect(r.headers.get('content-type')).toBe(tipo)
     }
+  })
+})
+
+describe('llms.txt sem resolução de tenant no CMS', () => {
+  it('host configurado vai direto para a rota e ainda recebe Vary: Host', async () => {
+    const { r, next } = await pede('https://estatico.test/llms.txt', {
+      resposta: () => new Response('# Site estático', { headers: { 'content-type': 'text/plain; charset=utf-8' } }),
+    })
+    expect(r.status).toBe(200)
+    expect(next).toHaveBeenCalledOnce()
+    expect(vary(r)).toEqual(['host'])
+  })
+
+  it('host não configurado conserva a resolução e o 404 de hoje', async () => {
+    const { r, next } = await pede('https://desconhecido.test/llms.txt')
+    expect(r.status).toBe(404)
+    expect(next).not.toHaveBeenCalled()
   })
 })
 

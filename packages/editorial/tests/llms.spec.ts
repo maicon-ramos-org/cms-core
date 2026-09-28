@@ -15,6 +15,9 @@ vi.mock('virtual:editorial/config', () => ({
       indicesPorTenant: {
         principal: [{ titulo: 'Apps', caminho: '/apps/', descricao: 'Fichas de apps' }],
       },
+      tenantsPorHost: {
+        'estatico.test': { slug: 'principal', nome: 'Site estático', canonicalHost: 'estatico.test' },
+      },
     },
   },
 }))
@@ -24,6 +27,7 @@ vi.mock('../src/lib/cms', () => ({ listarParaSitemap }))
 const { GET } = await import('../src/rotas/llms.txt')
 
 const contexto = (slug: string, host: string) => ({
+  url: new URL(`https://${host}/llms.txt`),
   locals: { tenant: { id: slug, slug, nome: slug, canonical_host: host } },
   cache: { enabled: false },
 })
@@ -48,5 +52,18 @@ describe('llms.txt sem leituras de catálogo', () => {
     expect(corpo).toContain('[Ofertas](https://outro.exemplo.test/ofertas/)')
     expect(corpo).not.toContain('/apps/')
     expect(corpo).not.toContain('https://exemplo.test/')
+  })
+
+  it('monta o host conhecido só da configuração, sem tenant do CMS', async () => {
+    const resposta = await GET({
+      url: new URL('https://estatico.test/llms.txt'),
+      locals: {},
+      cache: { enabled: false },
+    } as Parameters<typeof GET>[0])
+    const corpo = await resposta.text()
+    expect(corpo).toContain('# Site estático')
+    expect(corpo).toContain('[Blog](https://estatico.test/blog/)')
+    expect(corpo).toContain('[Apps](https://estatico.test/apps/)')
+    expect(listarParaSitemap).not.toHaveBeenCalled()
   })
 })
