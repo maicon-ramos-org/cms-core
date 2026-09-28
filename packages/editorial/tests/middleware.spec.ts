@@ -128,6 +128,26 @@ describe('Vary: Host', () => {
   })
 })
 
+describe('charset HTTP do HTML', () => {
+  it('declara UTF-8 antes do corpo, mesmo se o HTML não tiver meta charset nos primeiros bytes', async () => {
+    const { r } = await pede('https://exemplo.test/contato/', {
+      resposta: () => new Response(`<html data-vars="${'a'.repeat(1100)}"><head><meta charset="utf-8"></head></html>`, {
+        headers: { 'content-type': 'text/html' },
+      }),
+    })
+    expect(r.headers.get('content-type')).toBe('text/html; charset=utf-8')
+  })
+
+  it('preserva charset já declarado e não muda outros tipos', async () => {
+    for (const tipo of ['text/html; charset=iso-8859-1', 'text/markdown', 'application/json']) {
+      const { r } = await pede('https://exemplo.test/blog/', {
+        resposta: () => new Response('x', { headers: { 'content-type': tipo } }),
+      })
+      expect(r.headers.get('content-type')).toBe(tipo)
+    }
+  })
+})
+
 describe('o que não vai para cache fica sem Host', () => {
   it.each(['no-store', 'private, max-age=0', 'no-store, no-cache'])('Cache-Control: %s', async (cc) => {
     const { r } = await pede('https://exemplo.test/blog/', {

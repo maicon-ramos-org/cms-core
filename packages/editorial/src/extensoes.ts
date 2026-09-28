@@ -17,7 +17,7 @@ export interface LinksDoCorpo {
   ehRastreio?: (url: string) => boolean
 }
 
-/** O que uma extensão acrescenta ao `llms.txt`. */
+/** Formato legado de contribuições dinâmicas; a rota pública agora usa índices estáveis. */
 export interface LlmsDaExtensao {
   /** Linhas de lista (`- [Nome](url) — detalhe`) na seção de índices, depois do blog. */
   indices?: string[]
@@ -52,7 +52,7 @@ export interface ExtensaoDoEditorial {
   linksDoCorpo?: (tenant: TenantDTO) => Promise<LinksDoCorpo>
   /** Sub-sitemaps que a extensão acrescenta, por tipo. O tema tem `posts` e `paginas`. */
   sitemaps?: Record<string, GeradorDeSitemap>
-  /** O que a extensão acrescenta ao `llms.txt` do tenant. */
+  /** @deprecated A rota pública não executa mais ganchos dinâmicos; use `config.llms.indices`. */
   llms?: (tenant: TenantDTO, base: string) => Promise<LlmsDaExtensao>
   /** Fontes do índice da busca instantânea, por nome. O tema tem `posts` e `pages`. */
   indiceDeBusca?: Record<string, FonteDoIndice>

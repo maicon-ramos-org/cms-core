@@ -88,6 +88,19 @@ const comVary = (r: Response, nomes: string[]): Response => {
 }
 
 /**
+ * O `meta charset` do layout pode ficar depois do byte 1024 quando Astro injeta atributos
+ * no `<html>`. Declarar UTF-8 no header resolve isso também para uma resposta sem cache.
+ * Outros formatos e um charset já explícito permanecem intactos.
+ */
+const comCharsetHtml = (r: Response): Response => {
+  const tipo = r.headers.get('content-type') ?? ''
+  if (!/^text\/html(?:\s*;|\s*$)/i.test(tipo) || /(?:^|;)\s*charset\s*=/i.test(tipo)) return r
+  const h = new Headers(r.headers)
+  h.set('content-type', `${tipo}; charset=utf-8`)
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
+}
+
+/**
  * `Vary: Host` em toda resposta que pode ir para cache (PRD 24 RF3).
  *
  * Um Worker serve os dois tenants, e a chave do cache da Cloudflare na frente dele é o
@@ -109,10 +122,11 @@ const comVary = (r: Response, nomes: string[]): Response => {
  * da barra final (o destino leva o host) e o 404 de host desconhecido.
  */
 const varia = (r: Response, metodo: string, nomes: string[] = []): Response => {
+  const resposta = comCharsetHtml(r)
   // `Cloudflare-CDN-Cache-Control` vence `CDN-Cache-Control` quando os dois existem (PRD 24)
-  const cdnCacheControl = r.headers.get('cloudflare-cdn-cache-control') ?? r.headers.get('cdn-cache-control')
-  const todos = respostaCacheavel(metodo, r.headers.get('cache-control'), cdnCacheControl) ? [...nomes, 'Host'] : nomes
-  return todos.length > 0 ? comVary(r, todos) : r
+  const cdnCacheControl = resposta.headers.get('cloudflare-cdn-cache-control') ?? resposta.headers.get('cdn-cache-control')
+  const todos = respostaCacheavel(metodo, resposta.headers.get('cache-control'), cdnCacheControl) ? [...nomes, 'Host'] : nomes
+  return todos.length > 0 ? comVary(resposta, todos) : resposta
 }
 
 export const onRequest = defineMiddleware((context, next) => semContextoLeituraCms(async () => {
