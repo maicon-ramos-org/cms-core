@@ -169,6 +169,15 @@ describe('llms.txt sem resolução de tenant no CMS', () => {
     expect(r.status).toBe(404)
     expect(next).not.toHaveBeenCalled()
   })
+
+  it.each(['ard.json', 'ai-catalog.json'])('%s de host conhecido também dispensa o CMS', async arquivo => {
+    const { r, next } = await pede(`https://estatico.test/.well-known/${arquivo}`, {
+      resposta: () => Response.json({ specVersion: '1.0' }),
+    })
+    expect(r.status).toBe(200)
+    expect(next).toHaveBeenCalledOnce()
+    expect(vary(r)).toEqual(['host'])
+  })
 })
 
 describe('o que não vai para cache fica sem Host', () => {

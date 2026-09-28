@@ -20,6 +20,7 @@ import Base from '../componentes/Base.astro'
 import CardPost from '../componentes/CardPost.astro'
 import ChipsCategorias from '../componentes/ChipsCategorias.astro'
 import Compartilhar from '../componentes/Compartilhar.astro'
+import CopiarPagina from '../componentes/CopiarPagina.astro'
 import { linksDoCorpo } from '../extensoes'
 import {
   caminhoCanonico,
@@ -265,19 +266,22 @@ const nosDaPagina = [
   <article>
     <h1>{post?.titulo}</h1>
 
-    <p class="creditos">
-      {autor && <span>Por {autor.nome}</span>}
-      {publicado && (
-        <>
-          {autor && ' · '}
-          <time datetime={publicado.toISOString()}>{dataLegivel(publicado)}</time>
-        </>
-      )}
-      {atualizado && publicado && atualizado.getTime() - publicado.getTime() > 86_400_000 && (
-        <span class="atualizado"> · atualizado em {dataLegivel(atualizado)}</span>
-      )}
-      {minutos > 0 && <span> · {minutos} min de leitura</span>}
-    </p>
+    <div class="linha-creditos">
+      <p class="creditos">
+        {autor && <span>Por {autor.nome}</span>}
+        {publicado && (
+          <>
+            {autor && ' · '}
+            <time datetime={publicado.toISOString()}>{dataLegivel(publicado)}</time>
+          </>
+        )}
+        {atualizado && publicado && atualizado.getTime() - publicado.getTime() > 86_400_000 && (
+          <span class="atualizado"> · atualizado em {dataLegivel(atualizado)}</span>
+        )}
+        {minutos > 0 && <span> · {minutos} min de leitura</span>}
+      </p>
+      <CopiarPagina md={`/${post.slug}.md`} mdCanonico={`https://${tenant.canonical_host}/${post.slug}.md`} />
+    </div>
 
     {capa?.url && (
       <img
@@ -389,7 +393,8 @@ const nosDaPagina = [
 <style>
   .trilha { font-size: 0.85rem; color: var(--rz-muted); margin-bottom: 0.5rem; }
   .trilha a { color: inherit; }
-  .creditos { font-size: 0.9rem; color: var(--rz-muted); margin-top: -0.5rem; }
+  .linha-creditos { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; margin-top: -0.5rem; }
+  .creditos { font-size: 0.9rem; color: var(--rz-muted); margin: 0; }
   .atualizado { color: var(--rz-subtle); }
   /*
    * O artigo fica na MEDIDA de leitura, não na largura do container. Com o container em

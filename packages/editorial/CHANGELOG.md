@@ -1,5 +1,15 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.8 — 2026-09-28 (pré-lançamento)
+
+- Descoberta pública vira gerador puro configurável: `lib/descoberta` produz
+  `llms.txt` e catálogo ARD 1.0 sem consultar CMS. O tema injeta por padrão
+  `/.well-known/ard.json` e o alias `ai-catalog.json`; recursos adicionais são
+  declarados por site/tenant. Hosts conhecidos dispensam a resolução no CMS.
+- Componente `CopiarPagina.astro` reutilizável por qualquer tema Astro, com
+  fallbacks de tokens visuais; o post do tema passa a mostrá-lo nos créditos.
+  Markdown só é buscado no clique. Nenhum banco, schema ou URL comercial muda.
+
 ## 0.2.0-next.7 — 2026-09-28 (pré-lançamento)
 
 - `config.llms.tenantsPorHost` permite declarar a identidade pública de hosts

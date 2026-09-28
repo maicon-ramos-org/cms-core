@@ -4,6 +4,7 @@
  * `virtual:editorial/config`. Tem que ser serializável: vira JSON no build.
  */
 import type { TextosDoEditorial } from './textos'
+import type { RecursoArd } from './lib/descoberta'
 
 export interface ConfigDoEditorial {
   /** O tenant de localhost e do sufixo nu. A variável `DEFAULT_TENANT` ganha deste valor. */
@@ -98,5 +99,10 @@ export interface ConfigDoEditorial {
      * a resolução normal. O nome/host devem acompanhar mudanças de identidade no CMS.
      */
     tenantsPorHost?: Record<string, { slug: string; nome: string; canonicalHost: string }>
+  }
+  /** ARD 1.0: o guia llms.txt entra por padrão; cada site adiciona só recursos reais. */
+  ard?: {
+    recursos?: RecursoArd[]
+    recursosPorTenant?: Record<string, RecursoArd[]>
   }
 }
