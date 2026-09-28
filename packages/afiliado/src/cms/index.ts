@@ -11,6 +11,7 @@ export { registrarProgramasOferta, type ProgramaOferta, type RegistroProgramasOf
 export { registrarCategorias, REGISTRO_CATEGORIAS_PADRAO, type CategoriaCatalogo, type CategoriaRegistrada, type RegistroCategorias, type ProblemaCategoria } from './catalogo/categorias'
 export * from './catalogo/regras'
 export { lockListing, observaListing } from './catalogo/hooks'
+export { normalizaURLImagemOficialAmazon, PROVENIENCIAS_IMAGEM_OFICIAL, type ImagemOficialDTO, type ProvenienciaImagemOficial } from '../imagem-oficial'
 export {
   agendaDoSnapshot,
   diaDeHoje,

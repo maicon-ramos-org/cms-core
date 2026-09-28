@@ -11,7 +11,8 @@
  * PA-API aqui, o número veio de leitura manual, e número sem carimbo é afirmação de
  * frescor que não se sustenta. Sem `preco_em`, o cartão não mostra preço nenhum.
  */
-import { caminhoCanonico, urlMidia, type LojaDTO, type MidiaDTO, type ProdutoDTO } from '../lib/cms'
+import { caminhoCanonico, urlMidia, type LojaDTO, type ProdutoDTO } from '../lib/cms'
+import { imagemRenderizavel } from '../lib/imagem-oficial'
 
 interface Props {
   produto: ProdutoDTO
@@ -24,12 +25,7 @@ const { produto, prioritario = false } = Astro.props
 const nomeLoja =
   produto.loja && typeof produto.loja === 'object' ? (produto.loja as LojaDTO).nome : null
 
-const img: MidiaDTO | null = produto.imagem && typeof produto.imagem === 'object' ? produto.imagem : null
-/* o derivado de 640px, não o original: o cartão renderiza em ~300px (ver CardOferta) */
-const cartao = img?.sizes?.cartao
-const src = urlMidia(cartao?.url ?? img?.url)
-const largura = cartao?.width ?? img?.width ?? 1280
-const altura = cartao?.height ?? img?.height ?? 720
+const imagem = imagemRenderizavel(produto, produto.titulo, urlMidia, { cartao: true })
 
 const observadoEmBruto = produto.preco_em ? new Date(produto.preco_em) : null
 const observadoEm =
@@ -48,14 +44,14 @@ const quando = observadoEm
 
 <a class="cartao" href={`/p/${caminhoCanonico(produto.slug)}/`}>
   {
-    src && (
+    imagem && (
       <img
         class="capa"
-        src={src}
-        alt={img?.alt ?? ''}
-        width={largura}
-        height={altura}
-        loading={prioritario ? 'eager' : 'lazy'}
+        src={imagem.src}
+        alt={imagem.alt}
+        width={imagem.width}
+        height={imagem.height}
+        loading={imagem.remota ? 'lazy' : prioritario ? 'eager' : 'lazy'}
         decoding="async"
       />
     )

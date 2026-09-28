@@ -5,6 +5,7 @@ import { chaveDeOrigem } from '@maicon-ramos-org/cms-core'
 import { revalidateAfterChange, revalidateAfterDelete } from '@maicon-ramos-org/cms-core'
 import { draftOnlyIngestao, efetivo, uniquePorTenant, validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { tagsDaLoja } from '../hooks/tags-loja'
+import { camposImagemOficialAmazon, validaImagemOficialAmazon } from '../../imagem-oficial'
 
 /** "preco + preco_em ✔ juntos — NUNCA preço sem timestamp" (contrato). */
 const precoComTimestamp: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
@@ -23,7 +24,7 @@ const precoComTimestamp: CollectionBeforeValidateHook = ({ data, originalDoc }) 
 const gateIndexavel: CollectionBeforeValidateHook = ({ data, originalDoc }) => {
   const estado = efetivo(data, originalDoc, 'estado')
   if (estado !== 'indexavel') return data
-  const imagem = efetivo(data, originalDoc, 'imagem')
+  const imagem = efetivo(data, originalDoc, 'imagem') || efetivo(data, originalDoc, 'imagem_oficial_url')
   const gate = { ...(originalDoc?.gate_antithin ?? {}), ...(data?.gate_antithin ?? {}) } as Record<string, boolean>
   const faltas: string[] = []
   if (!imagem) faltas.push('imagem')
@@ -64,7 +65,7 @@ export const Produtos: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), precoComTimestamp, gateIndexavel],
+    beforeValidate: [uniquePorTenant('slug'), uniquePorTenant('origem'), validaImagemOficialAmazon, precoComTimestamp, gateIndexavel],
     beforeChange: [draftOnlyIngestao, derivaIndexavel],
     afterChange: [revalidateAfterChange('produtos', { tagsExtras: tagsDaLoja })],
     afterDelete: [revalidateAfterDelete('produtos', { tagsExtras: tagsDaLoja })],
@@ -74,6 +75,7 @@ export const Produtos: CollectionConfig = {
     { name: 'slug', type: 'text', required: true, index: true, validate: validaSlugKebab, admin: { description: 'página /p/{slug}' } },
     { name: 'loja', type: 'relationship', relationTo: 'lojas', required: true, index: true },
     { name: 'imagem', type: 'upload', relationTo: 'midia', admin: { description: 'obrigatória p/ estado indexavel' } },
+    ...camposImagemOficialAmazon,
     { name: 'preco', type: 'number', min: 0 },
     { name: 'preco_em', type: 'date' },
     { name: 'cupom', type: 'relationship', relationTo: 'cupons' },

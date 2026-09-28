@@ -23,6 +23,7 @@ import CupomCard from '../../componentes/CupomCard.astro'
 import FichaProduto from '../../componentes/FichaProduto.astro'
 import Base from '@maicon-ramos-org/editorial/componentes/Base.astro'
 import { getCatalogoProduto, schemaProduto } from '../../lib/catalogo'
+import { imagemRenderizavel } from '../../lib/imagem-oficial'
 import {
   caminhoCanonico,
   getProdutoBySlug,
@@ -131,16 +132,9 @@ const rotuloCta = temPreco
 /** Divulgação exigida pelo programa de associados — ligada pelo `programa` da loja. */
 const associadoAmazon = loja?.programa === 'amazon'
 
-const img = produto?.imagem && typeof produto.imagem === 'object' ? produto.imagem : null
+const imagem = produto ? imagemRenderizavel(produto, produto.titulo, urlMidia) : null
 /* absoluta: o buscador precisa BUSCAR essa imagem, e caminho relativo no schema não serve */
-const imagemUrl = img?.url ? urlMidia(img.url) : undefined
-const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
-const heroSrcset = [
-  img?.sizes?.cartao?.url ? `${urlMidia(img.sizes.cartao.url)} 640w` : null,
-  img?.url ? `${urlMidia(img.url)} ${img.width ?? 1280}w` : null,
-]
-  .filter(Boolean)
-  .join(', ')
+const imagemUrl = imagem?.src
 
 /** Alternativas da mesma loja: a página não é beco sem saída, e o gate anti-thin pede. */
 const alternativas = produto && loja ? await getProdutosDaLoja(tenant.id, loja.id, produto.id) : []
@@ -232,16 +226,17 @@ const nosDaPagina = produto
 
       <div class="produto">
         <div class="topo">
-          {heroSrc && (
+          {imagem && (
             <img
               class="hero"
-              src={heroSrc}
-              srcset={heroSrcset}
+              src={imagem.src}
+              srcset={imagem.srcset}
               sizes="(min-width: 62rem) 30rem, 100vw"
-              alt={img?.alt ?? produto!.titulo}
-              width={img?.width ?? 1280}
-              height={img?.height ?? 1280}
-              fetchpriority="high"
+              alt={imagem.alt}
+              width={imagem.width}
+              height={imagem.height}
+              loading={imagem.remota ? 'lazy' : undefined}
+              fetchpriority={imagem.remota ? undefined : 'high'}
               decoding="async"
             />
           )}

@@ -14,6 +14,13 @@
 
 ## Não lançado
 
+- Produtos legados, produtos físicos e variantes aceitam URL remota oficial da
+  Amazon com proveniência obrigatória. A URL é limitada ao host HTTPS exato
+  `m.media-amazon.com`, caminho `/images/I/` e extensão de imagem comum; query e
+  fragmento são removidos. Cards e fichas usam dimensões explícitas, carregamento
+  lazy e fallback para o upload existente. O núcleo não raspa, baixa, transforma,
+  faz proxy ou re-hospeda imagens.
+
 ## 0.2.0-next.15 — 2026-09-27 (pré-lançamento)
 
 - `catalogoEditorial()` é extensão opt-in da coleção única

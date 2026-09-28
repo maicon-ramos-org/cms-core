@@ -4,6 +4,7 @@ import { authenticated, nunca, podeEscreverConteudo } from '@maicon-ramos-org/cm
 import { validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { appendOnly, criaValidaProduto, criaValidaVariante, criaValidaVinculo, depoisListing, historicoInterno, observaListing, semDelete, validaElegibilidade, validaProduto, validaRedirect, validaRelacoes, validaVariante, validaVinculo } from '../catalogo/hooks'
 import { REGISTRO_CATEGORIAS_PADRAO, type RegistroCategorias } from '../catalogo/categorias'
+import { camposImagemOficialAmazon, validaImagemOficialAmazon } from '../../imagem-oficial'
 
 const text = (name: string, required = false): Field => ({ name, type: 'text', required })
 const number = (name: string, required = false): Field => ({ name, type: 'number', min: 0, required })
@@ -26,19 +27,19 @@ export const ProdutosFisicos: CollectionConfig = {
   ...base('produtos_fisicos', [text('nome', true),
     { name: 'slug', type: 'text', required: true, validate: validaSlugKebab }, text('marca', true), text('modelo', true),
     select('categoria', REGISTRO_CATEGORIAS_PADRAO.map(c => c.slug)),
-    { name: 'descricao', type: 'textarea' }, rel('imagem', 'midia', false), text('gtin'), text('mpn'),
+    { name: 'descricao', type: 'textarea' }, rel('imagem', 'midia', false), ...camposImagemOficialAmazon, text('gtin'), text('mpn'),
     { name: 'especificacoes', type: 'json' }, select('estado', ['draft', 'review', 'published'], 'draft')]),
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto] },
+  hooks: { beforeDelete: [semDelete], beforeValidate: [validaImagemOficialAmazon], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto] },
 }
 export const VariantesProduto: CollectionConfig = {
   ...base('variantes_produto', [rel('produto', 'produtos_fisicos'), text('nome', true), text('sku_fabricante'), text('gtin'),
     text('material'), text('cor'), number('peso_g'), number('diametro_mm'), text('acabamento'),
-    { name: 'especificacoes', type: 'json' }, rel('imagem', 'midia', false),
+    { name: 'especificacoes', type: 'json' }, rel('imagem', 'midia', false), ...camposImagemOficialAmazon,
     select('estado', ['incerta', 'confirmada'], 'incerta'),
     { name: 'chave_normalizada', type: 'text', admin: { readOnly: true } }]),
   indexes: [{ fields: ['tenant', 'produto', 'chave_normalizada'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ produto: 'produtos_fisicos', imagem: 'midia' }), validaVariante] },
+  hooks: { beforeDelete: [semDelete], beforeValidate: [validaImagemOficialAmazon], beforeChange: [validaRelacoes({ produto: 'produtos_fisicos', imagem: 'midia' }), validaVariante] },
 }
 export const OfertasProduto: CollectionConfig = {
   ...base('ofertas_produto', [rel('variante', 'variantes_produto'), rel('loja', 'lojas'), text('seller_normalizado'), text('external_listing_id'),

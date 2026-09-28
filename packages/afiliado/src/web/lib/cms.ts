@@ -8,6 +8,7 @@
 import config from 'virtual:afiliado/config'
 
 import { type FindResult, type MidiaDTO, type TenantDTO, caminhoCanonico, cmsFetch } from '@maicon-ramos-org/editorial/lib/cms'
+import type { ImagemOficialDTO } from '../../imagem-oficial'
 
 export * from '@maicon-ramos-org/editorial/lib/cms'
 
@@ -66,7 +67,7 @@ export interface CupomDTO {
   loja?: LojaDTO | string | number
 }
 
-export interface ProdutoDTO {
+export interface ProdutoDTO extends ImagemOficialDTO {
   id: string | number
   titulo: string
   slug: string
@@ -638,7 +639,7 @@ export async function getProdutosParaVitrine(
     depth: '1',
     sort: '-updatedAt',
   })
-  for (const campo of ['titulo', 'slug', 'preco', 'preco_em', 'loja', 'imagem', 'estado']) {
+  for (const campo of ['titulo', 'slug', 'preco', 'preco_em', 'loja', 'imagem', 'imagem_oficial_url', 'imagem_oficial_proveniencia', 'estado']) {
     q.set(`select[${campo}]`, 'true')
   }
   try {

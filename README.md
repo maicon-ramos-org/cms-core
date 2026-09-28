@@ -31,6 +31,9 @@ O [contrato dos formatos públicos](docs/contratos/formatos-publicos.md) define
 HTML canônico, Markdown e JSON allowlist para conteúdo publicado. A
 [revalidação pós-commit](docs/contratos/revalidacao-pos-commit.md) evita purgar
 o cache antes de o dado novo ficar visível no PostgreSQL.
+O [contrato de imagem oficial da Amazon](docs/contratos/imagem-oficial-amazon.md)
+define a allowlist estrita, a proveniência e o fallback local de produtos, sem
+scraping, proxy, transformação, download ou rehost no núcleo.
 Consuma as versões exatas somente após o workflow de publicação e a disponibilidade
 no registry serem confirmados; merge/CI, isoladamente, não publicam um pacote.
 
