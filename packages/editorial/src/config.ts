@@ -82,11 +82,15 @@ export interface ConfigDoEditorial {
     /** Regras que valem para toda superfície (ex.: de onde vem um preço). */
     garantias?: Record<string, string>
   }
-  /** As frases fixas do `llms.txt`; as contagens e listas vêm do banco e das extensões. */
+  /** Frases e índices estáveis do `llms.txt`; a rota não consulta o catálogo. */
   llms?: {
     /** Parágrafo de apresentação, uma linha por item (sai como citação). */
     intro?: string[]
     /** Os itens de "Como ler este site". */
     comoLer?: string[]
+    /** Índices públicos comuns a todos os tenants; caminho local iniciado em `/`. */
+    indices?: Array<{ titulo: string; caminho: string; descricao?: string }>
+    /** Índices exclusivos de um tenant, por slug. */
+    indicesPorTenant?: Record<string, Array<{ titulo: string; caminho: string; descricao?: string }>>
   }
 }

@@ -6,7 +6,7 @@
  *   afiliado cru no HTML é proibido — ele sai como `/r/{id}`, pelo mapa do catálogo do
  *   tenant. O link de rastreio sem destino no mapa vira texto.
  * - `sitemaps`: os sub-sitemaps de ofertas, lojas e catálogo.
- * - `llms`: a contagem de ofertas e as lojas com catálogo no `llms.txt`.
+ * - `llms`: gancho legado; o tema não o executa mais no `llms.txt` público.
  * - `indiceDeBusca` e `busca`: ofertas e lojas na busca instantânea e na página `/busca/`.
  */
 import type {

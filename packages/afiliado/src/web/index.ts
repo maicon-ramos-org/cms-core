@@ -5,7 +5,7 @@
  * depende: o layout, o middleware e as ferramentas WebMCP são do tema).
  *
  * O que o plugin acrescenta às rotas DO TEMA (links do corpo, mapa do site, busca,
- * `llms.txt`) entra por `@maicon-ramos-org/afiliado/web/extensao`, listado em
+ * índices de busca) entra por `@maicon-ramos-org/afiliado/web/extensao`, listado em
  * `editorial({ extensoes })`.
  */
 import { fileURLToPath } from 'node:url'

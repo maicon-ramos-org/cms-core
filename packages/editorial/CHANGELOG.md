@@ -1,5 +1,15 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.6 — 2026-09-28 (pré-lançamento)
+
+- `llms.txt` não consulta mais posts nem executa extensões de catálogo no acesso frio:
+  publica índices estáveis do tenant com `config.llms.indices` e
+  `indicesPorTenant`, além de blog, busca e sitemap. As contagens e lojas individuais
+  continuam descobertas pelo sitemap e páginas públicas, sem atrasar o manifesto.
+- O middleware declara `charset=utf-8` no `Content-Type` de toda resposta HTML que
+  ainda não tenha charset explícito. Markdown, JSON, redirects e tipos não-HTML
+  permanecem intactos.
+
 ## 0.2.0-next.5 — 2026-09-27 (pré-lançamento)
 
 - A busca do cabeçalho do tema padrão declara uma ferramenta WebMCP e descreve o
