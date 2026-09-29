@@ -1,5 +1,14 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.18 — 2026-09-29 (pré-lançamento)
+
+- Fichas de produtos físicos publicados podem ser servidas por snapshot R2,
+  mantendo expiração curta e invalidação explícita. CTAs, Schema.org, JSON e
+  Markdown de produtos Amazon usam o link especial final, validado e etiquetado,
+  sem redirecionamento intermediário. URLs antigas `/r/f{id}` exibem uma página
+  de transição com clique explícito; não fazem 302 automático.
+- Alinha `editorial@0.2.0-next.9` para compartilhar o cache de páginas.
+
 ## 0.2.0-next.17 — 2026-09-27 (pré-lançamento)
 
 - Os redirects físico (`/r/{id}`) e editorial agora respondem a `Purpose`,

@@ -1,6 +1,6 @@
 /** Fichas comerciais públicas derivadas do dado editorial; nunca devolvem o documento Payload. */
 import type { LojaDTO, OfertaDTO, ProdutoDTO } from './cms'
-import type { ProdutoFisico, Listing } from './catalogo'
+import { destinoAmazon, type ProdutoFisico, type Listing } from './catalogo'
 
 type Tenant = { canonical_host: string }
 const id = (value: string | number) => String(value)
@@ -64,7 +64,9 @@ export function produtoFisicoPublicoJson(tenant: Tenant, produto: ProdutoFisico,
     url: url(tenant, `/p/${encodeURIComponent(produto.slug)}/`), slug: produto.slug,
     contentType: 'physical-product', title: produto.nome, summary: text(produto.descricao),
     brand: text(produto.marca), model: text(produto.modelo), indexable: false,
-    price: null, offers: ofertas.map(offer => ({ href: `/r/f${id(offer.id)}?ref=json`,
-      observedAt: date(offer.observado_em) })),
+    price: null, offers: ofertas.flatMap(offer => {
+      const href = destinoAmazon(offer)
+      return href ? [{ href, observedAt: date(offer.observado_em) }] : []
+    }),
   }
 }
