@@ -102,19 +102,42 @@ function publicRenderFallback(response: Response, host: string): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-export async function readPageSnapshot(bucket: PageSnapshotBucket, address: SnapshotAddress,
-  maxAgeMs: number): Promise<Response | null> {
+type SnapshotRead = { response: Response; generation: string; stale: boolean };
+
+async function inspectPageSnapshot(bucket: PageSnapshotBucket, address: SnapshotAddress,
+  maxAgeMs: number): Promise<SnapshotRead | null> {
   if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) return null;
   const [generation, object] = await Promise.all([
     currentSnapshotGeneration(bucket, address), bucket.get(snapshotKey(address)),
   ]);
   const metadata = object?.customMetadata;
   const storedAt = Number(metadata?.storedAt);
+  const now = Date.now();
   if (!generation || !object || metadata?.generation !== generation ||
       metadata.host !== address.host || metadata.pathname !== address.pathname ||
-      !Number.isFinite(storedAt) || storedAt > Date.now() || Date.now() - storedAt > maxAgeMs)
+      !Number.isFinite(storedAt) || storedAt > now)
     return null;
-  return new Response(object.body, { status: 200, headers: snapshotHeaders(metadata, address.host) });
+  const stale = now - storedAt > maxAgeMs;
+  const headers = snapshotHeaders(metadata, address.host);
+  if (stale) {
+    // Keep the first visit fast while the CMS refreshes the copy in waitUntil.
+    // A short edge lifetime lets the refreshed object replace it within seconds.
+    headers.set('Cloudflare-CDN-Cache-Control', 'public, max-age=30');
+    headers.set('X-Page-Stale', '1');
+  }
+  return { response: new Response(object.body, { status: 200, headers }), generation, stale };
+}
+
+/** A hard-freshness read for callers that must not consume an expired copy. */
+export async function readPageSnapshot(bucket: PageSnapshotBucket, address: SnapshotAddress,
+  maxAgeMs: number): Promise<Response | null> {
+  const snapshot = await inspectPageSnapshot(bucket, address, maxAgeMs);
+  if (!snapshot) return null;
+  if (snapshot.stale) {
+    await snapshot.response.body?.cancel();
+    return null;
+  }
+  return snapshot.response;
 }
 
 export type SnapshotWriteResult = 'stored' | 'removed' | 'skipped';
@@ -160,8 +183,19 @@ export async function serveOrRenderPage(bucket: PageSnapshotBucket | undefined,
   if (!bucket) return renderFresh();
   let generation: string;
   try {
-    const cached = await readPageSnapshot(bucket, address, maxAgeMs);
-    if (cached) return cached;
+    const cached = await inspectPageSnapshot(bucket, address, maxAgeMs);
+    if (cached) {
+      if (cached.stale) {
+        waitUntil((async () => {
+          try {
+            const fresh = await renderFresh();
+            if (fresh.status === 200 || fresh.status === 404 || fresh.status === 410)
+              await writePageSnapshot(bucket, address, cached.generation, fresh);
+          } catch { /* Keep serving the last valid public snapshot during CMS failures. */ }
+        })());
+      }
+      return cached.response;
+    }
     generation = await currentSnapshotGeneration(bucket, address) ??
       await advanceSnapshotGeneration(bucket, address);
   } catch {

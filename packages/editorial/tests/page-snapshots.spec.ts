@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { advanceSnapshotGeneration, publicSnapshotAddress, readPageSnapshot, serveOrRenderPage,
   snapshotAddress, snapshotKey, writePageSnapshot, type PageSnapshotBucket } from '../src/lib/page-snapshots';
 
@@ -107,6 +107,51 @@ describe('public HTML snapshots', () => {
     await advanceSnapshotGeneration(store, address);
     expect((await load()).headers.get('x-page-origin')).toBeNull();
     expect(renders).toBe(2);
+  });
+
+  it('serves an expired copy immediately and refreshes it in the background', async () => {
+    const store = bucket();
+    const address = snapshotAddress('exemplo.test', '/oferta/teste/')!;
+    const generation = await advanceSnapshotGeneration(store, address);
+    await writePageSnapshot(store, address, generation,
+      html(`<html><body>${'old content '.repeat(20)}</body></html>`));
+    const tasks: Promise<unknown>[] = [];
+    let renders = 0;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_001);
+    try {
+      expect(await readPageSnapshot(store, address, 60_000)).toBeNull();
+      const stale = await serveOrRenderPage(store, address, 60_000,
+        async () => { renders++; return html(`<html><body>${'new content '.repeat(20)}</body></html>`); },
+        task => { tasks.push(task); });
+      expect(stale.headers.get('x-page-origin')).toBe('r2');
+      expect(stale.headers.get('x-page-stale')).toBe('1');
+      expect(stale.headers.get('cloudflare-cdn-cache-control')).toBe('public, max-age=30');
+      expect(await stale.text()).toContain('old content');
+      await Promise.all(tasks);
+      expect(renders).toBe(1);
+      const refreshed = await readPageSnapshot(store, address, 60_000);
+      expect(refreshed?.headers.get('x-page-stale')).toBeNull();
+      expect(await refreshed?.text()).toContain('new content');
+    } finally { clock.mockRestore(); }
+  });
+
+  it('keeps an expired public copy available when background rendering fails', async () => {
+    const store = bucket();
+    const address = snapshotAddress('exemplo.test', '/post/')!;
+    await writePageSnapshot(store, address, await advanceSnapshotGeneration(store, address), html());
+    const tasks: Promise<unknown>[] = [];
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_001);
+    try {
+      const stale = await serveOrRenderPage(store, address, 60_000,
+        async () => { throw new Error('CMS offline'); }, task => { tasks.push(task); });
+      expect(stale.status).toBe(200);
+      expect(stale.headers.get('x-page-stale')).toBe('1');
+      await Promise.all(tasks);
+      expect((await serveOrRenderPage(store, address, 60_000,
+        async () => { throw new Error('CMS offline'); }, task => { tasks.push(task); }))
+        .headers.get('x-page-origin')).toBe('r2');
+      await Promise.all(tasks);
+    } finally { clock.mockRestore(); }
   });
 
   it('uses Astro when R2 is unavailable', async () => {
