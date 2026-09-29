@@ -17,6 +17,18 @@
   `atendeCapacidades`.
 - Nova entrada `@maicon-ramos-org/afiliado/conteudo` (pura): validadores, `planoDeConteudo`,
   DTO público, Markdown, JSON-LD e JSON Schema. Rotas do plugin **não** mudam.
+- **JSON Schema alinhado ao validador** (`JSON_SCHEMA_CONTEUDO_V1`): texto não só em branco
+  (`pattern`), preço fora dos textos (`not.pattern`, mesma fonte do validador —
+  `PADRAO_PRECO`), FAQ sem itens idênticos. O que JSON Schema não expressa (FAQ repetida
+  após normalização NFKC/trim/minúsculas, workflow editorial, etc.) sai em
+  `capabilities.content.rulesOutsideJsonSchema` / `REGRAS_FORA_DO_JSON_SCHEMA`. Testes de
+  paridade Ajv × `validarConteudo`.
+- **`hashDeFatos` só aceita JSON real** (null, boolean, número finito, string, arrays e
+  objetos planos); recusa `undefined`, `Date`/`Map`/`Set`/classes, função, `NaN`/`Infinity`,
+  ciclos etc. com `PacoteFactualInvalidoError` (sem valores na mensagem) — antes, `undefined`
+  era descartado e podia colidir hashes. Quem enviava `undefined` deve remover a chave.
+- Migration de conteúdo editorial testada em schema antigo populado (`up` preserva legado);
+  `down` é **destrutivo** (apaga o conteúdo editorial novo) e não é rollback sem perda.
 - `afiliado({ catalogo: { incluirCategoriasPadrao: false } })`: instância só com as próprias
   categorias (default `true`, sem efeito para quem já consome).
 - Correção de isolamento: as coleções do catálogo físico recusam escrita quando o `tenant`

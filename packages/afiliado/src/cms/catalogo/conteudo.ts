@@ -104,21 +104,59 @@ export const validaConteudoEditorial: CollectionBeforeChangeHook = ({ data, orig
   return data
 }
 
-/** JSON canônico (chaves ordenadas, sem undefined): a mesma entrada dá sempre o mesmo hash. */
-function canonico(valor: unknown): string {
+/** Pacote factual que não é JSON puro; a mensagem nunca carrega valores (fatos podem ter dado sensível). */
+export class PacoteFactualInvalidoError extends Error {
+  constructor(readonly caminho: string, readonly motivo: string) {
+    super(`Pacote factual inválido em ${caminho}: ${motivo}.`)
+    this.name = 'PacoteFactualInvalidoError'
+  }
+}
+const PROFUNDIDADE_MAXIMA = 100
+/** Só nomes de campo simples entram no caminho; qualquer outra chave vira `[chave]`. */
+const segmento = (chave: string) => (/^[\w.-]{1,40}$/.test(chave) ? chave : '[chave]')
+
+/**
+ * JSON canônico (chaves ordenadas): a mesma entrada dá sempre o mesmo hash. Aceita SÓ valores JSON
+ * reais — null, boolean, número finito, string, arrays e objetos planos (protótipo `Object.prototype`
+ * ou `null`). Nada é descartado nem convertido em silêncio (undefined, Date, Map, Set, instância de
+ * classe, função, símbolo, bigint, NaN/Infinity, buraco em array, chave símbolo, getter, ciclo):
+ * conversão silenciosa faria fatos diferentes colidirem na mesma hash.
+ */
+function canonico(valor: unknown, caminho = '$', ancestrais: object[] = []): string {
+  const recusa = (motivo: string): never => { throw new PacoteFactualInvalidoError(caminho, motivo) }
   if (valor === null || typeof valor === 'string' || typeof valor === 'boolean') return JSON.stringify(valor)
-  if (typeof valor === 'number') {
-    if (!Number.isFinite(valor)) throw new Error('Pacote factual só aceita números finitos.')
-    return JSON.stringify(valor)
+  if (typeof valor === 'number') return Number.isFinite(valor) ? JSON.stringify(valor) : recusa('número não finito')
+  if (typeof valor !== 'object') return recusa(`tipo ${typeof valor} não é JSON`)
+  if (ancestrais.includes(valor)) return recusa('referência circular')
+  if (ancestrais.length >= PROFUNDIDADE_MAXIMA) return recusa('aninhamento profundo demais')
+  const proximos = [...ancestrais, valor]
+  if (Array.isArray(valor)) {
+    if (Object.getPrototypeOf(valor) !== Array.prototype) return recusa('array não plano')
+    const chaves = Reflect.ownKeys(valor)
+    if (chaves.length !== valor.length + 1) return recusa('array com buraco ou propriedade extra')
+    return `[${Array.from({ length: valor.length }, (_, i) => canonico(valor[i], `${caminho}[${i}]`, proximos)).join(',')}]`
   }
-  if (Array.isArray(valor)) return `[${valor.map(v => canonico(v === undefined ? null : v)).join(',')}]`
-  if (valor && typeof valor === 'object') {
-    return `{${Object.keys(valor).sort().filter(k => (valor as Doc)[k] !== undefined).map(k => `${JSON.stringify(k)}:${canonico((valor as Doc)[k])}`).join(',')}}`
-  }
-  throw new Error('Pacote factual só aceita JSON.')
+  const proto = Object.getPrototypeOf(valor)
+  if (proto !== Object.prototype && proto !== null) return recusa('objeto não plano (Date, Map, Set ou instância de classe)')
+  if (Object.getOwnPropertySymbols(valor).length) return recusa('chave símbolo')
+  const chaves = Object.getOwnPropertyNames(valor).sort()
+  const partes = chaves.map(chave => {
+    const filho = `${caminho}.${segmento(chave)}`
+    const d = Object.getOwnPropertyDescriptor(valor, chave)!
+    if (!('value' in d) || !d.enumerable) return recusa(`propriedade ${segmento(chave)} não é um dado enumerável`)
+    return `${JSON.stringify(chave)}:${canonico(d.value, filho, proximos)}`
+  })
+  return `{${partes.join(',')}}`
 }
 /** `facts_hash` de um pacote factual (sem preço, estoque ou link): base da idempotência da geração. */
-export const hashDeFatos = (pacote: unknown): string => createHash('sha256').update(canonico(pacote)).digest('hex')
+export const hashDeFatos = (pacote: unknown): string => {
+  let json: string
+  try { json = canonico(pacote) } catch (erro) {
+    if (erro instanceof PacoteFactualInvalidoError) throw erro
+    throw new PacoteFactualInvalidoError('$', 'estrutura não serializável') // ex.: Proxy hostil, estouro de pilha
+  }
+  return createHash('sha256').update(json).digest('hex')
+}
 
 /**
  * Migração opt-in da `descricao` legada: copia para `descricao_markdown` como RASCUNHO, só onde

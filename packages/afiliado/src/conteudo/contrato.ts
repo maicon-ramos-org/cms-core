@@ -59,8 +59,15 @@ const texto = (valor: unknown): valor is string => typeof valor === 'string' && 
 const naoEnviado = (valor: unknown) => valor == null || valor === '' || (Array.isArray(valor) && valor.length === 0)
 /** Sem conteúdo útil: como `naoEnviado`, mas texto em branco também não conta como conteúdo existente. */
 export const ausente = (valor: unknown) => naoEnviado(valor) || (typeof valor === 'string' && !valor.trim())
-/** Preço é dado comercial da oferta: nunca entra no texto editorial (heurística deliberadamente simples). */
-const PRECO = /R\$\s*\d|\b\d+(?:[.,]\d+)?\s*reais\b/i
+/**
+ * Preço é dado comercial da oferta: nunca entra no texto editorial (heurística deliberadamente simples).
+ * Uma fonte só, sem flags: o validador a compila e o JSON Schema a publica (`not.pattern`). Por isso o
+ * padrão não usa `/i` nem `\\d` — `[Rr]` e `[0-9]` valem igual em ECMA-262, Python, Java e Go.
+ */
+export const PADRAO_PRECO = String.raw`[Rr]\$\s*[0-9]|\b[0-9]+(?:[.,][0-9]+)?\s*[Rr][Ee][Aa][Ii][Ss]\b`
+const PRECO = new RegExp(PADRAO_PRECO)
+/** `texto()` = `trim()` não vazio; `\S` (ECMA-262) usa o mesmo conjunto de espaços que `String.prototype.trim`. */
+export const PADRAO_TEXTO_NAO_EM_BRANCO = String.raw`\S`
 const HASH = /^[a-f0-9]{64}$/
 
 function textoLimitado(problemas: ProblemaConteudo[], path: string, valor: unknown, max: number, opcoes: { semPreco?: boolean } = {}) {
@@ -167,7 +174,34 @@ export function planoDeConteudo(produto: ProdutoParaPlano | null, entrada: { fac
   return { acao: 'nao_gerar', motivo: 'conteudo_existente' }
 }
 
-/** JSON Schema (2020-12) do `product_content/v1` para consumidores de qualquer linguagem. */
+/**
+ * Regras normativas do `product_content/v1` que o JSON Schema NÃO consegue expressar. Quem valida só
+ * com o schema aceita entradas que o CMS recusa: use `validarConteudo` (ou deixe o CMS decidir na escrita).
+ * Publicadas em `capabilities.content.rulesOutsideJsonSchema`.
+ */
+export const REGRAS_FORA_DO_JSON_SCHEMA = Object.freeze([
+  { id: 'faq_question_unique_after_normalization', path: 'faq',
+    description: 'Perguntas repetidas são recusadas depois de normalizar: Unicode NFKC, trim, minúsculas e espaços internos colapsados ("Quanto pesa?" == " quanto  PESA? "). `uniqueItems` só pega itens idênticos.' },
+  { id: 'price_heuristic_is_approximate', path: 'meta_title|meta_description|resumo|descricao_markdown|destaques.*|faq.*.resposta',
+    description: 'A exclusão de preço (`not.pattern` = PADRAO_PRECO) é a mesma heurística do validador, mas depende do dialeto de regex do validador de schema; `\\s` e `\\b` seguem ECMA-262.' },
+  { id: 'facts_hash_is_provenance', path: 'facts_hash',
+    description: 'O schema confere só o formato (SHA-256 hexadecimal minúsculo); que a hash seja a do pacote factual usado na geração é responsabilidade do gerador.' },
+  { id: 'editorial_workflow', path: '(documento)',
+    description: 'Draft-first, sem sobrescrita automática, refresh só por editor, aprovação e `indexavel` humanos, `content_version` do CMS e completude para revisão/aprovação são regras da escrita no CMS, não do formato.' },
+  { id: 'schema_describes_complete_content', path: '(documento)',
+    description: 'O schema descreve o conteúdo COMPLETO (`required`, `minItems`, sem `null`). O validador aceita rascunho parcial e trata null, "" e [] como ausente.' },
+] as const)
+
+const textoNaoVazio = (max: number, semPreco: boolean) => ({
+  type: 'string', minLength: 1, maxLength: max, pattern: PADRAO_TEXTO_NAO_EM_BRANCO,
+  ...(semPreco ? { not: { pattern: PADRAO_PRECO } } : {}),
+})
+
+/**
+ * JSON Schema (2020-12) do `product_content/v1` para consumidores de qualquer linguagem. Reproduz o que
+ * o schema consegue expressar de `validarConteudo` (texto não só em branco, sem preço, limites, campos
+ * estritos); o restante está em `REGRAS_FORA_DO_JSON_SCHEMA`.
+ */
 export const JSON_SCHEMA_CONTEUDO_V1 = Object.freeze({
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $id: 'product_content/v1',
@@ -175,18 +209,19 @@ export const JSON_SCHEMA_CONTEUDO_V1 = Object.freeze({
   additionalProperties: false,
   required: ['meta_title', 'meta_description', 'resumo', 'descricao_markdown', 'destaques', 'faq', 'facts_hash', 'content_generator'],
   properties: {
-    meta_title: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.metaTitle },
-    meta_description: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.metaDescription },
-    resumo: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.resumo },
-    descricao_markdown: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.descricaoMarkdown },
+    meta_title: textoNaoVazio(LIMITES_CONTEUDO.metaTitle, true),
+    meta_description: textoNaoVazio(LIMITES_CONTEUDO.metaDescription, true),
+    resumo: textoNaoVazio(LIMITES_CONTEUDO.resumo, true),
+    descricao_markdown: textoNaoVazio(LIMITES_CONTEUDO.descricaoMarkdown, true),
     destaques: { type: 'array', minItems: LIMITES_CONTEUDO.destaquesMin, maxItems: LIMITES_CONTEUDO.destaquesMax,
-      items: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.destaque } },
-    faq: { type: 'array', minItems: LIMITES_CONTEUDO.faqMin, maxItems: LIMITES_CONTEUDO.faqMax,
+      items: textoNaoVazio(LIMITES_CONTEUDO.destaque, true) },
+    faq: { type: 'array', minItems: LIMITES_CONTEUDO.faqMin, maxItems: LIMITES_CONTEUDO.faqMax, uniqueItems: true,
+      $comment: 'Perguntas repetidas após normalização (NFKC, trim, minúsculas, espaços colapsados) também são recusadas; o schema não expressa isso — ver rulesOutsideJsonSchema.',
       items: { type: 'object', additionalProperties: false, required: ['pergunta', 'resposta'], properties: {
-        pergunta: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.pergunta },
-        resposta: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.resposta } } } },
+        pergunta: textoNaoVazio(LIMITES_CONTEUDO.pergunta, false),
+        resposta: textoNaoVazio(LIMITES_CONTEUDO.resposta, true) } } },
     facts_hash: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-    content_generator: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.generator },
-    prompt_version: { type: 'string', minLength: 1, maxLength: LIMITES_CONTEUDO.promptVersion },
+    content_generator: textoNaoVazio(LIMITES_CONTEUDO.generator, false),
+    prompt_version: textoNaoVazio(LIMITES_CONTEUDO.promptVersion, false),
   },
 })

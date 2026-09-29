@@ -34,6 +34,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_produtos_fisicos_v" ADD COLUMN "version_indexavel" boolean DEFAULT false;`)
 }
 
+/**
+ * DESTRUTIVO: derruba as colunas e os enums do conteúdo editorial e, com eles, todo o conteúdo
+ * gravado (meta_*, resumo, descricao_markdown, destaques, faq, hashes, status, refresh, indexavel).
+ * `descricao` e o resto do legado ficam. Não é rollback sem perda: faça backup antes de usar.
+ */
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
    ALTER TABLE "produtos_fisicos" DROP COLUMN "meta_title";

@@ -99,7 +99,7 @@ não passa; `Cache-Control: no-store`) devolve:
     "affiliate.preflight": "1.0",
     "affiliate.offer-history": "1.0"
   },
-  "content": { "schema": "product_content/v1", "limits": {}, "statuses": [], "jsonSchema": {}, "rules": [] },
+  "content": { "schema": "product_content/v1", "limits": {}, "statuses": [], "jsonSchema": {}, "rules": [], "rulesOutsideJsonSchema": [] },
   "catalog": { "categories": [{ "slug": "", "label": "", "identityAttributes": [], "identityVersion": 1, "legacy": false }] }
 }
 ```
@@ -116,6 +116,31 @@ a migration continua sendo pré-requisito (o gate `confere:schema` a exige).
 O endpoint só descreve a instância (versões, limites, categorias — nunca callbacks do site
 nem dado de tenant).
 
+### O que o JSON Schema garante — e o que não garante
+
+`content.jsonSchema` é **necessário, não suficiente**. Ele reproduz o que JSON Schema 2020-12
+consegue expressar de `validarConteudo`, e testes de paridade (Ajv × validador, incluindo
+limites em pontos de código, espaços Unicode e preço) impedem que os dois divirjam:
+
+- texto nunca só em branco (`pattern: \S`, o mesmo conjunto de espaços do `trim()`);
+- preço fora dos textos editoriais (`not.pattern` = `PADRAO_PRECO`, a mesma fonte do
+  validador; `pergunta` do FAQ é a exceção);
+- limites, itens (1–12), campos estritos, `facts_hash` hexadecimal; FAQ com itens idênticos
+  (`uniqueItems`).
+
+O schema descreve o conteúdo **completo** (`required`, sem `null`); o validador aceita
+rascunho parcial e trata `null`, `""` e `[]` como ausente. As regras abaixo **não** cabem em
+JSON Schema e são publicadas em `content.rulesOutsideJsonSchema` — quem valida só com o
+schema aceita entradas que o CMS recusa:
+
+| Regra | Por quê |
+|---|---|
+| `faq_question_unique_after_normalization` | Pergunta repetida após NFKC + `trim` + minúsculas + espaços colapsados (`"Quanto pesa?"` = `" quanto  PESA? "`) é recusada; `uniqueItems` só pega itens idênticos. |
+| `price_heuristic_is_approximate` | A exclusão de preço é uma heurística; `\s` e `\b` seguem o dialeto ECMA-262 do validador de schema. |
+| `facts_hash_is_provenance` | O schema confere o formato, não que a hash seja a do pacote factual usado. |
+| `editorial_workflow` | Draft-first, sem sobrescrita, refresh, aprovação, `indexavel` e `content_version` são regras da escrita no CMS. |
+| `schema_describes_complete_content` | Completo × parcial, como descrito acima. |
+
 ## Migração e compatibilidade
 
 - Só colunas novas, todas nulas ou com default (`editorial_status='sem_conteudo'`,
@@ -123,6 +148,17 @@ nem dado de tenant).
   (`20260929_125623_conteudo_editorial_produto`) é o modelo; cada site gera a sua com
   `payload migrate:create` contra o pacote instalado (30 instruções: 14 colunas na tabela
   principal, 14 na de versões, 2 enums).
+- **Prova em banco populado:** `apps/referencia-cms/tests/migration-conteudo-editorial.int.spec.ts`
+  aplica as migrations anteriores num banco descartável, popula produtos, versão e variante
+  legados e comprova que o `up` preserva colunas (tipo, nulidade, default) e dados legados,
+  acrescenta só as 28 colunas e os 2 enums, e as linhas antigas nascem `sem_conteudo` e não
+  indexáveis. Roda quando há `DATABASE_URL` (o CI exige).
+- **`down` é destrutivo, não é rollback sem perda.** Ele derruba as colunas e os enums novos e,
+  com eles, todo o conteúdo editorial gravado (`meta_*`, `resumo`, `descricao_markdown`,
+  `destaques`, `faq`, hashes, `content_version`, status, refresh e `indexavel`, nas duas
+  tabelas). O legado (`descricao` e o resto) permanece; o teste prova isso e prova que um `up`
+  seguinte recria as colunas **vazias** — o conteúdo apagado não volta. Para reverter em
+  produção, faça backup antes; o caminho normal é seguir em frente, não voltar.
 - `descricao` **não é apagada nem copiada sozinha**. O DTO cai para ela como texto
   (`origin: "legado"`), que nunca torna o produto indexável. Automação também não a
   sobrescreve.
@@ -148,7 +184,15 @@ Módulo puro (sem Payload/Node), para HTML, `.md` e JSON-LD do **mesmo** produto
   `Offer` só nasce de oferta com preço fornecida pelo site; nada de rating, frete ou
   disponibilidade inventados.
 - `JSON_SCHEMA_CONTEUDO_V1`, `LIMITES_CONTEUDO`, `validarConteudo`, `planoDeConteudo`.
-- `hashDeFatos(pacote)` (em `afiliado/cms`): JSON canônico ordenado + SHA-256.
+- `hashDeFatos(pacote)` (em `afiliado/cms`): JSON canônico ordenado + SHA-256. Aceita **só
+  valores JSON reais**: `null`, boolean, número finito, string, arrays e objetos planos
+  (protótipo `Object.prototype` ou `null`). Recusa com `PacoteFactualInvalidoError` —
+  `undefined` (inclusive em objeto/array), `NaN`/`Infinity`, função, símbolo, bigint, `Date`,
+  `Map`, `Set`, instância de classe, buraco em array, chave símbolo, getter e ciclo —
+  em vez de descartar ou converter em silêncio, o que faria fatos diferentes colidirem na
+  mesma hash. A mensagem traz só caminho e motivo, nunca valores; chaves fora de
+  `[\w.-]{1,40}` aparecem como `[chave]`. **Mudança de comportamento vs. rascunhos
+  anteriores desta versão:** `undefined` deixou de ser ignorado; remova a chave antes.
 
 O núcleo não traz rota nem template de site. As rotas físicas atuais do plugin
 (`/p/{slug}`, `.md`, `.json`) **não** foram alteradas nesta entrega: continuam `noindex`,

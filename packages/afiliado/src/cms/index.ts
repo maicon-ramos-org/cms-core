@@ -22,6 +22,6 @@ export {
   type ResumoSnapshot,
 } from './jobs/snapshotDesconto'
 export { tagsDaLoja } from './hooks/tags-loja'
-export { camposConteudoEditorial, hashDeFatos, SQL_BACKFILL_DESCRICAO_LEGADA, validaConteudoEditorial } from './catalogo/conteudo'
+export { camposConteudoEditorial, hashDeFatos, PacoteFactualInvalidoError, SQL_BACKFILL_DESCRICAO_LEGADA, validaConteudoEditorial } from './catalogo/conteudo'
 export { endpointCapacidades } from './catalogo/capacidades'
 export * from '../conteudo'

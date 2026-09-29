@@ -3,7 +3,7 @@
  * conhecer tabelas: `GET /api/afiliado/capabilities` devolve este descritor. Quem exige uma
  * capability falha fechado quando ela falta ou a versão é incompatível (`atendeCapacidades`).
  */
-import { CONTEUDO_SCHEMA, JSON_SCHEMA_CONTEUDO_V1, LIMITES_CONTEUDO, STATUS_AUTOMACAO, STATUS_EDITORIAL } from './contrato'
+import { CONTEUDO_SCHEMA, JSON_SCHEMA_CONTEUDO_V1, LIMITES_CONTEUDO, REGRAS_FORA_DO_JSON_SCHEMA, STATUS_AUTOMACAO, STATUS_EDITORIAL } from './contrato'
 
 /** Versão do pacote que declara estas capabilities; um teste a mantém igual ao package.json. */
 export const VERSAO_PLUGIN_AFILIADO = '0.2.0-next.18'
@@ -52,6 +52,8 @@ export function descritorCapacidades(categorias: readonly CategoriaDescrita[]) {
     content: {
       schema: CONTEUDO_SCHEMA, limits: LIMITES_CONTEUDO, statuses: STATUS_EDITORIAL, automationStatuses: STATUS_AUTOMACAO,
       jsonSchema: JSON_SCHEMA_CONTEUDO_V1,
+      // o schema é necessário, não suficiente: estas regras só o validador/CMS aplica
+      rulesOutsideJsonSchema: REGRAS_FORA_DO_JSON_SCHEMA,
       rules: ['content_belongs_to_canonical_product', 'draft_first', 'no_automatic_overwrite', 'refresh_requires_human_marker',
         'indexable_defaults_false', 'facts_hash_makes_writes_idempotent'],
     },
