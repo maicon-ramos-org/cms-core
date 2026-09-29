@@ -1,5 +1,28 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.18 — 2026-09-29 (pré-lançamento)
+
+- **Conteúdo editorial no produto canônico** (`product_content/v1`, contrato em
+  `docs/contratos/conteudo-editorial-produto.md`): `produtos_fisicos` ganha `meta_title`
+  (≤ 60), `meta_description` (≤ 155), `resumo`, `descricao_markdown`, `destaques`, `faq`,
+  `facts_hash`, `content_generator`, `prompt_version`, `content_version`,
+  `editorial_status`, marcador de refresh e `indexavel` (default `false`). Validação tipada
+  de FAQ/destaques; draft-first; automação nunca sobrescreve conteúdo existente, e um
+  refresh só vale se um editor o pediu; aprovar e indexar são humanos.
+  **Migration aditiva obrigatória por instância** (30 instruções, todas com default ou
+  nulas; `descricao` legada permanece intacta). `SQL_BACKFILL_DESCRICAO_LEGADA` é opt-in.
+- Capabilities `affiliate.catalog` 2.0, `affiliate.content` 1.0, `affiliate.preflight` 1.0 e
+  `affiliate.offer-history` 1.0 em `GET /api/afiliado/capabilities` (autenticado), com
+  limites, JSON Schema e categorias da instância. Consumidores falham fechado com
+  `atendeCapacidades`.
+- Nova entrada `@maicon-ramos-org/afiliado/conteudo` (pura): validadores, `planoDeConteudo`,
+  DTO público, Markdown, JSON-LD e JSON Schema. Rotas do plugin **não** mudam.
+- `afiliado({ catalogo: { incluirCategoriasPadrao: false } })`: instância só com as próprias
+  categorias (default `true`, sem efeito para quem já consome).
+- Correção de isolamento: as coleções do catálogo físico recusam escrita quando o `tenant`
+  do corpo não pertence ao usuário (antes, um usuário de outro tenant criava documentos
+  informando o id do tenant alheio). Super-admin e Local API sem usuário não mudam.
+
 ## 0.2.0-next.17 — 2026-09-27 (pré-lançamento)
 
 - Os redirects físico (`/r/{id}`) e editorial agora respondem a `Purpose`,

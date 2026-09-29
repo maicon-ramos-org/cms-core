@@ -97,3 +97,17 @@ Pendências: escolher categorias apenas com evidência do acervo; validar
 marca/modelo ausentes; gerar migration no consumidor que habilitar novas opções;
 contratar ofertas/picks/receitas e datas editoriais separadamente. A integração de
 grafo `cms-core@0.2.0-next.3` já publicada não depende desta mudança.
+
+## Instância sem as categorias históricas (`incluirCategoriasPadrao`)
+
+`afiliado({ catalogo: { categoriasAdicionais, incluirCategoriasPadrao: false } })` monta o
+select `categoria` apenas com as categorias declaradas pela instância (exige ao menos uma).
+O slug histórico (`filamento`, `impressora`, `resina`, `acessorio`) fica livre para uso
+próprio, com identidade declarada. Default `true`: nada muda para quem já consome — mesmas
+quatro categorias, mesma ordem, mesmos hashes. Instância nova nasce com o enum certo; uma
+instância existente que optar por `false` precisa de migration revisada do enum e não pode
+ter produto em categoria removida. As colunas de variante (`material`, `cor`, `peso_g`,
+`diametro_mm`, `acabamento`) permanecem por compatibilidade e são opcionais; atributos de
+qualquer vertical vivem em `especificacoes.*` declarados como identidade. Provado em duas
+verticais com o mesmo fixture (`tests/categorias-verticais.spec.ts`) e em Postgres real
+(`tests/int/conteudo-editorial.int.spec.ts`).

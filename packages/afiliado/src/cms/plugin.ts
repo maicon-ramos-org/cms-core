@@ -6,6 +6,7 @@ import { protegeReferencias } from './catalogo/protegeReferencias'
 import { Banners } from './collections/Banners'
 import { criaCatalogoFisico } from './collections/CatalogoFisico'
 import { registrarCategorias, type CategoriaCatalogo } from './catalogo/categorias'
+import { endpointCapacidades } from './catalogo/capacidades'
 import { CategoriasOferta } from './collections/CategoriasOferta'
 import { Cliques } from './collections/Cliques'
 import { Cupons } from './collections/Cupons'
@@ -24,6 +25,7 @@ import { snapshotDescontoTask } from './jobs/snapshotDesconto'
  * - `lojas`, `ofertas` e `produtos` como destino de link do auto-linker;
  * - a proteção de referência do catálogo físico em TODA coleção — inclusive nas do núcleo,
  *   como `midia` e `tenants`, que o catálogo referencia;
+ * - `GET /api/afiliado/capabilities` (capabilities, limites do conteúdo e categorias da instância);
  * - a tarefa do snapshot diário de desconto, com a agenda (03:10 UTC, fila `diario`). Quem
  *   passa o relógio é o site: `jobs.autoRun` nessa fila (Node) ou o Cron Trigger chamando
  *   `/api/payload-jobs/run?queue=diario` (Workers).
@@ -58,11 +60,16 @@ const titlePatternLoja: Field = {
 }
 
 export interface OpcoesAfiliado {
-  catalogo?: { categoriasAdicionais?: readonly CategoriaCatalogo[] }
+  catalogo?: {
+    categoriasAdicionais?: readonly CategoriaCatalogo[]
+    /** `false`: não herda filamento/impressora/resina/acessorio; a instância declara só as suas categorias. Default `true`. */
+    incluirCategoriasPadrao?: boolean
+  }
 }
 
 export const afiliado = (opcoes: OpcoesAfiliado = {}): Plugin => {
-  const catalogo = criaCatalogoFisico(registrarCategorias(opcoes.catalogo?.categoriasAdicionais))
+  const registro = registrarCategorias(opcoes.catalogo?.categoriasAdicionais, { incluirPadrao: opcoes.catalogo?.incluirCategoriasPadrao })
+  const catalogo = criaCatalogoFisico(registro)
   return (config) => {
     let c: typeof config = {
       ...config,
@@ -78,6 +85,7 @@ export const afiliado = (opcoes: OpcoesAfiliado = {}): Plugin => {
         CategoriasOferta,
         ...catalogo,
       ],
+      endpoints: [...(config.endpoints ?? []), endpointCapacidades(registro)],
       jobs: { ...config.jobs, tasks: [...(config.jobs?.tasks ?? []), snapshotDescontoTask] },
     }
     c = acrescentaCamposAoTenant(c, [programasAtivos])

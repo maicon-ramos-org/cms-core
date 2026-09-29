@@ -8,7 +8,7 @@ export { ofertasEditoriais, type OpcoesOfertasEditoriais } from './ofertas-edito
 export { catalogoEditorial } from './ofertas-editoriais/catalogo'
 export { ultimasVerificacoesOfertas, type ExecutorVerificacoes, type UltimaVerificacaoOferta } from './ofertas-editoriais/ultimas-verificacoes'
 export { registrarProgramasOferta, type ProgramaOferta, type RegistroProgramasOferta } from '../ofertas-editoriais/contratos'
-export { registrarCategorias, REGISTRO_CATEGORIAS_PADRAO, type CategoriaCatalogo, type CategoriaRegistrada, type RegistroCategorias, type ProblemaCategoria } from './catalogo/categorias'
+export { registrarCategorias, REGISTRO_CATEGORIAS_PADRAO, type OpcoesRegistroCategorias, type CategoriaCatalogo, type CategoriaRegistrada, type RegistroCategorias, type ProblemaCategoria } from './catalogo/categorias'
 export * from './catalogo/regras'
 export { lockListing, observaListing } from './catalogo/hooks'
 export {
@@ -22,3 +22,6 @@ export {
   type ResumoSnapshot,
 } from './jobs/snapshotDesconto'
 export { tagsDaLoja } from './hooks/tags-loja'
+export { camposConteudoEditorial, hashDeFatos, SQL_BACKFILL_DESCRICAO_LEGADA, validaConteudoEditorial } from './catalogo/conteudo'
+export { endpointCapacidades } from './catalogo/capacidades'
+export * from '../conteudo'

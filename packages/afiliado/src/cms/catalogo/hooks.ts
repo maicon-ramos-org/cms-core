@@ -39,11 +39,19 @@ export async function lockListing(req: PayloadRequest, tenant: unknown, chave: s
 export const lockReferencia = (req: PayloadRequest, collection: CollectionSlug, id: unknown, shared = true) =>
   lockListing(req, 'catalogo-relacao', `${collection}:${idRel(id)}`, shared)
 
+/** Quem não é super-admin só escreve nos tenants em que é membro: o `tenant` do corpo nunca concede acesso. */
+const membroDoTenant = (user: unknown, tenant: string): boolean => {
+  if (isSuperAdmin(user)) return true
+  const tenants = (user as { tenants?: Array<{ tenant?: unknown }> | null })?.tenants
+  return Array.isArray(tenants) && tenants.some(t => idRel(t?.tenant) === tenant)
+}
+
 export const validaRelacoes = (relations: Record<string, CollectionSlug>): CollectionBeforeChangeHook =>
   async ({ data, originalDoc, req }) => {
     const effective = { ...originalDoc, ...data }
     const tenant = idRel(effective.tenant)
     if (!tenant) invalido('tenant', 'Tenant obrigatório.')
+    if (req.user && !membroDoTenant(req.user, tenant)) invalido('tenant', 'Usuário não pertence ao tenant.')
     if (originalDoc?.id && idRel(originalDoc.tenant) !== tenant) invalido('tenant', 'Tenant é imutável.')
     await lockReferencia(req, 'tenants', tenant)
     for (const [field, collection] of Object.entries(relations)) {

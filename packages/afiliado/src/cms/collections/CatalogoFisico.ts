@@ -4,6 +4,7 @@ import { authenticated, nunca, podeEscreverConteudo } from '@maicon-ramos-org/cm
 import { validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { appendOnly, criaValidaProduto, criaValidaVariante, criaValidaVinculo, depoisListing, historicoInterno, observaListing, semDelete, validaElegibilidade, validaProduto, validaRedirect, validaRelacoes, validaVariante, validaVinculo } from '../catalogo/hooks'
 import { REGISTRO_CATEGORIAS_PADRAO, type RegistroCategorias } from '../catalogo/categorias'
+import { camposConteudoEditorial, validaConteudoEditorial } from '../catalogo/conteudo'
 
 const text = (name: string, required = false): Field => ({ name, type: 'text', required })
 const number = (name: string, required = false): Field => ({ name, type: 'number', min: 0, required })
@@ -26,10 +27,13 @@ export const ProdutosFisicos: CollectionConfig = {
   ...base('produtos_fisicos', [text('nome', true),
     { name: 'slug', type: 'text', required: true, validate: validaSlugKebab }, text('marca', true), text('modelo', true),
     select('categoria', REGISTRO_CATEGORIAS_PADRAO.map(c => c.slug)),
-    { name: 'descricao', type: 'textarea' }, rel('imagem', 'midia', false), text('gtin'), text('mpn'),
-    { name: 'especificacoes', type: 'json' }, select('estado', ['draft', 'review', 'published'], 'draft')]),
+    // `descricao` é o campo legado (preservado e protegido); o conteúdo estruturado vem logo abaixo
+    { name: 'descricao', type: 'textarea', admin: { description: 'Legado. Prefira descricao_markdown; sem migração automática.' } },
+    rel('imagem', 'midia', false), text('gtin'), text('mpn'),
+    { name: 'especificacoes', type: 'json' }, select('estado', ['draft', 'review', 'published'], 'draft'),
+    ...camposConteudoEditorial]),
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto, validaConteudoEditorial] },
 }
 export const VariantesProduto: CollectionConfig = {
   ...base('variantes_produto', [rel('produto', 'produtos_fisicos'), text('nome', true), text('sku_fabricante'), text('gtin'),
@@ -83,7 +87,9 @@ export function criaCatalogoFisico(registro: RegistroCategorias = REGISTRO_CATEG
   ])
   return catalogoFisico.map(c => ({ ...c,
     fields: c.fields.map(field => c.slug === 'produtos_fisicos' && field.type === 'select' && field.name === 'categoria'
-      ? { ...field, options: [...field.options, ...registro.filter(categoria => !categoria.legada).map(categoria => ({ label: categoria.rotulo, value: categoria.slug }))] }
+      // as legadas mantêm o formato antigo (string); só as demais ganham rótulo. Sem legadas: só as do site.
+      ? { ...field, options: [...registro.filter(categoria => categoria.legada).map(categoria => categoria.slug),
+        ...registro.filter(categoria => !categoria.legada).map(categoria => ({ label: categoria.rotulo, value: categoria.slug }))] }
       : field),
     hooks: { ...c.hooks, beforeChange: c.hooks?.beforeChange?.map(hook => politicas.get(hook) ?? hook) },
   }))

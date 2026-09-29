@@ -1292,6 +1292,9 @@ export interface ProdutosFisico {
   marca: string;
   modelo: string;
   categoria: 'filamento' | 'impressora' | 'resina' | 'acessorio';
+  /**
+   * Legado. Prefira descricao_markdown; sem migração automática.
+   */
   descricao?: string | null;
   imagem?: (number | null) | Midia;
   gtin?: string | null;
@@ -1306,6 +1309,54 @@ export interface ProdutosFisico {
     | boolean
     | null;
   estado: 'draft' | 'review' | 'published';
+  meta_title?: string | null;
+  meta_description?: string | null;
+  resumo?: string | null;
+  descricao_markdown?: string | null;
+  /**
+   * Lista de textos (até 12).
+   */
+  destaques?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Lista de { pergunta, resposta } (até 12).
+   */
+  faq?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * SHA-256 do pacote factual que gerou o texto; mesma hash = mesma geração.
+   */
+  facts_hash?: string | null;
+  content_generator?: string | null;
+  prompt_version?: string | null;
+  /**
+   * Edição do conteúdo; o CMS incrementa a cada mudança aceita.
+   */
+  content_version?: number | null;
+  editorial_status: 'sem_conteudo' | 'rascunho' | 'em_revisao' | 'aprovado';
+  /**
+   * Marcador de refresh solicitado por um editor; habilita UMA reescrita automatizada.
+   */
+  editorial_refresh_em?: string | null;
+  editorial_refresh_motivo?: string | null;
+  /**
+   * Portão de indexação: só um editor liga, e só com conteúdo aprovado e completo.
+   */
+  indexavel?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2315,6 +2366,20 @@ export interface ProdutosFisicosSelect<T extends boolean = true> {
   mpn?: T;
   especificacoes?: T;
   estado?: T;
+  meta_title?: T;
+  meta_description?: T;
+  resumo?: T;
+  descricao_markdown?: T;
+  destaques?: T;
+  faq?: T;
+  facts_hash?: T;
+  content_generator?: T;
+  prompt_version?: T;
+  content_version?: T;
+  editorial_status?: T;
+  editorial_refresh_em?: T;
+  editorial_refresh_motivo?: T;
+  indexavel?: T;
   updatedAt?: T;
   createdAt?: T;
 }
