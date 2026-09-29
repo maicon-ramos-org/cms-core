@@ -2,7 +2,7 @@
  * Gêmeo em markdown de /p/{slug} — o `.md` paralelo do checklist agent-readable.
  *
  * Mesma precedência da página HTML: primeiro o piloto físico, depois o produto legado.
- * O piloto não tem preço confiável e só anuncia os redirects internos válidos.
+ * O piloto não tem preço confiável e só anuncia links diretos Amazon válidos.
  */
 import type { APIRoute } from 'astro'
 
@@ -24,7 +24,7 @@ export const GET: APIRoute = async (context) => {
     if (body.brand) linhas.push(`**Marca:** ${linha(body.brand)}`)
     if (body.model) linhas.push(`**Modelo:** ${linha(body.model)}`)
     if (body.summary) linhas.push('', linha(body.summary))
-    for (const oferta of body.offers) linhas.push('', `**Link:** https://${tenant.canonical_host}${oferta.href.replace('ref=json', 'ref=md')}`)
+    for (const oferta of body.offers) linhas.push('', `**Link:** ${oferta.href}`)
     return new Response(`${linhas.join('\n')}\n`, { headers: {
       'content-type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store',
       'X-Robots-Tag': 'noindex', Link: `<${body.url}>; rel="canonical"`,

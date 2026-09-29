@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ofertaPublicaJson, produtoFisicoPublicoJson, produtoPublicoJson } from '../src/web/lib/publico-json'
 import type { OfertaDTO, ProdutoDTO } from '../src/web/lib/cms'
 
@@ -37,13 +37,14 @@ describe('JSON comercial público: allowlist, data e CTA interno', () => {
       preco: 200, preco_em: null, url_afiliado_fonte: 'https://afiliado.example/p?token=privado' } as ProdutoDTO
     const legacy = produtoPublicoJson(tenant, product, true)
     expect(legacy).toMatchObject({ indexable: false, price: null, action: { href: '/r/p9?ref=json' } })
+    vi.stubEnv('AMAZON_TAG', 'exemplo-20')
     const physical = produtoFisicoPublicoJson(tenant, { id: 3, tenant: 1, slug: 'fisico', nome: 'Físico',
       marca: 'Marca', modelo: 'Modelo', descricao: 'Descrição', estado: 'published' },
       [{ id: 7, tenant: 1, variante: 4, loja: 2, estado: 'ativa', fonte: 'amazon-manual-revisado',
-        external_listing_id: 'ASIN', url_origem: 'https://amazon.example/p',
-        url_afiliado: 'https://amazon.example/p?token=privado', observado_em: '2026-09-26T10:00:00Z' }])
-    expect(physical).toMatchObject({ indexable: false, price: null, offers: [{ href: '/r/f7?ref=json' }] })
-    expect(JSON.stringify(physical)).not.toContain('amazon.example')
+        external_listing_id: 'B0ABCDEFGH', url_origem: 'https://www.amazon.com.br/dp/B0ABCDEFGH',
+        url_afiliado: 'https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20', observado_em: '2026-09-26T10:00:00Z' }])
+    expect(physical).toMatchObject({ indexable: false, price: null,
+      offers: [{ href: 'https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20' }] })
   })
 })
 
@@ -51,7 +52,9 @@ const mocks = vi.hoisted(() => ({ offer: vi.fn(), product: vi.fn(), physical: vi
 vi.mock('../src/web/lib/cms', () => ({ getOfertaBySlug: mocks.offer, getProdutoBySlug: mocks.product,
   caminhoDaOferta: (value: { wordpress_id?: string }) => value.wordpress_id?.startsWith('app:')
     ? '/apps/oferta/' : '/ofertas/oferta/', PRODUTO_MONETIZAVEL: new Set(['landing', 'indexavel']) }))
-vi.mock('../src/web/lib/catalogo', () => ({ getCatalogoProduto: mocks.physical }))
+vi.mock('../src/web/lib/catalogo', async importOriginal => ({
+  ...(await importOriginal<typeof import('../src/web/lib/catalogo')>()), getCatalogoProduto: mocks.physical,
+}))
 vi.mock('../src/web/lib/links-de-afiliado', () => ({ ehLinkDeAfiliado: (url: string) => url.includes('afiliado.example') }))
 vi.mock('@maicon-ramos-org/editorial/lib/lexical', () => ({ lexicalParaTexto: () =>
   'Leia a fonte https://pesquisa.example/doc e abra https://afiliado.example/oferta?token=privado.' }))
@@ -64,6 +67,7 @@ const context = (slug = 'oferta') => ({ params: { slug }, locals: { tenant: { id
   cache: { enabled: true, set: setCache } }) as unknown as Parameters<typeof getOffer>[0]
 
 beforeEach(() => { vi.clearAllMocks(); mocks.physical.mockResolvedValue(null) })
+afterEach(() => vi.unstubAllEnvs())
 
 describe('rotas comerciais JSON', () => {
   it('oferta responde com canonical HTML, noindex e mesmas tags do HTML', async () => {
@@ -91,18 +95,20 @@ describe('rotas comerciais JSON', () => {
     expect(setCache).toHaveBeenCalledWith(expect.objectContaining({ tags: ['tenant:site', 'produtos:9', 'loja:loja'] }))
   })
 
-  it('produto físico tem Markdown sem preço ou destino bruto, e nunca cai no produto legado', async () => {
+  it('produto físico tem Markdown sem preço e com link direto validado, sem cair no legado', async () => {
+    vi.stubEnv('AMAZON_TAG', 'exemplo-20')
     mocks.physical.mockResolvedValue({ produto: { id: 5, tenant: 1, nome: 'Físico', slug: 'oferta',
       marca: 'Marca', modelo: 'Modelo', estado: 'published' }, variantes: [],
-      ofertas: [{ id: 7, observado_em: '2026-09-26T10:00:00Z', url_afiliado: 'https://amazon.example/segredo' }] })
+      ofertas: [{ id: 7, tenant: 1, variante: 4, loja: 2, estado: 'ativa', fonte: 'amazon-manual-revisado',
+        external_listing_id: 'B0ABCDEFGH', url_origem: 'https://www.amazon.com.br/dp/B0ABCDEFGH',
+        observado_em: '2026-09-26T10:00:00Z', url_afiliado: 'https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20' }] })
     const response = await getProductMd(context())
     const body = await response.text()
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('x-robots-tag')).toBe('noindex')
     expect(response.headers.get('link')).toBe('<https://site.example/p/oferta/>; rel="canonical"')
-    expect(body).toContain('https://site.example/r/f7?ref=md')
-    expect(body).not.toContain('amazon.example')
+    expect(body).toContain('https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20')
     expect(body).not.toContain('2026-09-26')
     expect(mocks.product).not.toHaveBeenCalled()
   })
