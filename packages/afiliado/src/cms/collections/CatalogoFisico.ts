@@ -31,6 +31,11 @@ export const ProdutosFisicos: CollectionConfig = {
     { name: 'descricao', type: 'textarea', admin: { description: 'Legado. Prefira descricao_markdown; sem migração automática.' } },
     rel('imagem', 'midia', false), text('gtin'), text('mpn'),
     { name: 'especificacoes', type: 'json' }, select('estado', ['draft', 'review', 'published'], 'draft'),
+    // O JSON acima participa da identidade/matching e pode conter dados internos. Só esta
+    // lista opt-in vira ficha pública e PropertyValue no Schema.org.
+    { name: 'especificacoes_editoriais', type: 'array', maxRows: 30,
+      fields: [{ name: 'rotulo', type: 'text', required: true, maxLength: 80 },
+        { name: 'valor', type: 'text', required: true, maxLength: 300 }] },
     ...camposConteudoEditorial]),
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
   hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto, validaConteudoEditorial] },

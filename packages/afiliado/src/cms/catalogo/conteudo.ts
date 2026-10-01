@@ -35,8 +35,8 @@ const recusa = (problemas: ProblemaConteudo[]): never => { throw new ValidationE
 const podePublicar = (user: unknown) => !user || isSuperAdmin(user) || hasRole(user, 'editor') || hasRole(user, 'agente')
 
 /**
- * O CMS confere só o formato persistido. O Hermes pesquisa, revisa, atualiza e, numa chamada
- * explícita posterior à criação draft, publica/indexa. O CMS não repete avaliação editorial.
+ * O CMS confere só o formato persistido. O Hermes pesquisa e revisa antes de o publicador
+ * gravar; ele pode criar já publicado/indexável. O CMS não repete avaliação editorial.
  */
 export const validaConteudoEditorial: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
   const atual: Doc = originalDoc?.id ? originalDoc : {}

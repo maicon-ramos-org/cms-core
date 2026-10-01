@@ -105,8 +105,10 @@ describe.skipIf(semBanco)('conteúdo editorial do produto canônico no Payload/P
     expect(repetido.body.doc).toMatchObject({ resumo: 'Outro resumo', content_version: 2 })
   })
 
-  it('agente cria draft e publica/indexa em PATCH explícito, sem aprovação humana ou FAQ obrigatória', async () => {
-    expect(paths(await produto({ ...conteudo(), estado: 'published' }, chaves.agenteA))).toContain('estado')
+  it('agente pode criar já publicado/indexável e também publicar depois, sem portão editorial no CMS', async () => {
+    const direto = await produto({ ...conteudo(), estado: 'published', indexavel: true }, chaves.agenteA)
+    expect(direto.status).toBe(201)
+    expect(direto.body.doc).toMatchObject({ estado: 'published', indexavel: true })
     const criado = (await produto({ resumo: 'R$ 99,90', faq: [] }, chaves.agenteA)).body.doc
     const url = `/produtos_fisicos/${criado.id}`
     expect(criado).toMatchObject({ estado: 'draft', indexavel: false, editorial_status: 'rascunho' })

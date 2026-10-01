@@ -1,5 +1,15 @@
 # @maicon-ramos-org/afiliado
 
+## Não lançado
+
+- O publicador final pode criar `produtos_fisicos` já com `estado: published` e
+  `indexavel: true`; aprovação e revisão continuam fora do CMS. Ingestão segue
+  impedida de publicar. Não altera o padrão `draft` quando o estado é omitido.
+- A ficha física passa a resolver e mostrar imagem da biblioteca, GTIN/MPN e
+  especificações editoriais opt-in no HTML, Markdown, JSON e `Product` JSON-LD.
+  O JSON bruto de identidade `especificacoes` não é exposto; não são inventados
+  preço, oferta ou avaliação. Campo novo requer migration aditiva por instância.
+
 ## 0.2.0-next.20 — 2026-10-01 (pré-lançamento)
 
 - A ficha pública do produto físico usa o conteúdo editorial canônico em HTML,

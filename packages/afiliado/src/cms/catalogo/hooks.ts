@@ -73,7 +73,6 @@ export const criaValidaProduto = (registro: RegistroCategorias = REGISTRO_CATEGO
   }
   if (!isSuperAdmin(req.user) && data.estado === 'published') {
     if (hasRole(req.user, 'ingestao')) invalido('estado', 'Ingestão não publica produto.')
-    if (hasRole(req.user, 'agente') && !originalDoc?.id) invalido('estado', 'Agente cria draft; publicação é passo explícito posterior.')
   }
   return data
 }
