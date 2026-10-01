@@ -9,10 +9,9 @@ import type { APIRoute } from 'astro'
 import { getCatalogoProduto } from '../../lib/catalogo'
 import { getProdutoBySlug, PRODUTO_MONETIZAVEL, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { produtoFisicoPublicoJson } from '../../lib/publico-json'
+import { produtoEditorialDTO, produtoMarkdown } from '../../../conteudo'
 
 const validSlug = (slug: string) => slug.length <= 200 && /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(slug)
-const linha = (value: string) => value.replace(/[\r\n]+/g, ' ').replace(/[<>\[\]`]/g, '').trim()
-
 export const GET: APIRoute = async (context) => {
   const tenant = context.locals.tenant
   const slug = context.params.slug ?? ''
@@ -20,13 +19,13 @@ export const GET: APIRoute = async (context) => {
   const catalogo = await getCatalogoProduto(tenant.id, slug)
   if (catalogo) {
     const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas)
-    const linhas = [`# ${linha(body.title)}`, '', '**Preço:** não publicado — consulte a loja pelo link abaixo.']
-    if (body.brand) linhas.push(`**Marca:** ${linha(body.brand)}`)
-    if (body.model) linhas.push(`**Modelo:** ${linha(body.model)}`)
-    if (body.summary) linhas.push('', linha(body.summary))
+    if (context.cache?.enabled) context.cache.set({ maxAge: 60, swr: 0,
+      tags: [`tenant:${tenant.slug}`, `produtos_fisicos:${catalogo.produto.id}`] })
+    const linhas = [produtoMarkdown(produtoEditorialDTO(catalogo.produto)).trimEnd(), '',
+      '**Preço:** não publicado — consulte a loja pelo link abaixo.']
     for (const oferta of body.offers) linhas.push('', `**Link:** ${oferta.href}`)
     return new Response(`${linhas.join('\n')}\n`, { headers: {
-      'content-type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store',
+      'content-type': 'text/markdown; charset=utf-8',
       'X-Robots-Tag': 'noindex', Link: `<${body.url}>; rel="canonical"`,
     } })
   }

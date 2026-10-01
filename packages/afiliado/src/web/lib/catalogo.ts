@@ -1,8 +1,9 @@
 import { validaSiteStripe, validaAmazonLink } from '@maicon-ramos-org/afflinks'
 import { variavel } from '@maicon-ramos-org/editorial/lib/ambiente'
 import { cmsFetch, type MidiaDTO } from './cms'
+import { produtoEditorialDTO, produtoJsonLd, type ProdutoEditorialFonte } from '../../conteudo'
 type Id = string | number
-export interface ProdutoFisico { id: Id; tenant: Id; nome: string; slug: string; marca: string; modelo: string; descricao?: string; estado: string; imagem?: MidiaDTO }
+export interface ProdutoFisico extends ProdutoEditorialFonte { id: Id; tenant: Id; estado: string; imagem?: MidiaDTO }
 export interface Variante { id: Id; tenant: Id; produto: Id; nome: string; estado: string }
 export interface Listing { id: Id; tenant: Id; variante: Id; loja: Id; estado: string; fonte: string; external_listing_id: string; url_origem: string; url_afiliado?: string; observado_em: string }
 const same = (a: Id, b: Id) => String(a) === String(b)
@@ -40,12 +41,6 @@ export async function getDestinoFisico(tenant: Id, id: string): Promise<string |
   return destinoAmazon(o)
 }
 export function schemaProduto(catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>>, canonical: string) {
-  return { '@type': 'Product', '@id': `${canonical}#produto`, url: canonical,
-    name: catalogo.produto.nome, description: catalogo.produto.descricao,
-    brand: { '@type': 'Brand', name: catalogo.produto.marca }, model: catalogo.produto.modelo,
-    offers: catalogo.ofertas.flatMap(o => {
-      const destino = destinoAmazon(o)
-      return destino ? [{ '@type': 'Offer', '@id': `${canonical}#oferta-${o.id}`, url: destino }] : []
-    }),
-  }
+  // O conteúdo é do produto. Sem preço observado e datado, não inventar Offer no schema.
+  return produtoJsonLd(produtoEditorialDTO(catalogo.produto), { canonical })['@graph']
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { produtoEditorialDTO, produtoJsonLd, produtoMarkdown, type ProdutoEditorialFonte } from '../src/conteudo'
+import { produtoEditorialDTO, produtoJsonLd, produtoMarkdown, produtoMarkdownHtml, type ProdutoEditorialFonte } from '../src/conteudo'
 
 const base: ProdutoEditorialFonte = { nome: 'Produto Exemplo', slug: 'produto-exemplo', marca: 'Marca', modelo: 'M-1', categoria: 'equipamento' }
 const editorial: ProdutoEditorialFonte = { ...base, estado: 'published', indexavel: true, editorial_status: 'aprovado',
@@ -52,6 +52,12 @@ describe('.md e JSON-LD gerados do mesmo DTO', () => {
   it('Markdown neutraliza quebra de linha e marcação nos rótulos', () => {
     const md = produtoMarkdown(produtoEditorialDTO({ ...editorial, nome: 'Nome\n## injetado [x](y)' }))
     expect(md.split('\n')[0]).toBe('# Nome ## injetado x(y)')
+  })
+  it('HTML público interpreta Markdown, mas não executa HTML ou protocolo perigoso', () => {
+    const html = produtoMarkdownHtml('## Características\n\n<script>alert(1)</script> [ruim](javascript:alert(1))')
+    expect(html).toContain('<h2>Características</h2>')
+    expect(html).not.toContain('<script>')
+    expect(html).not.toContain('href="javascript:')
   })
   it('JSON-LD: Product + FAQPage, sem Offer quando o site não passa oferta', () => {
     const ld = produtoJsonLd(dto, { canonical: 'https://exemplo.test/p/produto-exemplo/' })

@@ -17,6 +17,7 @@
  * é justamente ele que precisa ler preço, data e loja no HTML inicial.
  */
 import { noImagem, noMigalhas } from '@maicon-ramos-org/schema'
+import { produtoEditorialDTO } from '../../../conteudo'
 
 import CtaAfiliado from '../../componentes/CtaAfiliado.astro'
 import CupomCard from '../../componentes/CupomCard.astro'
@@ -41,6 +42,7 @@ const slug = Astro.params.slug ?? ''
 const catalogo = await getCatalogoProduto(tenant.id, slug)
 const produto = catalogo ? null : await getProdutoBySlug(tenant.id, slug)
 if (!catalogo && !produto) return new Response('Produto não encontrado.', { status: 404 })
+const editorialFisico = catalogo ? produtoEditorialDTO(catalogo.produto) : null
 
 /** Canonical ABSOLUTO no host do tenant — staging nunca canoniza pra si mesmo. */
 const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(
@@ -48,8 +50,8 @@ const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(
 )}/`
 
 if (catalogo) {
-  // O piloto físico continua noindex; apenas a política de cache muda.
-  Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
+  // A flag de indexação é decisão explícita do publicador; nunca inferir do status editorial.
+  if (!editorialFisico?.indexable) Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
   // A ficha pode entrar no snapshot HTML privado. Mudanças do catálogo purgam
   // tenant e a cópia comercial tem validade curta se o webhook se perder.
   if (Astro.cache?.enabled) Astro.cache.set({ maxAge: 60, swr: 0,
@@ -202,13 +204,13 @@ const nosDaPagina = produto
 {
   catalogo ? (
     <Base
-      titulo={catalogo.produto.nome}
-      descricao={catalogo.produto.descricao}
+      titulo={editorialFisico?.content.metaTitle || catalogo.produto.nome}
+      descricao={editorialFisico?.content.metaDescription || editorialFisico?.content.summary || undefined}
       canonical={canonical}
-      noindex
+      noindex={!editorialFisico?.indexable}
       markdown={`/p/${catalogo.produto.slug}.md`}
       json={`/p/${catalogo.produto.slug}.json`}
-      schema={[schemaProduto(catalogo, canonical)]}
+      schema={schemaProduto(catalogo, canonical)}
     >
       <FichaProduto catalogo={catalogo} />
     </Base>

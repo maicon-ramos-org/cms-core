@@ -85,9 +85,9 @@ describe('rotas comerciais JSON', () => {
       marca: 'Marca', modelo: 'Modelo', estado: 'published' }, variantes: [], ofertas: [] })
     const physical = await getProduct(context())
     expect(physical.status).toBe(200)
-    expect(physical.headers.get('cache-control')).toBe('no-store')
+    expect(physical.headers.get('cache-control')).toBeNull()
     expect(mocks.product).not.toHaveBeenCalled()
-    expect(setCache).not.toHaveBeenCalled()
+    expect(setCache).toHaveBeenCalledWith(expect.objectContaining({ tags: ['tenant:site', 'produtos_fisicos:5'] }))
     mocks.product.mockResolvedValue({ id: 9, slug: 'oferta', titulo: 'Produto', estado: 'landing', indexavel: false,
       loja: { id: 2, nome: 'Loja', slug: 'loja' } })
     const legacy = await getProduct(context())
@@ -105,12 +105,29 @@ describe('rotas comerciais JSON', () => {
     const response = await getProductMd(context())
     const body = await response.text()
     expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('cache-control')).toBeNull()
     expect(response.headers.get('x-robots-tag')).toBe('noindex')
     expect(response.headers.get('link')).toBe('<https://site.example/p/oferta/>; rel="canonical"')
     expect(body).toContain('https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20')
     expect(body).not.toContain('2026-09-26')
     expect(mocks.product).not.toHaveBeenCalled()
+  })
+
+  it('produto físico publicado e indexável entrega o mesmo conteúdo em JSON e Markdown', async () => {
+    mocks.physical.mockResolvedValue({ produto: { id: 5, tenant: 1, nome: 'Físico', slug: 'oferta',
+      marca: 'Marca', modelo: 'Modelo', estado: 'published', indexavel: true,
+      resumo: 'Resumo do produto.', descricao_markdown: '## Detalhes\n\nCorpo revisado.',
+      destaques: ['Destaque claro'], faq: [{ pergunta: 'Serve?', resposta: 'Sim.' }],
+      facts_hash: 'f'.repeat(64), content_generator: 'interno' }, variantes: [], ofertas: [] })
+    const json = await (await getProduct(context())).json()
+    expect(json).toMatchObject({ indexable: true, summary: 'Resumo do produto.',
+      highlights: ['Destaque claro'], faq: [{ question: 'Serve?', answer: 'Sim.' }] })
+    expect(JSON.stringify(json)).not.toContain('facts_hash')
+    expect(JSON.stringify(json)).not.toContain('content_generator')
+    const md = await (await getProductMd(context())).text()
+    expect(md).toContain('## Detalhes')
+    expect(md).toContain('### Serve?')
+    expect(md).not.toContain('interno')
   })
 
   it('Markdown de AppSumo canoniza em /apps e redige destino comercial sem perder fonte externa', async () => {
