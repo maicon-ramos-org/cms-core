@@ -15,18 +15,19 @@ describe('DTO público do produto canônico', () => {
       provenance: { factsHash: 'c'.repeat(64), contentVersion: 2 }, editorial: { status: 'aprovado', refreshRequested: false } })
   })
   it.each([
-    ['flag desligada', { indexavel: false }], ['não publicado', { estado: 'draft' }], ['em revisão', { editorial_status: 'em_revisao' }],
-    ['sem faq', { faq: [] }], ['sem hash', { facts_hash: null }], ['meta_title acima do limite', { meta_title: 'x'.repeat(61) }],
-    ['flag ausente', { indexavel: undefined }],
-  ])('portão anti-thin fecha: %s', (_n, mudanca) => {
+    ['flag desligada', { indexavel: false }], ['não publicado', { estado: 'draft' }], ['flag ausente', { indexavel: undefined }],
+  ])('indexação exige publicação e flag explícita: %s', (_n, mudanca) => {
     expect(produtoEditorialDTO({ ...editorial, ...mudanca }).indexable).toBe(false)
   })
-  it('descrição legada aparece como texto, marcada como legado, e nunca indexa sozinha', () => {
+  it('revisão, FAQ e hash não são portões de indexação do CMS', () => {
+    expect(produtoEditorialDTO({ ...editorial, editorial_status: 'em_revisao', faq: [], facts_hash: null }).indexable).toBe(true)
+  })
+  it('descrição legada aparece como texto e respeita a flag explícita', () => {
     const dto = produtoEditorialDTO({ ...base, estado: 'published', indexavel: true, editorial_status: 'aprovado', descricao: ' Texto antigo. ' })
     expect(dto.origin).toBe('legado')
     expect(dto.content.summary).toBe('Texto antigo.')
     expect(dto.content.descriptionMarkdown).toBe('Texto antigo.')
-    expect(dto.indexable).toBe(false)
+    expect(dto.indexable).toBe(true)
   })
   it('sem nada: origem ausente, sem inventar texto', () => {
     const dto = produtoEditorialDTO(base)

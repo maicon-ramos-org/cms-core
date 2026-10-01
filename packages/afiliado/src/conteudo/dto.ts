@@ -3,7 +3,7 @@
  * (HTML consome o DTO; `.md` e JSON-LD saem das funções abaixo). Puro: não conhece rota, tema,
  * tenant nem loja — o site passa canonical e ofertas. Preço/oferta nunca moram no conteúdo.
  */
-import { camposFaltantes, CAMPOS_EDITORIAIS, CONTEUDO_SCHEMA, validarConteudo, type PerguntaFrequente, type StatusEditorial } from './contrato'
+import { CAMPOS_EDITORIAIS, CONTEUDO_SCHEMA, type PerguntaFrequente, type StatusEditorial } from './contrato'
 
 export interface ProdutoEditorialFonte {
   nome: string; slug: string; marca: string; modelo: string; categoria?: string | null
@@ -29,7 +29,7 @@ export interface ProdutoEditorialDTO {
   }
   provenance: { factsHash: string | null; generator: string | null; contentVersion: number | null; promptVersion: string | null }
   editorial: { status: StatusEditorial | 'desconhecido'; refreshRequested: boolean }
-  /** Portão composto: flag explícita + publicado + aprovado + conteúdo completo e válido. */
+  /** Decisão explícita do publicador; a revisão do conteúdo ocorreu fora do CMS. */
   indexable: boolean
 }
 
@@ -37,14 +37,13 @@ const STATUS = new Set<string>(['sem_conteudo', 'rascunho', 'em_revisao', 'aprov
 const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 /**
- * Fallback de compatibilidade: sem conteúdo estruturado, a `descricao` antiga vira o texto
- * (`origin: 'legado'`) e NUNCA torna o produto indexável.
+ * Fallback de compatibilidade: sem conteúdo estruturado, a `descricao` antiga vira o texto.
+ * O publicador decide explicitamente a indexação, também no caso legado.
  */
 export function produtoEditorialDTO(p: ProdutoEditorialFonte): ProdutoEditorialDTO {
   const estruturado = CAMPOS_EDITORIAIS.some(k => (Array.isArray(p[k]) ? p[k].length > 0 : Boolean(texto(p[k]))))
   const legado = !estruturado ? texto(p.descricao) : null
   const status = STATUS.has(String(p.editorial_status)) ? (p.editorial_status as StatusEditorial) : 'desconhecido'
-  const completo = camposFaltantes(p).length === 0 && validarConteudo(p).length === 0
   return {
     schema: CONTEUDO_SCHEMA, slug: p.slug, name: p.nome, brand: p.marca, model: p.modelo, category: p.categoria ?? null,
     origin: estruturado ? 'editorial' : legado ? 'legado' : 'ausente',
@@ -59,7 +58,7 @@ export function produtoEditorialDTO(p: ProdutoEditorialFonte): ProdutoEditorialD
     provenance: { factsHash: p.facts_hash ?? null, generator: p.content_generator ?? null,
       contentVersion: typeof p.content_version === 'number' ? p.content_version : null, promptVersion: p.prompt_version ?? null },
     editorial: { status, refreshRequested: Boolean(p.editorial_refresh_em) },
-    indexable: p.indexavel === true && p.estado === 'published' && status === 'aprovado' && completo,
+    indexable: p.indexavel === true && p.estado === 'published',
   }
 }
 

@@ -84,57 +84,38 @@ describe.skipIf(semBanco)('conteúdo editorial do produto canônico no Payload/P
     expect(paths(await produto({ categoria: 'filamento' }))).toEqual(['categoria'])
   })
 
-  it('ingestão grava o pacote completo como rascunho v1; aprovar/indexar/publicar é recusado', async () => {
+  it('ingestão grava rascunho v1 e não indexa nem publica', async () => {
     const r = await produto(conteudo())
     expect(r.status).toBe(201)
     expect(r.body.doc).toMatchObject({ editorial_status: 'rascunho', content_version: 1, indexavel: false, estado: 'draft',
       destaques: ['Fato um', 'Fato dois'], faq: [{ pergunta: 'Serve para quê?', resposta: 'Para o uso descrito.' }] })
-    expect(paths(await produto(conteudo({ peso: 2 }, { editorial_status: 'aprovado' })))).toContain('editorial_status')
     expect(paths(await produto(conteudo({ peso: 3 }, { indexavel: true })))).toContain('indexavel')
+    expect(paths(await produto({ ...conteudo(), estado: 'published' }))).toContain('estado')
     expect(paths(await produto({ ...conteudo(), meta_title: 'x'.repeat(61) }))).toEqual(['meta_title'])
     expect(paths(await produto({ ...conteudo(), faq: [{ pergunta: 'P?', resposta: 'R', extra: 1 }] }))).toEqual(['faq.0.extra'])
   })
 
-  it('conteúdo existente não é sobrescrito; reenvio idêntico é idempotente e não muda a versão', async () => {
+  it('agente atualiza conteúdo existente sem marcador e reenvio idêntico não aumenta versão', async () => {
     const criado = (await produto(conteudo())).body.doc
-    const alterado = await request(`/produtos_fisicos/${criado.id}`, 'PATCH', { resumo: 'Outro resumo' })
-    expect(alterado.status).toBe(400)
-    expect(paths(alterado)).toEqual(['resumo'])
-    expect(paths(await request(`/produtos_fisicos/${criado.id}`, 'PATCH', conteudo({ peso: 9 })))).toEqual(['facts_hash'])
-    const repetido = await request(`/produtos_fisicos/${criado.id}`, 'PATCH', conteudo())
+    const alterado = await request(`/produtos_fisicos/${criado.id}`, 'PATCH', { resumo: 'Outro resumo' }, chaves.agenteA)
+    expect(alterado.status).toBe(200)
+    expect(alterado.body.doc).toMatchObject({ resumo: 'Outro resumo', content_version: 2 })
+    const repetido = await request(`/produtos_fisicos/${criado.id}`, 'PATCH', { resumo: 'Outro resumo' }, chaves.agenteA)
     expect(repetido.status).toBe(200)
-    expect(repetido.body.doc).toMatchObject({ resumo: 'Resumo em um parágrafo.', content_version: 1 })
-    expect((await payload.findByID({ collection: 'produtos_fisicos', id: criado.id })).content_version).toBe(1)
-    // credencial de agente também é automação
-    expect(paths(await request(`/produtos_fisicos/${criado.id}`, 'PATCH', { resumo: 'Agente' }, chaves.agenteA))).toEqual(['resumo'])
+    expect(repetido.body.doc).toMatchObject({ resumo: 'Outro resumo', content_version: 2 })
   })
 
-  it('refresh explícito: só o editor marca; a reescrita automatizada passa uma vez e volta a rascunho', async () => {
-    const criado = (await produto(conteudo())).body.doc
+  it('agente cria draft e publica/indexa em PATCH explícito, sem aprovação humana ou FAQ obrigatória', async () => {
+    expect(paths(await produto({ ...conteudo(), estado: 'published' }, chaves.agenteA))).toContain('estado')
+    const criado = (await produto({ resumo: 'R$ 99,90', faq: [] }, chaves.agenteA)).body.doc
     const url = `/produtos_fisicos/${criado.id}`
-    expect(paths(await request(url, 'PATCH', { editorial_refresh_em: '2026-09-29T10:00:00Z' }))).toEqual(['editorial_refresh_em'])
-    expect((await request(url, 'PATCH', { editorial_refresh_em: '2026-09-29T10:00:00Z', editorial_refresh_motivo: 'fatos novos' }, chaves.editorA)).status).toBe(200)
-    const novo = conteudo({ peso: 2 }, { resumo: 'Resumo refeito com fatos novos.' })
-    const r = await request(url, 'PATCH', novo)
-    expect(r.status).toBe(200)
-    expect(r.body.doc).toMatchObject({ resumo: 'Resumo refeito com fatos novos.', content_version: 2, editorial_status: 'rascunho', indexavel: false,
-      editorial_refresh_em: null, editorial_refresh_motivo: null })
-    expect(paths(await request(url, 'PATCH', { resumo: 'Segunda reescrita sem novo pedido' }))).toEqual(['resumo'])
-  })
-
-  it('portão de indexação: default false, só o editor liga, e só com produto publicado, aprovado e completo', async () => {
-    const criado = (await produto(conteudo())).body.doc
-    const url = `/produtos_fisicos/${criado.id}`
-    expect(paths(await request(url, 'PATCH', { indexavel: true }, chaves.editorA))).toEqual(['indexavel'])
-    expect((await request(url, 'PATCH', { estado: 'published', editorial_status: 'aprovado' }, chaves.editorA)).status).toBe(200)
-    // ingestão nem chega a editar produto publicado (regra anterior); o agente chega e é barrado pelo portão
+    expect(criado).toMatchObject({ estado: 'draft', indexavel: false, editorial_status: 'rascunho' })
     expect(paths(await request(url, 'PATCH', { indexavel: true }, chaves.agenteA))).toEqual(['indexavel'])
-    const ligado = await request(url, 'PATCH', { indexavel: true }, chaves.editorA)
+    const ligado = await request(url, 'PATCH', { estado: 'published', indexavel: true }, chaves.agenteA)
     expect(ligado.status).toBe(200)
-    expect(ligado.body.doc.indexavel).toBe(true)
-    // rebaixar o status tira do índice, sem o editor precisar lembrar
-    const rebaixado = await request(url, 'PATCH', { editorial_status: 'rascunho' }, chaves.editorA)
-    expect(rebaixado.body.doc).toMatchObject({ editorial_status: 'rascunho', indexavel: false })
+    expect(ligado.body.doc).toMatchObject({ estado: 'published', indexavel: true, editorial_status: 'rascunho' })
+    expect((await request(url, 'PATCH', { editorial_status: 'em_revisao' }, chaves.agenteA)).body.doc.indexavel).toBe(true)
+    expect((await request(url, 'PATCH', { estado: 'draft' }, chaves.agenteA)).body.doc.indexavel).toBe(false)
   })
 
   it('tenant isolado: conteúdo de A é invisível e imutável para B, e o relacionamento cruzado é recusado', async () => {
@@ -155,13 +136,13 @@ describe.skipIf(semBanco)('conteúdo editorial do produto canônico no Payload/P
     expect(b.body.doc.content_version).toBe(1)
   })
 
-  it('descricao legada: preservada e protegida; backfill opt-in copia como rascunho, idempotente, sem indexar', async () => {
+  it('descricao legada: backfill opt-in copia como rascunho e conteúdo segue atualizável', async () => {
     const legado = (await produto({ descricao: 'Texto legado.' })).body.doc
     expect(legado).toMatchObject({ descricao: 'Texto legado.', editorial_status: 'sem_conteudo' })
     // anexar o pacote novo não toca a descricao antiga
     const comPacote = await request(`/produtos_fisicos/${legado.id}`, 'PATCH', conteudo())
     expect(comPacote.body.doc).toMatchObject({ descricao: 'Texto legado.', editorial_status: 'rascunho', content_version: 1 })
-    expect(paths(await request(`/produtos_fisicos/${legado.id}`, 'PATCH', { descricao: 'Reescrita' }))).toEqual(['descricao'])
+    expect((await request(`/produtos_fisicos/${legado.id}`, 'PATCH', { descricao: 'Reescrita' }, chaves.agenteA)).status).toBe(200)
 
     const outro = (await produto({ descricao: 'Outro texto legado.' })).body.doc
     const db = (payload.db as any).drizzle
@@ -171,7 +152,6 @@ describe.skipIf(semBanco)('conteúdo editorial do produto canônico no Payload/P
     expect(depois).toMatchObject({ descricao: 'Outro texto legado.', descricao_markdown: 'Outro texto legado.', editorial_status: 'rascunho', indexavel: false, content_version: 1 })
     // o backfill não sobrescreve o que já tem conteúdo estruturado
     expect((await payload.findByID({ collection: 'produtos_fisicos', id: legado.id }) as any).descricao_markdown).toBe('## O que é\n\nTexto factual.')
-    // e o texto promovido continua protegido contra automação
-    expect(paths(await request(`/produtos_fisicos/${outro.id}`, 'PATCH', { descricao_markdown: 'Automático' }))).toContain('descricao_markdown')
+    expect((await request(`/produtos_fisicos/${outro.id}`, 'PATCH', { descricao_markdown: 'Automático' }, chaves.agenteA)).status).toBe(200)
   })
 })

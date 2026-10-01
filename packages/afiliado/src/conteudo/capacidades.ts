@@ -12,8 +12,8 @@ export const VERSAO_PLUGIN_AFILIADO = '0.2.0-next.19'
  * Formato `major.minor`. Compatível = mesmo major e minor >= exigido.
  * - `affiliate.catalog` 2.0: produto → variante → listing, registro de categorias por instância,
  *   identidade de listing com seller, produto canônico dono do conteúdo;
- * - `affiliate.content` 1.0: `product_content/v1` no produto, com portão editorial e `indexavel`;
- * - `affiliate.preflight` 1.0: decisão editorial pura (`planoDeConteudo`) sobre campos legíveis;
+ * - `affiliate.content` 1.0: `product_content/v1` no produto e indexação explícita;
+ * - `affiliate.preflight` 1.0: evita geração idêntica sem bloquear atualização;
  * - `affiliate.offer-history` 1.0: histórico de preço append-only por listing.
  */
 export const CAPACIDADES_AFILIADO = Object.freeze({
@@ -52,10 +52,10 @@ export function descritorCapacidades(categorias: readonly CategoriaDescrita[]) {
     content: {
       schema: CONTEUDO_SCHEMA, limits: LIMITES_CONTEUDO, statuses: STATUS_EDITORIAL, automationStatuses: STATUS_AUTOMACAO,
       jsonSchema: JSON_SCHEMA_CONTEUDO_V1,
-      // o schema é necessário, não suficiente: estas regras só o validador/CMS aplica
+      // o schema descreve só o formato; revisão e qualidade pertencem ao Hermes
       rulesOutsideJsonSchema: REGRAS_FORA_DO_JSON_SCHEMA,
-      rules: ['content_belongs_to_canonical_product', 'draft_first', 'no_automatic_overwrite', 'refresh_requires_human_marker',
-        'indexable_defaults_false', 'facts_hash_makes_writes_idempotent'],
+      rules: ['content_belongs_to_canonical_product', 'draft_first', 'agent_may_update',
+        'agent_may_publish_and_index_explicitly', 'indexable_defaults_false', 'facts_hash_supports_idempotency'],
     },
     catalog: {
       // só dados: callbacks de validação do site nunca saem da instância

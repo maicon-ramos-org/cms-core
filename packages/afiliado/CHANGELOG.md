@@ -6,9 +6,10 @@
   `docs/contratos/conteudo-editorial-produto.md`): `produtos_fisicos` ganha `meta_title`
   (≤ 60), `meta_description` (≤ 155), `resumo`, `descricao_markdown`, `destaques`, `faq`,
   `facts_hash`, `content_generator`, `prompt_version`, `content_version`,
-  `editorial_status`, marcador de refresh e `indexavel` (default `false`). Validação tipada
-  de FAQ/destaques; draft-first; automação nunca sobrescreve conteúdo existente, e um
-  refresh só vale se um editor o pediu; aprovar e indexar são humanos.
+  `editorial_status`, metadados opcionais de refresh e `indexavel` (default `false`).
+  Validação estrutural de FAQ/destaques; draft-first; o agente publicador pode atualizar
+  conteúdo existente e, em PATCH explícito, publicar e indexar sem aprovação no CMS.
+  Pesquisa e revisão editorial, incluindo FAQ e preços no texto, pertencem ao Hermes.
   **Migration aditiva obrigatória por instância** (30 instruções, todas com default ou
   nulas; `descricao` legada permanece intacta). `SQL_BACKFILL_DESCRICAO_LEGADA` é opt-in.
 - Capabilities `affiliate.catalog` 2.0, `affiliate.content` 1.0, `affiliate.preflight` 1.0 e
@@ -17,12 +18,9 @@
   `atendeCapacidades`.
 - Nova entrada `@maicon-ramos-org/afiliado/conteudo` (pura): validadores, `planoDeConteudo`,
   DTO público, Markdown, JSON-LD e JSON Schema. Rotas do plugin **não** mudam.
-- **JSON Schema alinhado ao validador** (`JSON_SCHEMA_CONTEUDO_V1`): texto não só em branco
-  (`pattern`), preço fora dos textos (`not.pattern`, mesma fonte do validador —
-  `PADRAO_PRECO`), FAQ sem itens idênticos. O que JSON Schema não expressa (FAQ repetida
-  após normalização NFKC/trim/minúsculas, workflow editorial, etc.) sai em
-  `capabilities.content.rulesOutsideJsonSchema` / `REGRAS_FORA_DO_JSON_SCHEMA`. Testes de
-  paridade Ajv × `validarConteudo`.
+- **JSON Schema estrutural** (`JSON_SCHEMA_CONTEUDO_V1`): campos opcionais, tipos e limites;
+  não julga FAQ repetida, completude ou preço no texto. A revisão externa é documentada em
+  `capabilities.content.rulesOutsideJsonSchema`. Testes de paridade Ajv × `validarConteudo`.
 - **`hashDeFatos` só aceita JSON real** (null, boolean, número finito, string, arrays e
   objetos planos); recusa `undefined`, `Date`/`Map`/`Set`/classes, função, `NaN`/`Infinity`,
   ciclos etc. com `PacoteFactualInvalidoError` (sem valores na mensagem) — antes, `undefined`

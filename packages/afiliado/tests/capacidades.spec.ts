@@ -34,7 +34,8 @@ describe('contrato de capabilities do plugin de afiliado', () => {
     expect(d).toMatchObject({ plugin: 'afiliado', version: pacote.version, content: { schema: 'product_content/v1',
       limits: { metaTitle: 60, metaDescription: 155 }, statuses: ['sem_conteudo', 'rascunho', 'em_revisao', 'aprovado'] },
       catalog: { categories: [{ slug: 'x', label: 'X', identityAttributes: ['gtin'], identityVersion: 2, legacy: false }] } })
-    expect(d.content.rules).toContain('no_automatic_overwrite')
+    expect(d.content.rules).toContain('agent_may_update')
+    expect(d.content.rules).toContain('agent_may_publish_and_index_explicitly')
     expect(() => JSON.stringify(d)).not.toThrow()
   })
   it('endpoint só responde a usuário autenticado e nunca fica em cache', async () => {

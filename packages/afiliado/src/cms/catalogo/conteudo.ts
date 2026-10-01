@@ -2,104 +2,65 @@ import { createHash } from 'node:crypto'
 import { hasRole, isSuperAdmin } from '@maicon-ramos-org/cms-core'
 import { ValidationError, type CollectionBeforeChangeHook, type Field } from 'payload'
 import {
-  ausente, camposFaltantes, CAMPOS_EDITORIAIS, CAMPOS_PROTEGIDOS, CAMPOS_PROVENIENCIA, conteudoCompleto, iguais,
-  LIMITES_CONTEUDO, STATUS_AUTOMACAO, STATUS_EDITORIAL, temConteudoEditorial, validarConteudo, type ProblemaConteudo,
+  ausente, CAMPOS_EDITORIAIS, CAMPOS_PROVENIENCIA, iguais,
+  LIMITES_CONTEUDO, STATUS_EDITORIAL, validarConteudo, type ProblemaConteudo,
 } from '../../conteudo/contrato'
 
 type Doc = Record<string, any>
 
 /**
  * Campos do conteúdo editorial em `produtos_fisicos` (contrato `product_content/v1`). O JSON
- * (`destaques`, `faq`) é validado por tipo em `validaConteudoEditorial`, num único lugar.
- * `descricao` continua existindo: é o campo legado, preservado e protegido como conteúdo.
+ * (`destaques`, `faq`) é validado apenas por forma em `validaConteudoEditorial`.
+ * `descricao` continua existindo para compatibilidade com os produtos legados.
  */
 export const camposConteudoEditorial: Field[] = [
   { name: 'meta_title', type: 'text', maxLength: LIMITES_CONTEUDO.metaTitle },
   { name: 'meta_description', type: 'text', maxLength: LIMITES_CONTEUDO.metaDescription },
   { name: 'resumo', type: 'textarea', maxLength: LIMITES_CONTEUDO.resumo },
   { name: 'descricao_markdown', type: 'textarea', maxLength: LIMITES_CONTEUDO.descricaoMarkdown },
-  { name: 'destaques', type: 'json', admin: { description: 'Lista de textos (até 12).' } },
-  { name: 'faq', type: 'json', admin: { description: 'Lista de { pergunta, resposta } (até 12).' } },
+  { name: 'destaques', type: 'json', admin: { description: 'Lista de textos; revisão editorial feita fora do CMS.' } },
+  { name: 'faq', type: 'json', admin: { description: 'Lista de { pergunta, resposta }; revisão feita pelo Hermes.' } },
   { name: 'facts_hash', type: 'text', admin: { description: 'SHA-256 do pacote factual que gerou o texto; mesma hash = mesma geração.' } },
   { name: 'content_generator', type: 'text', maxLength: LIMITES_CONTEUDO.generator },
   { name: 'prompt_version', type: 'text', maxLength: LIMITES_CONTEUDO.promptVersion },
   { name: 'content_version', type: 'number', min: 1, admin: { readOnly: true, description: 'Edição do conteúdo; o CMS incrementa a cada mudança aceita.' } },
-  { name: 'editorial_status', type: 'select', options: [...STATUS_EDITORIAL], required: true, defaultValue: 'sem_conteudo' },
-  { name: 'editorial_refresh_em', type: 'date', admin: { description: 'Marcador de refresh solicitado por um editor; habilita UMA reescrita automatizada.' } },
+  { name: 'editorial_status', type: 'select', options: [...STATUS_EDITORIAL], required: true, defaultValue: 'sem_conteudo',
+    admin: { description: 'Estado informativo do pipeline externo; não bloqueia publicação no CMS.' } },
+  { name: 'editorial_refresh_em', type: 'date', admin: { description: 'Marcador informativo; não é necessário para atualizar conteúdo.' } },
   { name: 'editorial_refresh_motivo', type: 'text', maxLength: 300 },
-  { name: 'indexavel', type: 'checkbox', defaultValue: false, admin: { description: 'Portão de indexação: só um editor liga, e só com conteúdo aprovado e completo.' } },
+  { name: 'indexavel', type: 'checkbox', defaultValue: false, admin: { description: 'O agente publicador ou editor pode ligar ao publicar o produto.' } },
 ]
 
 const recusa = (problemas: ProblemaConteudo[]): never => { throw new ValidationError({ errors: problemas }) }
-const humano = (user: unknown) => isSuperAdmin(user) || hasRole(user, 'editor')
+const podePublicar = (user: unknown) => !user || isSuperAdmin(user) || hasRole(user, 'editor') || hasRole(user, 'agente')
 
 /**
- * Draft-first e sem sobrescrita automática. Editor/super-admin editam livremente; qualquer
- * outra escrita (ingestão, agente, script sem usuário) só preenche o que está vazio, exceto
- * quando um editor deixou o marcador de refresh — que autoriza uma reescrita completa e
- * devolve o produto a `rascunho`/não indexável. Aprovar e indexar são decisões humanas.
+ * O CMS confere só o formato persistido. O Hermes pesquisa, revisa, atualiza e, numa chamada
+ * explícita posterior à criação draft, publica/indexa. O CMS não repete avaliação editorial.
  */
 export const validaConteudoEditorial: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
   const atual: Doc = originalDoc?.id ? originalDoc : {}
   const efetivo: Doc = { ...atual, ...data }
-  const editor = humano(req.user)
   const problemas: ProblemaConteudo[] = []
-  const tocados = CAMPOS_PROTEGIDOS.filter(k => k in data)
+  const tocados = [...CAMPOS_EDITORIAIS, ...CAMPOS_PROVENIENCIA].filter(k => k in data)
   const mudou = (k: string) => k in data && !iguais(data[k], atual[k])
 
-  problemas.push(...validarConteudo(Object.fromEntries(tocados.filter(k => k !== 'descricao').map(k => [k, data[k]]))))
+  problemas.push(...validarConteudo(Object.fromEntries(tocados.map(k => [k, data[k]]))))
 
-  const sobrescritos = tocados.filter(k => !ausente(atual[k]) && mudou(k))
-  const refreshAutorizado = Boolean(atual.editorial_refresh_em)
-  if (!editor && sobrescritos.length && !refreshAutorizado) {
-    for (const k of sobrescritos) problemas.push({ path: k, message: 'Conteúdo editorial existente não é sobrescrito automaticamente; um editor precisa solicitar o refresh.' })
-  }
-  const escritaEditorial = !editor && [...CAMPOS_EDITORIAIS, ...CAMPOS_PROVENIENCIA].some(k => mudou(k) && !ausente(data[k]))
-  if (escritaEditorial) for (const k of camposFaltantes(efetivo)) problemas.push({ path: k, message: 'Escrita automatizada exige o conteúdo completo, com facts_hash e content_generator.' })
-
-  for (const k of ['editorial_refresh_em', 'editorial_refresh_motivo'] as const) {
-    if (!mudou(k)) continue
-    if (!editor) problemas.push({ path: k, message: 'Somente um editor solicita ou limpa o refresh editorial.' })
-    else if (!ausente(data[k]) && !temConteudoEditorial(atual)) problemas.push({ path: k, message: 'Não há conteúdo existente para refrescar.' })
-  }
-  if (data.editorial_refresh_em && !ausente(data.editorial_refresh_em) && mudou('editorial_refresh_em')) {
-    const t = Date.parse(String(data.editorial_refresh_em))
-    if (Number.isFinite(t)) data.editorial_refresh_em = new Date(t).toISOString()
-  }
-
-  let status: string = efetivo.editorial_status ?? 'sem_conteudo'
+  const status: string = efetivo.editorial_status ?? 'sem_conteudo'
   const temEstruturado = CAMPOS_EDITORIAIS.some(k => !ausente(efetivo[k]))
-  // o Payload entrega o documento inteiro em `data` no update: só conta o que MUDOU
-  if (!editor && mudou('editorial_status') && !STATUS_AUTOMACAO.includes(data.editorial_status)) {
-    problemas.push({ path: 'editorial_status', message: 'Aprovar é decisão editorial humana.' })
-  }
-  // estado derivado: o Payload já injeta o default `sem_conteudo` no create, então não dá para
-  // distinguir "explícito" de "default" — conteúdo estruturado sempre implica, no mínimo, rascunho
-  if (status === 'sem_conteudo' && temEstruturado) data.editorial_status = status = 'rascunho'
-  if (['em_revisao', 'aprovado'].includes(status) && !conteudoCompleto(efetivo)) {
-    problemas.push({ path: 'editorial_status', message: 'Revisão e aprovação exigem conteúdo completo e válido.' })
-  }
-
+  // O status é um registro do pipeline; sem valor explícito, conteúdo novo nasce como rascunho.
+  if (status === 'sem_conteudo' && temEstruturado) data.editorial_status = 'rascunho'
   if (data.indexavel === true && atual.indexavel !== true) {
-    if (!editor) problemas.push({ path: 'indexavel', message: 'Indexação é decisão editorial humana.' })
-    else if (status !== 'aprovado' || efetivo.estado !== 'published' || !conteudoCompleto(efetivo)) {
-      problemas.push({ path: 'indexavel', message: 'Indexar exige produto publicado com conteúdo completo e status aprovado.' })
-    }
+    if (!podePublicar(req.user)) problemas.push({ path: 'indexavel', message: 'A credencial de ingestão não indexa produtos.' })
+    else if (efetivo.estado !== 'published') problemas.push({ path: 'indexavel', message: 'Indexar exige produto publicado.' })
   }
   if (problemas.length) return recusa(problemas)
 
-  // refresh consumido: a reescrita automatizada volta para revisão e sai do índice
-  if (!editor && refreshAutorizado && sobrescritos.length) {
-    data.editorial_refresh_em = null
-    data.editorial_refresh_motivo = null
-    status = data.editorial_status === 'em_revisao' ? 'em_revisao' : 'rascunho'
-    data.editorial_status = status
-    data.indexavel = false
-  }
-  if (efetivo.indexavel === true && data.indexavel !== false && (status !== 'aprovado' || !conteudoCompleto({ ...efetivo, ...data }))) data.indexavel = false
+  if (efetivo.estado !== 'published' && atual.indexavel === true) data.indexavel = false
 
   // content_version é do CMS: o cliente não o escolhe
-  if ([...CAMPOS_EDITORIAIS, ...CAMPOS_PROVENIENCIA].some(mudou)) data.content_version = (Number(atual.content_version) || 0) + 1
+  if (tocados.some(mudou)) data.content_version = (Number(atual.content_version) || 0) + 1
   else if ('content_version' in data) data.content_version = atual.content_version ?? null
   return data
 }

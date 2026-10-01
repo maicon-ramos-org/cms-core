@@ -71,7 +71,10 @@ export const criaValidaProduto = (registro: RegistroCategorias = REGISTRO_CATEGO
       if (key in data && normaliza(data[key]) !== normaliza(originalDoc[key])) invalido(key, 'Identidade do produto é imutável.')
     }
   }
-  if (hasRole(req.user, 'ingestao') && !isSuperAdmin(req.user) && data.estado === 'published') invalido('estado', 'Ingestão cria draft.')
+  if (!isSuperAdmin(req.user) && data.estado === 'published') {
+    if (hasRole(req.user, 'ingestao')) invalido('estado', 'Ingestão não publica produto.')
+    if (hasRole(req.user, 'agente') && !originalDoc?.id) invalido('estado', 'Agente cria draft; publicação é passo explícito posterior.')
+  }
   return data
 }
 export const validaProduto = criaValidaProduto()
