@@ -1,5 +1,38 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.19 — 2026-10-01 (pré-lançamento)
+
+- **Conteúdo editorial no produto canônico** (`product_content/v1`, contrato em
+  `docs/contratos/conteudo-editorial-produto.md`): `produtos_fisicos` ganha `meta_title`
+  (≤ 60), `meta_description` (≤ 155), `resumo`, `descricao_markdown`, `destaques`, `faq`,
+  `facts_hash`, `content_generator`, `prompt_version`, `content_version`,
+  `editorial_status`, metadados opcionais de refresh e `indexavel` (default `false`).
+  Validação estrutural de FAQ/destaques; draft-first; o agente publicador pode atualizar
+  conteúdo existente e, em PATCH explícito, publicar e indexar sem aprovação no CMS.
+  Pesquisa e revisão editorial, incluindo FAQ e preços no texto, pertencem ao Hermes.
+  **Migration aditiva obrigatória por instância** (30 instruções, todas com default ou
+  nulas; `descricao` legada permanece intacta). `SQL_BACKFILL_DESCRICAO_LEGADA` é opt-in.
+- Capabilities `affiliate.catalog` 2.0, `affiliate.content` 1.0, `affiliate.preflight` 1.0 e
+  `affiliate.offer-history` 1.0 em `GET /api/afiliado/capabilities` (autenticado), com
+  limites, JSON Schema e categorias da instância. Consumidores falham fechado com
+  `atendeCapacidades`.
+- Nova entrada `@maicon-ramos-org/afiliado/conteudo` (pura): validadores, `planoDeConteudo`,
+  DTO público, Markdown, JSON-LD e JSON Schema. Rotas do plugin **não** mudam.
+- **JSON Schema estrutural** (`JSON_SCHEMA_CONTEUDO_V1`): campos opcionais, tipos e limites;
+  não julga FAQ repetida, completude ou preço no texto. A revisão externa é documentada em
+  `capabilities.content.rulesOutsideJsonSchema`. Testes de paridade Ajv × `validarConteudo`.
+- **`hashDeFatos` só aceita JSON real** (null, boolean, número finito, string, arrays e
+  objetos planos); recusa `undefined`, `Date`/`Map`/`Set`/classes, função, `NaN`/`Infinity`,
+  ciclos etc. com `PacoteFactualInvalidoError` (sem valores na mensagem) — antes, `undefined`
+  era descartado e podia colidir hashes. Quem enviava `undefined` deve remover a chave.
+- Migration de conteúdo editorial testada em schema antigo populado (`up` preserva legado);
+  `down` é **destrutivo** (apaga o conteúdo editorial novo) e não é rollback sem perda.
+- `afiliado({ catalogo: { incluirCategoriasPadrao: false } })`: instância só com as próprias
+  categorias (default `true`, sem efeito para quem já consome).
+- Correção de isolamento: as coleções do catálogo físico recusam escrita quando o `tenant`
+  do corpo não pertence ao usuário (antes, um usuário de outro tenant criava documentos
+  informando o id do tenant alheio). Super-admin e Local API sem usuário não mudam.
+
 ## 0.2.0-next.18 — 2026-09-29 (pré-lançamento)
 
 - Fichas de produtos físicos publicados podem ser servidas por snapshot R2,

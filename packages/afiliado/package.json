@@ -1,10 +1,11 @@
 {
   "name": "@maicon-ramos-org/afiliado",
-  "version": "0.2.0-next.18",
+  "version": "0.2.0-next.19",
   "description": "Plugin de afiliado: coleções e campos (entrada cms) e rotas e componentes (entrada web) de um site de cupom e oferta (PRD 17, ADR-0011)",
   "type": "module",
   "exports": {
     "./cms": "./src/cms/index.ts",
+    "./conteudo": "./src/conteudo/index.ts",
     "./web": "./src/web/index.ts",
     "./web/extensao": "./src/web/extensao.ts",
     "./web/lib/*": "./src/web/lib/*.ts",
@@ -44,6 +45,7 @@
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/plugin-multi-tenant": "3.88.0",
     "@types/node": "22.19.9",
+    "ajv": "8.18.0",
     "astro": "^7.2.4",
     "payload": "3.88.0",
     "typescript": "5.7.3",

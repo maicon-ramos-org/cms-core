@@ -39,11 +39,19 @@ export async function lockListing(req: PayloadRequest, tenant: unknown, chave: s
 export const lockReferencia = (req: PayloadRequest, collection: CollectionSlug, id: unknown, shared = true) =>
   lockListing(req, 'catalogo-relacao', `${collection}:${idRel(id)}`, shared)
 
+/** Quem não é super-admin só escreve nos tenants em que é membro: o `tenant` do corpo nunca concede acesso. */
+const membroDoTenant = (user: unknown, tenant: string): boolean => {
+  if (isSuperAdmin(user)) return true
+  const tenants = (user as { tenants?: Array<{ tenant?: unknown }> | null })?.tenants
+  return Array.isArray(tenants) && tenants.some(t => idRel(t?.tenant) === tenant)
+}
+
 export const validaRelacoes = (relations: Record<string, CollectionSlug>): CollectionBeforeChangeHook =>
   async ({ data, originalDoc, req }) => {
     const effective = { ...originalDoc, ...data }
     const tenant = idRel(effective.tenant)
     if (!tenant) invalido('tenant', 'Tenant obrigatório.')
+    if (req.user && !membroDoTenant(req.user, tenant)) invalido('tenant', 'Usuário não pertence ao tenant.')
     if (originalDoc?.id && idRel(originalDoc.tenant) !== tenant) invalido('tenant', 'Tenant é imutável.')
     await lockReferencia(req, 'tenants', tenant)
     for (const [field, collection] of Object.entries(relations)) {
@@ -63,7 +71,10 @@ export const criaValidaProduto = (registro: RegistroCategorias = REGISTRO_CATEGO
       if (key in data && normaliza(data[key]) !== normaliza(originalDoc[key])) invalido(key, 'Identidade do produto é imutável.')
     }
   }
-  if (hasRole(req.user, 'ingestao') && !isSuperAdmin(req.user) && data.estado === 'published') invalido('estado', 'Ingestão cria draft.')
+  if (!isSuperAdmin(req.user) && data.estado === 'published') {
+    if (hasRole(req.user, 'ingestao')) invalido('estado', 'Ingestão não publica produto.')
+    if (hasRole(req.user, 'agente') && !originalDoc?.id) invalido('estado', 'Agente cria draft; publicação é passo explícito posterior.')
+  }
   return data
 }
 export const validaProduto = criaValidaProduto()

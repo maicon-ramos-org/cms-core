@@ -35,9 +35,17 @@ const partesProibidas = new Set(['__proto__', 'prototype', 'constructor'])
 const caminhoValido = (path: string) => camposEscalares.has(path) ||
   (path.startsWith('especificacoes.') && path.split('.').every(p => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p) && !partesProibidas.has(p)))
 
-export function registrarCategorias(adicionais: readonly CategoriaCatalogo[] = []): RegistroCategorias {
+export interface OpcoesRegistroCategorias {
+  /** `false`: a instância não herda as quatro categorias históricas e declara só as suas (exige adicionais). */
+  incluirPadrao?: boolean
+}
+
+export function registrarCategorias(adicionais: readonly CategoriaCatalogo[] = [], opcoes: OpcoesRegistroCategorias = {}): RegistroCategorias {
+  const incluirPadrao = opcoes.incluirPadrao ?? true
+  if (!incluirPadrao && !adicionais.length) throw new Error('Sem as categorias padrão, declare ao menos uma categoria.')
   if (!adicionais.length) return REGISTRO_CATEGORIAS_PADRAO
-  const slugs = new Set(REGISTRO_CATEGORIAS_PADRAO.map(c => c.slug))
+  const base = incluirPadrao ? REGISTRO_CATEGORIAS_PADRAO : []
+  const slugs = new Set(base.map(c => c.slug))
   const novas = adicionais.map(c => {
     if (typeof c.slug !== 'string' || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(c.slug) || slugs.has(c.slug)) throw new Error(`Categoria inválida ou duplicada: ${c.slug}`)
     if (typeof c.rotulo !== 'string' || !c.rotulo.trim()) throw new Error(`Categoria ${c.slug} exige rótulo.`)
@@ -52,7 +60,7 @@ export function registrarCategorias(adicionais: readonly CategoriaCatalogo[] = [
       atributosDeIdentidade: Object.freeze(atributos), validarVariante: c.validarVariante,
       legada: false, exigeAtributos: true, matchPorAtributos: atributos.length > 0 })
   })
-  return Object.freeze([...REGISTRO_CATEGORIAS_PADRAO, ...novas])
+  return Object.freeze([...base, ...novas])
 }
 
 export const categoriaRegistrada = (slug: unknown, registro: RegistroCategorias = REGISTRO_CATEGORIAS_PADRAO) =>
