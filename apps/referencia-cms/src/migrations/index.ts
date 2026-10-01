@@ -2,6 +2,7 @@ import * as migration_20260924_112918_inicial from './20260924_112918_inicial';
 import * as migration_20260924_234833_agenda_snapshot from './20260924_234833_agenda_snapshot';
 import * as migration_20260927_165242_pages_navegacao from './20260927_165242_pages_navegacao';
 import * as migration_20260929_125623_conteudo_editorial_produto from './20260929_125623_conteudo_editorial_produto';
+import * as migration_20261001_235508_produto_fisico_especificacoes_editoriais from './20261001_235508_produto_fisico_especificacoes_editoriais';
 
 export const migrations = [
   {
@@ -22,6 +23,11 @@ export const migrations = [
   {
     up: migration_20260929_125623_conteudo_editorial_produto.up,
     down: migration_20260929_125623_conteudo_editorial_produto.down,
-    name: '20260929_125623_conteudo_editorial_produto'
+    name: '20260929_125623_conteudo_editorial_produto',
+  },
+  {
+    up: migration_20261001_235508_produto_fisico_especificacoes_editoriais.up,
+    down: migration_20261001_235508_produto_fisico_especificacoes_editoriais.down,
+    name: '20261001_235508_produto_fisico_especificacoes_editoriais'
   },
 ];
