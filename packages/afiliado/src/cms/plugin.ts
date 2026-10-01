@@ -91,6 +91,6 @@ export const afiliado = (opcoes: OpcoesAfiliado = {}): Plugin => {
     c = acrescentaCamposAoTenant(c, [programasAtivos])
     c = acrescentaAoGrupoDoTenant(c, 'seo', [titlePatternLoja])
     c = acrescentaDestinosDoAutoLinker(c, ['lojas', 'ofertas', 'produtos'])
-    return { ...c, collections: (c.collections ?? []).map(protegeReferencias) }
+    return { ...c, collections: (c.collections ?? []).map(collection => protegeReferencias(collection)) }
   }
 }

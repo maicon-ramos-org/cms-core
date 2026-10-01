@@ -12,9 +12,9 @@ const references: Partial<Record<CollectionSlug, Array<[CollectionSlug, string, 
 }
 
 /** Só protege documentos legados já referenciados pelo catálogo novo. */
-export function protegeReferencias(collection: CollectionConfig): CollectionConfig {
-  const targets = references[collection.slug as CollectionSlug]
-  if (!targets) return collection
+export function protegeReferencias(collection: CollectionConfig, disponiveis?: ReadonlySet<CollectionSlug>): CollectionConfig {
+  const targets = references[collection.slug as CollectionSlug]?.filter(([slug]) => !disponiveis || disponiveis.has(slug))
+  if (!targets?.length) return collection
   const check = async (req: PayloadRequest, id: unknown) => {
     await lockReferencia(req, collection.slug as CollectionSlug, id, false)
     for (const [slug, field, prefix] of targets) {
