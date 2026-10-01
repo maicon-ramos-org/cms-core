@@ -1,6 +1,6 @@
 # @maicon-ramos-org/afiliado
 
-## Não lançado
+## 0.2.0-next.21 — 2026-10-01 (pré-lançamento)
 
 - O publicador final pode criar `produtos_fisicos` já com `estado: published` e
   `indexavel: true`; aprovação e revisão continuam fora do CMS. Ingestão segue
