@@ -28,7 +28,7 @@ espelhos, histórico, escolhas e redirect opt-in, versionados em `afiliado@0.2.0
 O complemento opcional `catalogoEditorial()` acrescenta lojas, cupons e categorias
 à mesma coleção de ofertas, sem duplicá-la nem ligar monitoramento automático.
 O [conteúdo editorial do produto canônico](docs/contratos/conteudo-editorial-produto.md)
-(`product_content/v1`, `afiliado@0.2.0-next.18`) fixa campos, portão de indexação,
+(`product_content/v1`, `afiliado@0.2.0-next.19`) fixa campos, portão de indexação,
 refresh explícito e as capabilities `affiliate.*` que consumidores descobrem em runtime.
 O [contrato dos formatos públicos](docs/contratos/formatos-publicos.md) define
 HTML canônico, Markdown e JSON allowlist para conteúdo publicado. A

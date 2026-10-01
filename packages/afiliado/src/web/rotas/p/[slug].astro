@@ -48,9 +48,12 @@ const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(
 )}/`
 
 if (catalogo) {
-  // piloto físico: comportamento preservado byte a byte (PRD 16)
+  // O piloto físico continua noindex; apenas a política de cache muda.
   Astro.response.headers.set('X-Robots-Tag', 'noindex, follow')
-  Astro.response.headers.set('Cache-Control', 'no-store')
+  // A ficha pode entrar no snapshot HTML privado. Mudanças do catálogo purgam
+  // tenant e a cópia comercial tem validade curta se o webhook se perder.
+  if (Astro.cache?.enabled) Astro.cache.set({ maxAge: 60, swr: 0,
+    tags: [`tenant:${tenant.slug}`, `produtos_fisicos:${catalogo.produto.id}`] })
 }
 
 /* ------------------------------------------------------------------ */

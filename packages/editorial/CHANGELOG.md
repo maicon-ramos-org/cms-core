@@ -1,5 +1,19 @@
 # @maicon-ramos-org/editorial
 
+## 0.2.0-next.10 — 2026-09-29 (pré-lançamento)
+
+- Snapshots R2 antigos continuam servindo HTML imediatamente enquanto o CMS
+  revalida em segundo plano. Uma publicação ainda invalida a geração anterior;
+  falha de CMS/R2 não substitui a última página pública válida por erro.
+
+## 0.2.0-next.9 — 2026-09-29 (pré-lançamento)
+
+- `lib/page-snapshots`: armazenamento privado de HTML público em R2, com chave
+  canônica por host/caminho, gerações que invalidam cópias antigas, limite de
+  idade por tipo de página e fallback para Astro se o R2 falhar. Só aceita HTML
+  público completo; preserva cabeçalhos de descoberta, SEO e WebMCP. A adoção é
+  opt-in por site, sem alterações de schema ou publicação.
+
 ## 0.2.0-next.8 — 2026-09-28 (pré-lançamento)
 
 - Descoberta pública vira gerador puro configurável: `lib/descoberta` produz

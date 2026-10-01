@@ -1,6 +1,6 @@
 # Conteúdo editorial do produto canônico (`product_content/v1`)
 
-Status: implementado em `afiliado@0.2.0-next.18` (consumo só depois da publicação confirmada;
+Status: implementado em `afiliado@0.2.0-next.19` (consumo só depois da publicação confirmada;
 merge/CI não publicam pacote). Contrato escrito para o plugin de afiliado, sem conhecer site,
 tenant, vertical ou loja.
 
@@ -92,7 +92,7 @@ não passa; `Cache-Control: no-store`) devolve:
 ```json
 {
   "plugin": "afiliado",
-  "version": "0.2.0-next.18",
+  "version": "0.2.0-next.19",
   "capabilities": {
     "affiliate.catalog": "2.0",
     "affiliate.content": "1.0",

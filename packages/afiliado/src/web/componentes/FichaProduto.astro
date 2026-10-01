@@ -1,5 +1,5 @@
 ---
-import type { getCatalogoProduto } from '../lib/catalogo'
+import { destinoAmazon, type getCatalogoProduto } from '../lib/catalogo'
 interface Props { catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>> }
 const { produto, variantes, ofertas } = Astro.props.catalogo
 ---
@@ -10,9 +10,10 @@ const { produto, variantes, ofertas } = Astro.props.catalogo
   <p>Como associado da Amazon, eu recebo por compras qualificadas.</p>
   {variantes.map(v => <section>
     <h2>{v.nome}</h2>
-    {ofertas.filter(o => String(o.variante) === String(v.id)).map(o =>
-      <p><a href={`/r/f${o.id}`} rel="sponsored noopener">Ver preço na Amazon</a></p>
-    )}
+    {ofertas.filter(o => String(o.variante) === String(v.id)).map(o => {
+      const href = destinoAmazon(o)
+      return href ? <p><a href={href} rel="sponsored noopener noreferrer" target="_blank">Ver preço na Amazon</a></p> : null
+    })}
   </section>)}
   {ofertas.length === 0 && <p>Nenhuma oferta revisada disponível para consulta.</p>}
 </main>

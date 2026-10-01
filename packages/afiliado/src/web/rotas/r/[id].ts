@@ -32,6 +32,18 @@ import { ipDoCliente, variavel } from '@maicon-ramos-org/editorial/lib/ambiente'
 import { ipHash } from '@maicon-ramos-org/editorial/lib/hash'
 import { requisicaoComercialEspeculativa, respostaComercialEspeculativa } from '../../lib/requisicao-especulativa'
 
+const htmlAttribute = (value: string): string => value.replace(/[&<>"']/g, character =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
+
+/** Historical Amazon /r/f links require a deliberate click on a direct Special Link. */
+function oldAmazonLinkPage(destination: string): Response {
+  const safe = htmlAttribute(destination)
+  return new Response(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>Abrir Amazon</title></head><body><main><h1>Abrir Amazon</h1><p>Você será encaminhado ao site da Amazon ao selecionar o botão.</p><a href="${safe}" rel="sponsored noopener noreferrer">Ver preço na Amazon</a></main></body></html>`, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer-when-downgrade' },
+  })
+}
+
 interface Destino {
   tipo_doc: 'cupom' | 'oferta' | 'produto'
   urlFonte: string | null
@@ -102,10 +114,7 @@ export const GET: APIRoute = async (context) => {
   if (/^f\d{1,12}$/.test(id)) {
     const location = await getDestinoFisico(tenant.id, id.slice(1))
     if (!location) return new Response('Oferta não encontrada.', { status: 404 })
-    return new Response(null, { status: 302, headers: {
-      Location: location, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow',
-      'Referrer-Policy': 'no-referrer-when-downgrade',
-    } })
+    return oldAmazonLinkPage(location)
   }
   const destino = await resolveDestino(id, tenant.id)
   if (!destino) return fallback()

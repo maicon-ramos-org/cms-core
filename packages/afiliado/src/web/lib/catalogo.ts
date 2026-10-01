@@ -43,7 +43,9 @@ export function schemaProduto(catalogo: NonNullable<Awaited<ReturnType<typeof ge
   return { '@type': 'Product', '@id': `${canonical}#produto`, url: canonical,
     name: catalogo.produto.nome, description: catalogo.produto.descricao,
     brand: { '@type': 'Brand', name: catalogo.produto.marca }, model: catalogo.produto.modelo,
-    offers: catalogo.ofertas.map(o => ({ '@type': 'Offer', '@id': `${canonical}#oferta-${o.id}`,
-      url: new URL(`/r/f${o.id}`, canonical).href })),
+    offers: catalogo.ofertas.flatMap(o => {
+      const destino = destinoAmazon(o)
+      return destino ? [{ '@type': 'Offer', '@id': `${canonical}#oferta-${o.id}`, url: destino }] : []
+    }),
   }
 }
