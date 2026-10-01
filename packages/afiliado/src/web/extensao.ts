@@ -54,7 +54,7 @@ export const sitemaps: Record<string, GeradorDeSitemap> = {
   },
 
   catalogo: async (tenant, base) => {
-    const [cats, lojas, produtos] = await Promise.all([
+    const [cats, lojas, produtos, fisicosPublicados, fisicosIndexaveis] = await Promise.all([
       cmsCategoriasOferta(tenant.id),
       getLojas(tenant.id),
       /*
@@ -65,8 +65,16 @@ export const sitemaps: Record<string, GeradorDeSitemap> = {
       listarParaSitemap('produtos', tenant.id, 'updatedAt', [
         { campo: 'indexavel', operador: 'equals', valor: 'true' },
       ]),
+      listarParaSitemap('produtos_fisicos', tenant.id, 'updatedAt', [
+        { campo: 'estado', operador: 'equals', valor: 'published' },
+      ]),
+      listarParaSitemap('produtos_fisicos', tenant.id, 'updatedAt', [
+        { campo: 'estado', operador: 'equals', valor: 'published' },
+        { campo: 'indexavel', operador: 'equals', valor: 'true' },
+      ]),
     ])
     const porId = new Map(cats.map((c) => [String(c.id), c]))
+    const ocupadosPeloFisico = new Set(fisicosPublicados.map(p => p.slug))
     return [
       ...cats.map((c) => {
         const paiId = c.pai && typeof c.pai === 'object' ? String(c.pai.id) : c.pai ? String(c.pai) : null
@@ -75,7 +83,8 @@ export const sitemaps: Record<string, GeradorDeSitemap> = {
         return { loc: `${base}/categoria-oferta/${caminho}/`, lastmod: null }
       }),
       ...lojas.map((l) => ({ loc: `${base}/empresa/${l.slug}/`, lastmod: null })),
-      ...produtos.map((p) => ({ loc: `${base}/p/${p.slug}/`, lastmod: p.lastmod })),
+      ...produtos.filter(p => !ocupadosPeloFisico.has(p.slug)).map((p) => ({ loc: `${base}/p/${p.slug}/`, lastmod: p.lastmod })),
+      ...fisicosIndexaveis.map((p) => ({ loc: `${base}/p/${p.slug}/`, lastmod: p.lastmod })),
     ]
   },
 }

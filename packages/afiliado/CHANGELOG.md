@@ -1,5 +1,13 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.20 — 2026-10-01 (pré-lançamento)
+
+- A ficha pública do produto físico usa o conteúdo editorial canônico em HTML,
+  Markdown, JSON e Schema.org; a flag de indexação do publicador controla meta,
+  cabeçalho e sitemap. Markdown é renderizado sem HTML cru ou protocolos perigosos.
+- A publicação do produto não inventa preço de ofertas no Schema.org; o conteúdo
+  continua separado de preço, listing e variante.
+
 ## 0.2.0-next.19 — 2026-10-01 (pré-lançamento)
 
 - **Conteúdo editorial no produto canônico** (`product_content/v1`, contrato em

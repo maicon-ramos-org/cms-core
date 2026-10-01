@@ -13,8 +13,10 @@ export const GET: APIRoute = async (context) => {
   const catalogo = await getCatalogoProduto(tenant.id, slug)
   if (catalogo) {
     const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas)
+    if (context.cache?.enabled) context.cache.set({ maxAge: 60, swr: 0,
+      tags: [`tenant:${tenant.slug}`, `produtos_fisicos:${catalogo.produto.id}`] })
     return Response.json(body, { headers: { 'X-Robots-Tag': 'noindex',
-      'Cache-Control': 'no-store', Link: `<${body.url}>; rel="canonical"` } })
+      Link: `<${body.url}>; rel="canonical"` } })
   }
   const produto = await getProdutoBySlug(tenant.id, slug)
   if (!produto) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })

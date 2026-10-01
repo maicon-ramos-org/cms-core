@@ -1,6 +1,7 @@
 /** Fichas comerciais públicas derivadas do dado editorial; nunca devolvem o documento Payload. */
 import type { LojaDTO, OfertaDTO, ProdutoDTO } from './cms'
 import { destinoAmazon, type ProdutoFisico, type Listing } from './catalogo'
+import { produtoEditorialDTO } from '../../conteudo'
 
 type Tenant = { canonical_host: string }
 const id = (value: string | number) => String(value)
@@ -60,10 +61,13 @@ export function produtoPublicoJson(tenant: Tenant, produto: ProdutoDTO, monetiza
 }
 
 export function produtoFisicoPublicoJson(tenant: Tenant, produto: ProdutoFisico, ofertas: Listing[]) {
+  const editorial = produtoEditorialDTO(produto)
   return {
     url: url(tenant, `/p/${encodeURIComponent(produto.slug)}/`), slug: produto.slug,
-    contentType: 'physical-product', title: produto.nome, summary: text(produto.descricao),
-    brand: text(produto.marca), model: text(produto.modelo), indexable: false,
+    contentType: 'physical-product', title: produto.nome, summary: editorial.content.summary,
+    descriptionMarkdown: editorial.content.descriptionMarkdown,
+    highlights: editorial.content.highlights, faq: editorial.content.faq,
+    brand: text(produto.marca), model: text(produto.modelo), indexable: editorial.indexable,
     price: null, offers: ofertas.flatMap(offer => {
       const href = destinoAmazon(offer)
       return href ? [{ href, observedAt: date(offer.observado_em) }] : []
