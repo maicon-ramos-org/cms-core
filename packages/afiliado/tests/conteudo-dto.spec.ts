@@ -37,6 +37,16 @@ describe('DTO público do produto canônico', () => {
   it('conteúdo estruturado tem precedência sobre o legado', () => {
     expect(produtoEditorialDTO({ ...editorial, descricao: 'antigo' }).content.summary).toBe('Resumo direto.')
   })
+  it('expõe somente identificadores e especificações editoriais explícitas, sem JSON de identidade bruto', () => {
+    const dto = produtoEditorialDTO({ ...editorial, gtin: '7891234567895', mpn: 'FAB-123',
+      especificacoes: { token_interno: 'não público' },
+      especificacoes_editoriais: [{ rotulo: 'Material', valor: 'PLA' },
+        { rotulo: 'Destino', valor: 'https://afiliado.example/?key=secreta' }] })
+    expect(dto.identifiers).toEqual({ gtin: '7891234567895', mpn: 'FAB-123' })
+    expect(dto.specifications).toEqual([{ name: 'Material', value: 'PLA' }])
+    expect(JSON.stringify(dto)).not.toContain('token_interno')
+    expect(JSON.stringify(dto)).not.toContain('secreta')
+  })
 })
 
 describe('.md e JSON-LD gerados do mesmo DTO', () => {
@@ -66,6 +76,20 @@ describe('.md e JSON-LD gerados do mesmo DTO', () => {
     expect(produto).not.toHaveProperty('offers')
     expect(produto).not.toHaveProperty('aggregateRating')
     expect(produto.description).toBe('Resumo direto.')
+  })
+  it('JSON-LD usa imagem, GTIN, MPN e especificações reais sem criar Offer ou rating', () => {
+    const enriched = produtoEditorialDTO({ ...editorial, gtin: '7891234567895', mpn: 'FAB-123',
+      especificacoes_editoriais: [{ rotulo: 'Material', valor: 'PLA' }] })
+    const ld = produtoJsonLd(enriched, { canonical: 'https://exemplo.test/p/produto-exemplo/',
+      imagem: 'https://media.exemplo.test/produto.jpg' })
+    const product = ld['@graph'][0] as Record<string, unknown>
+    expect(product).toMatchObject({ image: 'https://media.exemplo.test/produto.jpg',
+      gtin: '7891234567895', mpn: 'FAB-123',
+      additionalProperty: [{ '@type': 'PropertyValue', name: 'Material', value: 'PLA' }] })
+    expect(product).not.toHaveProperty('offers')
+    expect(product).not.toHaveProperty('aggregateRating')
+    expect(produtoMarkdown(enriched)).toContain('**GTIN:** 7891234567895')
+    expect(produtoMarkdown(enriched)).toContain('- Material: PLA')
   })
   it('Offer só nasce de oferta com preço válido fornecida pelo site; sem FAQ não há FAQPage', () => {
     const semFaq = produtoEditorialDTO({ ...editorial, faq: [] })

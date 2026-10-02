@@ -6,7 +6,7 @@
 import { CONTEUDO_SCHEMA, JSON_SCHEMA_CONTEUDO_V1, LIMITES_CONTEUDO, REGRAS_FORA_DO_JSON_SCHEMA, STATUS_AUTOMACAO, STATUS_EDITORIAL } from './contrato'
 
 /** Versão do pacote que declara estas capabilities; um teste a mantém igual ao package.json. */
-export const VERSAO_PLUGIN_AFILIADO = '0.2.0-next.20'
+export const VERSAO_PLUGIN_AFILIADO = '0.2.0-next.21'
 
 /**
  * Formato `major.minor`. Compatível = mesmo major e minor >= exigido.

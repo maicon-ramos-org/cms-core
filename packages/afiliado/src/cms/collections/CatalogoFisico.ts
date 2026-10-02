@@ -1,6 +1,6 @@
 import { tenantField } from '@payloadcms/plugin-multi-tenant/fields'
 import type { CollectionConfig, CollectionSlug, Field } from 'payload'
-import { authenticated, nunca, podeEscreverConteudo } from '@maicon-ramos-org/cms-core'
+import { authenticated, nunca, podeEscreverConteudo, revalidateAfterChange } from '@maicon-ramos-org/cms-core'
 import { validaSlugKebab } from '@maicon-ramos-org/cms-core'
 import { appendOnly, criaValidaProduto, criaValidaVariante, criaValidaVinculo, depoisListing, historicoInterno, observaListing, semDelete, validaElegibilidade, validaProduto, validaRedirect, validaRelacoes, validaVariante, validaVinculo } from '../catalogo/hooks'
 import { REGISTRO_CATEGORIAS_PADRAO, type RegistroCategorias } from '../catalogo/categorias'
@@ -31,9 +31,14 @@ export const ProdutosFisicos: CollectionConfig = {
     { name: 'descricao', type: 'textarea', admin: { description: 'Legado. Prefira descricao_markdown; sem migração automática.' } },
     rel('imagem', 'midia', false), text('gtin'), text('mpn'),
     { name: 'especificacoes', type: 'json' }, select('estado', ['draft', 'review', 'published'], 'draft'),
+    // O JSON acima participa da identidade/matching e pode conter dados internos. Só esta
+    // lista opt-in vira ficha pública e PropertyValue no Schema.org.
+    { name: 'especificacoes_editoriais', type: 'array', maxRows: 30,
+      fields: [{ name: 'rotulo', type: 'text', required: true, maxLength: 80 },
+        { name: 'valor', type: 'text', required: true, maxLength: 300 }] },
     ...camposConteudoEditorial]),
   indexes: [{ fields: ['tenant', 'slug'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto, validaConteudoEditorial] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ imagem: 'midia' }), validaProduto, validaConteudoEditorial], afterChange: [revalidateAfterChange('produtos_fisicos')] },
 }
 export const VariantesProduto: CollectionConfig = {
   ...base('variantes_produto', [rel('produto', 'produtos_fisicos'), text('nome', true), text('sku_fabricante'), text('gtin'),
@@ -42,7 +47,7 @@ export const VariantesProduto: CollectionConfig = {
     select('estado', ['incerta', 'confirmada'], 'incerta'),
     { name: 'chave_normalizada', type: 'text', admin: { readOnly: true } }]),
   indexes: [{ fields: ['tenant', 'produto', 'chave_normalizada'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ produto: 'produtos_fisicos', imagem: 'midia' }), validaVariante] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ produto: 'produtos_fisicos', imagem: 'midia' }), validaVariante], afterChange: [revalidateAfterChange('variantes_produto')] },
 }
 export const OfertasProduto: CollectionConfig = {
   ...base('ofertas_produto', [rel('variante', 'variantes_produto'), rel('loja', 'lojas'), text('seller_normalizado'), text('external_listing_id'),
@@ -53,27 +58,27 @@ export const OfertasProduto: CollectionConfig = {
     select('estado', ['draft', 'ativa', 'encerrada'], 'draft'), text('fonte', true), date('observado_em', true), date('validade'),
     { name: 'confianca', type: 'number', min: 0, max: 1 }]),
   indexes: [{ fields: ['tenant', 'chave_listing'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ variante: 'variantes_produto', loja: 'lojas' }), validaRedirect, observaListing], afterChange: [depoisListing] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ variante: 'variantes_produto', loja: 'lojas' }), validaRedirect, observaListing], afterChange: [depoisListing, revalidateAfterChange('ofertas_produto')] },
 }
 export const HistoricoPrecoOferta: CollectionConfig = {
   ...base('historico_preco_oferta', [rel('oferta', 'ofertas_produto'), number('preco', true), number('frete'),
     select('disponibilidade', ['disponivel', 'indisponivel', 'desconhecida']), text('fonte', true), date('observado_em', true)]),
   access: { ...access, create: nunca, update: nunca },
   indexes: [{ fields: ['tenant', 'oferta', 'observado_em'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [historicoInterno, validaRelacoes({ oferta: 'ofertas_produto' })] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [historicoInterno, validaRelacoes({ oferta: 'ofertas_produto' })], afterChange: [revalidateAfterChange('historico_preco_oferta')] },
 }
 export const VinculosCatalogo: CollectionConfig = {
   ...base('vinculos_catalogo', [text('entrada', true), rel('variante', 'variantes_produto'), rel('oferta', 'ofertas_produto', false),
     select('metodo', ['gtin', 'sku', 'url', 'atributos', 'humano']), { name: 'score', type: 'number', required: true, min: 0, max: 1 },
     { name: 'evidencia', type: 'json', required: true }, select('decisao', ['pendente', 'confirmado', 'rejeitado'], 'pendente'), date('observado_em', true)]),
   access: { ...access, update: nunca },
-  hooks: { beforeDelete: [semDelete], beforeChange: [appendOnly, validaRelacoes({ variante: 'variantes_produto', oferta: 'ofertas_produto' }), validaVinculo] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [appendOnly, validaRelacoes({ variante: 'variantes_produto', oferta: 'ofertas_produto' }), validaVinculo], afterChange: [revalidateAfterChange('vinculos_catalogo')] },
 }
 export const ElegibilidadeCupom: CollectionConfig = {
   ...base('elegibilidade_cupom', [rel('cupom', 'cupons'), rel('oferta', 'ofertas_produto'), number('minimo_pedido'),
     date('inicio'), date('fim'), date('verificado_em', true), text('fonte', true)]),
   indexes: [{ fields: ['tenant', 'cupom', 'oferta'], unique: true }],
-  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ cupom: 'cupons', oferta: 'ofertas_produto' }), validaElegibilidade] },
+  hooks: { beforeDelete: [semDelete], beforeChange: [validaRelacoes({ cupom: 'cupons', oferta: 'ofertas_produto' }), validaElegibilidade], afterChange: [revalidateAfterChange('elegibilidade_cupom')] },
 }
 export const catalogoFisico = [ProdutosFisicos, VariantesProduto, OfertasProduto, HistoricoPrecoOferta, VinculosCatalogo, ElegibilidadeCupom]
 

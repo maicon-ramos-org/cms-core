@@ -1,5 +1,22 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.21 — 2026-10-01 (pré-lançamento)
+
+- O publicador final pode criar `produtos_fisicos` já com `estado: published` e
+  `indexavel: true`; aprovação e revisão continuam fora do CMS. Ingestão segue
+  impedida de publicar. Não altera o padrão `draft` quando o estado é omitido.
+- A ficha física passa a resolver e mostrar imagem da biblioteca, GTIN/MPN e
+  especificações editoriais opt-in no HTML, Markdown, JSON e `Product` JSON-LD.
+  O JSON bruto de identidade `especificacoes` não é exposto; não são inventados
+  preço, oferta ou avaliação. Campo novo requer migration aditiva por instância.
+- `produtoCanonico()` instala apenas `produtos_fisicos`, sem impor lojas, cupons,
+  listings Amazon ou rotas ao site consumidor. A opção `vincularOfertasEditoriais`
+  acrescenta a relação opcional `ofertas_editoriais.produto` com verificação do
+  mesmo tenant. Nenhuma oferta antiga é convertida ou indexada automaticamente;
+  a instância que optar pelo vínculo precisa gerar e revisar a migration.
+- Mudanças no catálogo físico agora avisam a revalidação do site por tenant,
+  inclusive produto, listing e observação de preço, para não servir ficha antiga.
+
 ## 0.2.0-next.20 — 2026-10-01 (pré-lançamento)
 
 - A ficha pública do produto físico usa o conteúdo editorial canônico em HTML,

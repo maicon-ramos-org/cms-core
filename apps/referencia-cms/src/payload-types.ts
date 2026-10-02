@@ -1309,12 +1309,19 @@ export interface ProdutosFisico {
     | boolean
     | null;
   estado: 'draft' | 'review' | 'published';
+  especificacoes_editoriais?:
+    | {
+        rotulo: string;
+        valor: string;
+        id?: string | null;
+      }[]
+    | null;
   meta_title?: string | null;
   meta_description?: string | null;
   resumo?: string | null;
   descricao_markdown?: string | null;
   /**
-   * Lista de textos (até 12).
+   * Lista de textos; revisão editorial feita fora do CMS.
    */
   destaques?:
     | {
@@ -1326,7 +1333,7 @@ export interface ProdutosFisico {
     | boolean
     | null;
   /**
-   * Lista de { pergunta, resposta } (até 12).
+   * Lista de { pergunta, resposta }; revisão feita pelo Hermes.
    */
   faq?:
     | {
@@ -1347,14 +1354,17 @@ export interface ProdutosFisico {
    * Edição do conteúdo; o CMS incrementa a cada mudança aceita.
    */
   content_version?: number | null;
+  /**
+   * Estado informativo do pipeline externo; não bloqueia publicação no CMS.
+   */
   editorial_status: 'sem_conteudo' | 'rascunho' | 'em_revisao' | 'aprovado';
   /**
-   * Marcador de refresh solicitado por um editor; habilita UMA reescrita automatizada.
+   * Marcador informativo; não é necessário para atualizar conteúdo.
    */
   editorial_refresh_em?: string | null;
   editorial_refresh_motivo?: string | null;
   /**
-   * Portão de indexação: só um editor liga, e só com conteúdo aprovado e completo.
+   * O agente publicador ou editor pode ligar ao publicar o produto.
    */
   indexavel?: boolean | null;
   updatedAt: string;
@@ -2366,6 +2376,13 @@ export interface ProdutosFisicosSelect<T extends boolean = true> {
   mpn?: T;
   especificacoes?: T;
   estado?: T;
+  especificacoes_editoriais?:
+    | T
+    | {
+        rotulo?: T;
+        valor?: T;
+        id?: T;
+      };
   meta_title?: T;
   meta_description?: T;
   resumo?: T;

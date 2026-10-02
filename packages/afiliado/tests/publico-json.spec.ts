@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ofertaPublicaJson, produtoFisicoPublicoJson, produtoPublicoJson } from '../src/web/lib/publico-json'
+import { imagemProduto, schemaProduto } from '../src/web/lib/catalogo'
 import type { OfertaDTO, ProdutoDTO } from '../src/web/lib/cms'
 
 const tenant = { canonical_host: 'site.example' }
@@ -46,10 +47,26 @@ describe('JSON comercial público: allowlist, data e CTA interno', () => {
     expect(physical).toMatchObject({ indexable: false, price: null,
       offers: [{ href: 'https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20' }] })
   })
+  it('imagem e ficha técnica física concordam entre JSON público e Product JSON-LD', () => {
+    const produto = { id: 3, tenant: 1, slug: 'fisico', nome: 'Físico', marca: 'Marca', modelo: 'M1',
+      estado: 'published', indexavel: true, gtin: '7891234567895', mpn: 'M1-PT',
+      imagem: { url: 'https://media.example/fisico.jpg', alt: 'Físico em uso', width: 900, height: 600 },
+      especificacoes: { segredo: 'não publicar' },
+      especificacoes_editoriais: [{ rotulo: 'Peso', valor: '500 g' }] }
+    expect(imagemProduto(produto)).toMatchObject({ url: 'https://media.example/fisico.jpg', alt: 'Físico em uso' })
+    const publico = produtoFisicoPublicoJson(tenant, produto, [])
+    expect(publico).toMatchObject({ image: { url: 'https://media.example/fisico.jpg' },
+      identifiers: { gtin: '7891234567895', mpn: 'M1-PT' }, specifications: [{ name: 'Peso', value: '500 g' }] })
+    const graph = schemaProduto({ produto, variantes: [], ofertas: [] }, 'https://site.example/p/fisico/')
+    expect(graph[0]).toMatchObject({ image: 'https://media.example/fisico.jpg', gtin: '7891234567895',
+      mpn: 'M1-PT', additionalProperty: [{ name: 'Peso', value: '500 g' }] })
+    expect(JSON.stringify(publico)).not.toContain('segredo')
+  })
 })
 
 const mocks = vi.hoisted(() => ({ offer: vi.fn(), product: vi.fn(), physical: vi.fn() }))
 vi.mock('../src/web/lib/cms', () => ({ getOfertaBySlug: mocks.offer, getProdutoBySlug: mocks.product,
+  urlMidia: (url: string) => url,
   caminhoDaOferta: (value: { wordpress_id?: string }) => value.wordpress_id?.startsWith('app:')
     ? '/apps/oferta/' : '/ofertas/oferta/', PRODUTO_MONETIZAVEL: new Set(['landing', 'indexavel']) }))
 vi.mock('../src/web/lib/catalogo', async importOriginal => ({

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validaConteudoEditorial } from '../src/cms/catalogo/conteudo'
+import { validaProduto } from '../src/cms/catalogo/hooks'
 
 type Doc = Record<string, any>
 const users = { editor: { roles: ['editor'] }, ingestao: { roles: ['ingestao'] }, agente: { roles: ['agente'] }, script: undefined }
@@ -35,6 +36,16 @@ describe('CMS guarda estrutura sem revisar conteúdo do Hermes', () => {
 })
 
 describe('publicação e indexação explícitas', () => {
+  it('publicador final cria produto aprovado já publicado; ingestão continua draft-only', () => {
+    const base = { categoria: 'filamento', estado: 'published' }
+    const run = (role: keyof typeof users) => (validaProduto as any)({ data: { ...base }, req: { user: users[role] } })
+    expect(run('agente')).toMatchObject(base)
+    expect(() => run('ingestao')).toThrow(expect.objectContaining({ data: {
+      errors: [expect.objectContaining({ path: 'estado' })],
+    } }))
+    expect(roda('agente', { estado: 'published', indexavel: true, resumo: 'Aprovado antes do CMS' }))
+      .toMatchObject({ indexavel: true, content_version: 1 })
+  })
   it('ingestão não liga indexação, agente pode após publicação mesmo sem aprovação ou FAQ', () => {
     const base = { estado: 'published', editorial_status: 'rascunho', faq: [], indexavel: false }
     expect(paths('ingestao', { indexavel: true }, base)).toEqual(['indexavel'])

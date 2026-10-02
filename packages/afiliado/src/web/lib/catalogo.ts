@@ -1,15 +1,31 @@
 import { validaSiteStripe, validaAmazonLink } from '@maicon-ramos-org/afflinks'
 import { variavel } from '@maicon-ramos-org/editorial/lib/ambiente'
-import { cmsFetch, type MidiaDTO } from './cms'
+import { cmsFetch, urlMidia, type MidiaDTO } from './cms'
 import { produtoEditorialDTO, produtoJsonLd, type ProdutoEditorialFonte } from '../../conteudo'
 type Id = string | number
-export interface ProdutoFisico extends ProdutoEditorialFonte { id: Id; tenant: Id; estado: string; imagem?: MidiaDTO }
+export interface ProdutoFisico extends ProdutoEditorialFonte {
+  id: Id; tenant: Id | { id: Id }; estado: string; imagem?: MidiaDTO | Id | null
+}
 export interface Variante { id: Id; tenant: Id; produto: Id; nome: string; estado: string }
 export interface Listing { id: Id; tenant: Id; variante: Id; loja: Id; estado: string; fonte: string; external_listing_id: string; url_origem: string; url_afiliado?: string; observado_em: string }
-const same = (a: Id, b: Id) => String(a) === String(b)
-async function find<T>(collection: string, tenant: Id, filters: Record<string, string>): Promise<T[]> {
-  const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenant), depth: '0', limit: '100', ...filters })
+const same = (a: Id | { id: Id }, b: Id) => String(typeof a === 'object' ? a.id : a) === String(b)
+async function find<T>(collection: string, tenant: Id, filters: Record<string, string>, depth = 0): Promise<T[]> {
+  const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenant), depth: String(depth), limit: '100', ...filters })
   return (await cmsFetch<{ docs: T[] }>(`/api/${collection}?${q}`)).docs
+}
+/** A mídia é um relacionamento público; depth 1 resolve só o documento da imagem. */
+export function imagemProduto(produto: ProdutoFisico): { url: string; alt: string; width?: number; height?: number } | null {
+  const imagem = produto.imagem
+  if (!imagem || typeof imagem !== 'object' || !imagem.url) return null
+  const url = urlMidia(imagem.url)
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password) return null
+  } catch { return null }
+  return { url, alt: imagem.alt?.trim() || produto.nome,
+    ...(imagem.width && imagem.width > 0 ? { width: imagem.width } : {}),
+    ...(imagem.height && imagem.height > 0 ? { height: imagem.height } : {}) }
 }
 export function destinoAmazon(o: Listing): string | null {
   if (!['amazon-manual-sitestripe', 'amazon-manual-revisado'].includes(o.fonte) || o.url_origem !== `https://www.amazon.com.br/dp/${o.external_listing_id}` ||
@@ -19,7 +35,7 @@ export function destinoAmazon(o: Listing): string | null {
 export async function getCatalogoProduto(tenant: Id, slug: string) {
   const [produto] = await find<ProdutoFisico>('produtos_fisicos', tenant, {
     'where[and][1][slug][equals]': slug, 'where[and][2][estado][equals]': 'published',
-  })
+  }, 1)
   if (!produto || !same(produto.tenant, tenant) || produto.estado !== 'published') return null
   const variantes = (await find<Variante>('variantes_produto', tenant, {
     'where[and][1][produto][equals]': String(produto.id), 'where[and][2][estado][equals]': 'confirmada',
@@ -42,5 +58,7 @@ export async function getDestinoFisico(tenant: Id, id: string): Promise<string |
 }
 export function schemaProduto(catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>>, canonical: string) {
   // O conteúdo é do produto. Sem preço observado e datado, não inventar Offer no schema.
-  return produtoJsonLd(produtoEditorialDTO(catalogo.produto), { canonical })['@graph']
+  return produtoJsonLd(produtoEditorialDTO(catalogo.produto), {
+    canonical, imagem: imagemProduto(catalogo.produto)?.url,
+  })['@graph']
 }

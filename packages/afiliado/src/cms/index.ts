@@ -4,6 +4,7 @@
  * RF5). A entrada `web` — rotas e componentes de oferta — nasce no RF3.
  */
 export { afiliado, programasAtivos, type OpcoesAfiliado } from './plugin'
+export { produtoCanonico, type OpcoesProdutoCanonico } from './produto-canonico'
 export { ofertasEditoriais, type OpcoesOfertasEditoriais } from './ofertas-editoriais/plugin'
 export { catalogoEditorial } from './ofertas-editoriais/catalogo'
 export { ultimasVerificacoesOfertas, type ExecutorVerificacoes, type UltimaVerificacaoOferta } from './ofertas-editoriais/ultimas-verificacoes'
