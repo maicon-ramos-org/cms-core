@@ -1,4 +1,5 @@
 export * from './contrato'
 export * from './dto'
+export * from './ficha'
 export * from './html'
 export * from './capacidades'

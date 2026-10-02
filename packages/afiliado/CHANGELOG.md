@@ -1,5 +1,50 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.22 — 2026-10-02 (pré-lançamento; não publicado)
+
+- `FichaMonetizavelDTO` (`monetizable_content/v1`) e adaptadores de produto/oferta
+  editorial na entrada `conteudo`, reaproveitando o contrato editorial existente.
+  Conteúdo e listings comerciais são separados; prós/contras são preservados.
+  Não altera collections, migrations, rotas, layouts ou a escrita dos publicadores.
+- Markdown/HTML reaproveitados e ponte opcional para `Product` JSON-LD. Campos
+  vazios de marca/modelo deixam de gerar rótulos ou propriedades vazias.
+  Software/serviço não são classificados automaticamente como produto físico.
+- Contrato e limites documentados em `FICHA-MONETIZAVEL.md`; testes de paridade,
+  isolamento, ausência de gate editorial e independência entre conteúdo e preço.
+- A página pública da oferta legada passa a consumir a ficha em HTML, Markdown e
+  JSON, preservando URLs, rich text, layout comum/lifetime e CTAs. O código do
+  cupom continua oculto até o clique; apenas máscara e condições entram na leitura.
+  Ciclo de cobrança, preço anterior, descontos e selos ficam na monetização.
+- O JSON-LD da oferta só cria `Offer` com preço positivo/finito, moeda e URL válidos;
+  não usa loja como marca, data de observação como início de estoque nem presume
+  disponibilidade. Mantém o grafo legado, sem reclassificar software nesta etapa.
+  Prós/contras explícitos são preservados; não cria validação editorial no CMS.
+- Testes locais do template Astro real com fixtures isoladas cobrem oferta comum,
+  lifetime com/sem cupom, falta de preço/editorial e recusa de draft/outro tenant.
+  Não publica pacote, executa migration ou altera instâncias consumidoras.
+- A leitura pública do produto físico canônico também passa pela ficha em HTML,
+  Markdown, JSON e JSON-LD, mantendo `/p/{slug}`, layout/CSS, metadados, noindex,
+  imagem e links finais validados. Variantes/listings ficam na monetização; preço,
+  estoque e `Offer` não são inventados. Prós/contras explícitos são reaproveitados.
+- Testes reais dos três formatos protegem isolamento por tenant, vínculos de
+  variantes/listings, parâmetros dos links e prioridade do físico por slug.
+  O fallback de `produtos` legado permanece intacto; não funde collections ou banco.
+- Integração focada com Payload/PostgreSQL reais, REST autenticada e seis rotas
+  Astro comprova paridade do núcleo editorial, isolamento multi-tenant, lifetime,
+  cupom literal oculto e dois listings na mesma ficha. Leituras repetidas não
+  modificam documentos, versões ou histórico. Banco local exclusivo descartável;
+  sem alteração de collections, migrations ou adapters de produção.
+- O gerador legado `llms` da extensão usa a ficha compartilhada em uma seção
+  `Fichas monetizáveis`, com título e URLs HTML/Markdown canônicas. Leitura de
+  metadados paginada/tenant-scoped, deduplicação apenas por canonical e ordenação
+  estável; sem campos comerciais ou consultas de listings. Oferta legada publicada
+  conserva sua elegibilidade, físico exige publicação/indexação explícita.
+  Não reativa o gancho na rota pública estática nem publica a seção nos sites:
+  adoção requer geração de artefato fora da requisição pública.
+- Preparação de release: documentação do contrato incluída no tarball, versão
+  anunciada pelas capabilities sincronizada e tipagem do título físico validada
+  pelo `astro check` do consumidor de referência. Sem mudança de schema.
+
 ## 0.2.0-next.21 — 2026-10-01 (pré-lançamento)
 
 - O publicador final pode criar `produtos_fisicos` já com `estado: published` e

@@ -15,10 +15,11 @@
  * - o selo SUBSTITUI a escassez artificial do site atual — é o argumento que só nós temos.
  */
 import type { CupomDTO } from '../lib/cms'
+import type { CupomCardPublico } from '../lib/oferta-ficha'
 import CtaAfiliado from './CtaAfiliado.astro'
 
 interface Props {
-  cupom: CupomDTO
+  cupom: CupomDTO | CupomCardPublico
   /** decomposição do desconto ("70% da loja + 10% nosso cupom") quando houver dado */
   decomposicao?: string | null
   /**
@@ -69,7 +70,7 @@ const sufixoDesconto = cupom.desconto_tipo === 'percentual' || cupom.desconto_ti
  * Código curto (≤4) vira `••••` inteiro — mostrar "20OFF" de um cupom "20OFF" seria
  * revelar tudo com um passo a mais no meio.
  */
-const mascara = cupom.codigo.length > 4 ? cupom.codigo.slice(-4) : '••••'
+const mascara = 'mascara' in cupom ? cupom.mascara : cupom.codigo.length > 4 ? cupom.codigo.slice(-4) : '••••'
 
 /**
  * Selo de verificação — "testado hoje às 09h14, no checkout · 94%".

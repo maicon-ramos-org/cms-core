@@ -19,7 +19,6 @@ import type {
 import { buscaPorTitulo, itensDaColecao } from '@maicon-ramos-org/editorial/lib/cms'
 
 import {
-  caminhoCanonico,
   caminhoDaOferta,
   cmsCategoriasOferta,
   getLojas,
@@ -31,6 +30,7 @@ import {
   type TenantDTO,
 } from './lib/cms'
 import { ehLinkDeAfiliado } from './lib/links-de-afiliado'
+import { fichasParaLlms, linhaFichaLlms } from './lib/llms-fichas'
 
 export async function linksDoCorpo(tenant: TenantDTO): Promise<LinksDoCorpo> {
   const mapa = await getMapaAfiliados(tenant.id)
@@ -89,21 +89,12 @@ export const sitemaps: Record<string, GeradorDeSitemap> = {
   },
 }
 
-export async function llms(tenant: TenantDTO, base: string): Promise<LlmsDaExtensao> {
-  const [ofertas, lojas, comOferta] = await Promise.all([
-    listarParaSitemap('ofertas', tenant.id, 'updatedAt'),
-    getLojas(tenant.id),
-    lojasComOferta(tenant.id),
-  ])
-  const lojasComCatalogo = lojas.filter((l) => comOferta.has(String(l.id)))
+/** Gerador para snapshot/build; NÃO reativar este gancho na requisição fria de /llms.txt. */
+export async function llms(tenant: TenantDTO, _base: string): Promise<LlmsDaExtensao> {
+  const fichas = await fichasParaLlms(tenant)
   return {
-    indices: [`- [Ofertas](${base}/ofertas/) — ${ofertas.length} ofertas`],
-    secoes: [
-      {
-        titulo: 'Lojas com catálogo',
-        linhas: lojasComCatalogo.map((l) => `- [${l.nome}](${base}/cupom-${caminhoCanonico(l.slug)}/)`),
-      },
-    ],
+    indices: [],
+    secoes: [{ titulo: 'Fichas monetizáveis', linhas: fichas.map(linhaFichaLlms) }],
   }
 }
 

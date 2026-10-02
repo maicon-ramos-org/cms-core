@@ -1,0 +1,12 @@
+---
+// Layout isolado para testar o template real da oferta, sem configurações de um site.
+const { titulo, descricao, canonical, markdown, json, schema, noindex } = Astro.props
+---
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" />
+  <title>{titulo}</title><meta name="description" content={descricao} />
+  {noindex && <meta name="robots" content="noindex, follow" />}
+  <link rel="canonical" href={canonical} />
+  <link rel="alternate" type="text/markdown" href={markdown} />
+  <link rel="alternate" type="application/json" href={json} />
+  <script type="application/ld+json" set:html={JSON.stringify({ '@context': 'https://schema.org', '@graph': schema.filter(Boolean) })} />
+</head><body><main><slot /></main></body></html>

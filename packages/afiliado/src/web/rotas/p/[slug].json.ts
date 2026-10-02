@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { getCatalogoProduto } from '../../lib/catalogo'
+import { fichaDoCatalogo, getCatalogoProduto } from '../../lib/catalogo'
 import { getProdutoBySlug, PRODUTO_MONETIZAVEL, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { produtoFisicoPublicoJson, produtoPublicoJson } from '../../lib/publico-json'
 
@@ -12,7 +12,9 @@ export const GET: APIRoute = async (context) => {
   // Mesma precedência do HTML: o piloto físico ocupa /p antes da coleção legada.
   const catalogo = await getCatalogoProduto(tenant.id, slug)
   if (catalogo) {
-    const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas)
+    const ficha = fichaDoCatalogo(catalogo, tenant.id)
+    const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas, ficha)
+    if (!ficha || !body) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
     if (context.cache?.enabled) context.cache.set({ maxAge: 60, swr: 0,
       tags: [`tenant:${tenant.slug}`, `produtos_fisicos:${catalogo.produto.id}`] })
     return Response.json(body, { headers: { 'X-Robots-Tag': 'noindex',

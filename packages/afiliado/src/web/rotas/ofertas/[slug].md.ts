@@ -4,8 +4,8 @@
  */
 import type { APIRoute } from 'astro'
 
-import { caminhoDaOferta, getOfertaBySlug, type CupomDTO, type LojaDTO } from '../../lib/cms'
-import { lexicalParaTexto } from '@maicon-ramos-org/editorial/lib/lexical'
+import { caminhoDaOferta, getOfertaBySlug, urlMidia } from '../../lib/cms'
+import { fichaDaOfertaPublica } from '../../lib/oferta-ficha'
 import { ofertaPublicaJson } from '../../lib/publico-json'
 import { ehLinkDeAfiliado } from '../../lib/links-de-afiliado'
 
@@ -18,8 +18,11 @@ export const GET: APIRoute = async (context) => {
   const oferta = await getOfertaBySlug(tenant.id, slug)
   if (!oferta) return new Response('Oferta não encontrada.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
 
-  const loja: LojaDTO | null = oferta.loja && typeof oferta.loja === 'object' ? oferta.loja : null
-  const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
+  const ficha = fichaDaOfertaPublica(oferta, tenant, { resolveMidia: urlMidia, ehLinkDeAfiliado })
+  const publico = ofertaPublicaJson(tenant, oferta, caminhoDaOferta(oferta), ficha)
+  if (!ficha || !publico) return new Response('Oferta não encontrada.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
+  const loja = ficha.monetization.listings[0]?.seller
+  const cupom = ficha.monetization.listings[0]?.coupon
 
   if (context.cache?.enabled) {
     context.cache.set({
@@ -30,8 +33,7 @@ export const GET: APIRoute = async (context) => {
     })
   }
 
-  const publico = ofertaPublicaJson(tenant, oferta, caminhoDaOferta(oferta))
-  const linhas: string[] = [`# ${oferta.titulo}`, '']
+  const linhas: string[] = [`# ${ficha.editorial.name}`, '']
   if (publico.store?.name) linhas.push(`**Loja:** ${publico.store.name}`)
   if (publico.offerType) linhas.push(`**Tipo:** ${publico.offerType}`)
   if (publico.price) {
@@ -59,18 +61,9 @@ export const GET: APIRoute = async (context) => {
     if (publico.coupon.discount?.checkedAt) linhas.push(`**Verificado em:** ${publico.coupon.discount.checkedAt.slice(0, 10)}`)
   }
   if (publico.action) linhas.push('', `**Link:** https://${tenant.canonical_host}${publico.action.href.replace('ref=json', 'ref=md')}`, '')
-  const corpo = lexicalParaTexto(oferta.corpo)
-  if (corpo) {
-    const destinos = [oferta.url_afiliado_fonte, cupom?.url_afiliado_fonte].filter((url): url is string => Boolean(url))
-    const semDestinoCru = corpo.replace(/https?:\/\/[^\s<>"'`()[\]]+/gi, raw => {
-      const candidato = raw.replace(/[.,;!?]+$/, '')
-      const final = raw.slice(candidato.length)
-      const normaliza = (url: string) => url.replace(/\/$/, '')
-      return destinos.some(url => normaliza(url) === normaliza(candidato)) || ehLinkDeAfiliado(candidato)
-        ? `[link comercial na página]${final}` : raw
-    })
-    linhas.push(semDestinoCru)
-  }
+  if (ficha.editorial.content.descriptionMarkdown) linhas.push(ficha.editorial.content.descriptionMarkdown)
+  if (ficha.editorial.prosCons.length) linhas.push('', '## Prós e contras', '',
+    ...ficha.editorial.prosCons.map(item => `- ${item.kind === 'pro' ? 'Pró' : 'Contra'}: ${item.text}`))
 
   return new Response(linhas.join('\n'), {
     headers: { 'content-type': 'text/markdown; charset=utf-8', 'X-Robots-Tag': 'noindex',

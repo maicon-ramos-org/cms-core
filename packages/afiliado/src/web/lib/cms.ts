@@ -51,6 +51,7 @@ export const caminhoDaOferta = (o: { slug: string; wordpress_id?: string | null 
 
 export interface CupomDTO {
   id: string | number
+  tenant?: string | number | { id: string | number }
   codigo: string
   desconto_tipo: 'percentual' | 'valor' | 'frete' | 'outro'
   desconto_valor?: number | null
@@ -93,12 +94,20 @@ export interface ProdutoDTO {
 }
 
 export interface OfertaDTO {
+  tenant: string | number | { id: string | number }
+  _status: 'draft' | 'published'
+  indexavel?: boolean | null
+  marca?: string | null
+  modelo?: string | null
+  pros_contras?: Array<{ tipo: 'pro' | 'con'; texto: string }> | null
+  disponibilidade?: 'disponivel' | 'indisponivel' | null
   /** FAQ que o WP publicava só no JSON-LD; vira FAQPage (import:faq) */
   faq?: Array<{ pergunta: string; resposta: string }> | null
   id: string | number
   titulo: string
   slug: string
   tipo?: 'cupom' | 'credito' | 'lifetime' | 'desconto_api'
+  wordpress_id?: string | null
   preco?: { valor?: number | null; moeda?: string | null; ciclo?: string | null; preco_em?: string | null } | null
   corpo?: unknown
   cupom?: CupomDTO | string | number | null

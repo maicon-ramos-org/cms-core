@@ -3,20 +3,20 @@
  * PRD 02/03 — página /ofertas/{slug} (paridade de URL com o WordPress atual).
  *
  * Decisão de render: SSR + cache por tag. A oferta muda com o catálogo (preço, cupom,
- * estado), então NÃO é prerender — e o dado de cupom nunca vai pra Server Island: sai
- * inteiro no HTML inicial, porque crawler de IA não executa JS.
+ * estado), então NÃO é prerender. Desconto e condições saem no HTML inicial; o literal
+ * do código continua protegido pela revelação no clique (ADR-0007).
  */
 import CardOferta from '../../componentes/CardOferta.astro'
-import { noFaq } from '@maicon-ramos-org/schema'
 import Compartilhar from '@maicon-ramos-org/editorial/componentes/Compartilhar.astro'
 import CtaAfiliado from '../../componentes/CtaAfiliado.astro'
 import CupomCard from '../../componentes/CupomCard.astro'
+import ProsContras from '../../componentes/ProsContras.astro'
 import Ferramentas from 'virtual:editorial/Ferramentas'
 import Base from '@maicon-ramos-org/editorial/componentes/Base.astro'
 import { compor } from '@maicon-ramos-org/desconto'
 
-import { caminhoDaOferta, caminhoCanonico, getOfertaBySlug, getOfertasDaLoja, urlMidia, type CupomDTO, type LojaDTO } from '../../lib/cms'
-import { lexicalParaHtml, lexicalParaTexto } from '@maicon-ramos-org/editorial/lib/lexical'
+import { caminhoDaOferta, getOfertaBySlug, getOfertasDaLoja, urlMidia } from '../../lib/cms'
+import { cupomDaFicha, fichaDaOfertaPublica, imagemDaFicha, schemaDaOferta } from '../../lib/oferta-ficha'
 import { ehLinkDeAfiliado } from '../../lib/links-de-afiliado'
 
 const tenant = Astro.locals.tenant
@@ -27,8 +27,12 @@ if (!oferta) {
   return new Response('Oferta não encontrada.', { status: 404 })
 }
 
-const loja: LojaDTO | null = oferta.loja && typeof oferta.loja === 'object' ? oferta.loja : null
-const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' ? oferta.cupom : null
+const ficha = fichaDaOfertaPublica(oferta, tenant, { resolveMidia: urlMidia, ehLinkDeAfiliado, renderHtml: true })
+if (!ficha) return new Response('Oferta não encontrada.', { status: 404 })
+const editorial = ficha.editorial
+const comercial = ficha.monetization.listings[0]!
+const loja = comercial.seller
+const cupom = comercial.coupon
 
 /**
  * Cupom migrado do WP entra em `revisao` (sem selo de verificação) e o /r/{id} se recusa
@@ -36,8 +40,7 @@ const cupom: CupomDTO | null = oferta.cupom && typeof oferta.cupom === 'object' 
  * num estado visível; senão o CTA é o da oferta, que funciona. Mesma régua do
  * /cupom-{loja}: sem selo, sem cupom na tela.
  */
-const CUPOM_VISIVEL = new Set(['publicado', 'expirando'])
-const cupomVisivel = cupom && CUPOM_VISIVEL.has(cupom.estado) ? cupom : null
+const cupomVisivel = cupomDaFicha(ficha)
 
 // `?.` porque o container de teste renderiza a rota sem o runtime de cache (mesmo padrão
 // do post, de `p/[slug].astro` e da home)
@@ -56,48 +59,39 @@ if (Astro.cache?.enabled) {
 
 // 6 explícito: o padrão do helper subiu pra 12 por causa da página da loja, e aqui a
 // fileira de relacionadas tem tamanho próprio
-const relacionadas = loja ? await getOfertasDaLoja(loja.id, oferta.id, 6) : []
+const relacionadas = loja?.id ? await getOfertasDaLoja(loja.id, ficha.identity.id, 6) : []
 
 /**
  * Desconto empilhado (spec §1). `compor()` devolve null quando falta dado ou quando o
  * modo de incidência é desconhecido — e aí a página mostra os dois descontos SEPARADOS,
  * nunca um total inventado. (O "77%" do mockup era impossível: 70+10 dá 73 ou 80.)
  */
-const composto = compor(oferta.desconto_loja, cupomVisivel)
+const descontoLoja = comercial.storeDiscount ? { valor: comercial.storeDiscount.value,
+  tipo: comercial.storeDiscount.type === 'percentual' || comercial.storeDiscount.type === 'valor' ? comercial.storeDiscount.type : null,
+  verificado_em: comercial.storeDiscount.verifiedAt } : null
+const composto = compor(descontoLoja, cupomVisivel)
 const decomposicao = composto
   ? composto.parcelas.map((p) => `${p.valor_pct}% ${p.rotulo}`).join(' + ')
   : null
 const descontoLojaIsolado =
-  !composto && oferta.desconto_loja?.tipo === 'percentual' && typeof oferta.desconto_loja.valor === 'number'
-    ? oferta.desconto_loja
+  !composto && descontoLoja?.tipo === 'percentual' && typeof descontoLoja.valor === 'number'
+    ? descontoLoja
     : null
 
-/** Link de afiliado desta oferta/cupom que apareça no corpo migrado vira /r/{id}. */
-const destinos = new Map<string, string>()
-if (oferta.url_afiliado_fonte) destinos.set(oferta.url_afiliado_fonte, `/r/o${oferta.id}?ref=corpo`)
-if (cupom?.url_afiliado_fonte) destinos.set(cupom.url_afiliado_fonte, `/r/c${cupom.id}?ref=corpo`)
-
-const corpoHtml = lexicalParaHtml(oferta.corpo, {
-  reescreveAfiliado: (url) => destinos.get(url) ?? destinos.get(url.replace(/\/$/, '')) ?? null,
-  ehLinkDeAfiliado,
-  resolveMidia: urlMidia,
-  hostDoTenant: tenant.canonical_host,
-})
+const corpoHtml = editorial.content.renderedHtml
 /**
  * Na virada, title e description de página de acervo são os que o WP publica hoje —
  * decisão de atribuição: o Google já vai recrawlear tudo por causa da troca de origem,
  * e somar mudança de título à mesma janela impede saber qual das duas mexeu no tráfego.
  * Melhorar título é deploy separado, depois do gate.
  */
-const resumo = lexicalParaTexto(oferta.corpo, 155)
-const tituloPagina = oferta.meta?.title || oferta.titulo
-const descricao = oferta.meta?.description || resumo || `${oferta.titulo} — oferta verificada no ${tenant.nome}.`
+const tituloPagina = editorial.content.metaTitle || editorial.name
+const descricao = editorial.content.metaDescription || `${editorial.name} — oferta verificada no ${tenant.nome}.`
 
 // canonical absoluto no host do tenant (nunca o host da requisição: staging não canoniza pra si)
 const canonical = `https://${tenant.canonical_host}${caminhoDaOferta(oferta)}`
 
-const precoValido = typeof oferta.preco?.valor === 'number' && oferta.preco.valor > 0
-const moeda = oferta.preco?.moeda ?? 'BRL'
+const moeda = comercial.price?.currency
 /*
  * LIFETIME TEM PÁGINA PRÓPRIA dentro da de oferta. Os 57 deals do AppSumo vieram de
  * `/apps/{slug}` com uma estrutura que a oferta normal não tem: preço de antes riscado,
@@ -105,34 +99,33 @@ const moeda = oferta.preco?.moeda ?? 'BRL'
  * `ofertas.dados` (contrato) porque richText guarda prosa e não estrutura — passando por
  * Lexical, destaque virava par de parágrafos e FAQ virava texto corrido.
  */
-const lt = oferta.tipo === 'lifetime' ? (oferta.dados ?? null) : null
-const ltFeatures = (lt?.features ?? []).filter((f) => f.t)
-const ltFaq = (lt?.faq ?? []).filter((f) => f.q && f.a)
-const ltNome = lt?.nome || oferta.titulo
+const lt = oferta.tipo === 'lifetime' ? editorial.content : null
+const ltFeatures = lt?.features ?? []
+const ltFaq = lt?.inlineFaq ?? []
+const ltNome = lt?.subjectName || editorial.name
 /** o preço de ANTES sai na mesma moeda do preço atual — os dois vêm do mesmo card do WP */
 const precoAntigoFormatado =
-  typeof lt?.preco_antigo === 'number'
-    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: oferta.preco?.moeda ?? 'BRL' }).format(
-        lt.preco_antigo,
+  comercial.previousPrice
+    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: comercial.previousPrice.currency }).format(
+        Number(comercial.previousPrice.amount),
       )
     : null
 
-const precoFormatado = precoValido
-  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(oferta.preco!.valor!)
+const precoFormatado = comercial.price
+  ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(Number(comercial.price.amount))
   : null
-const precoEm = oferta.preco?.preco_em ? new Date(oferta.preco.preco_em) : null
+const precoEm = comercial.observedAt ? new Date(comercial.observedAt) : null
 
 /*
  * Imagem em destaque. `srcset` com os dois tamanhos: o derivado de 640 atende a coluna
  * no desktop e a tela do celular; o original de 1280 cobre densidade 2x. Sem isso a
  * página baixaria 1280px pra exibir em 620.
  */
-const img = oferta.imagem && typeof oferta.imagem === 'object' ? oferta.imagem : null
+const img = imagemDaFicha(editorial.image)
 // `img` também vai ao `Base` (prop `imagem`): de lá saem o `og:image` (derivado `og`) e o
 // `#primaryimage` com a `capa` 16:9, a regra do Google Discover (PRD 18 RF4, ampliação).
 // O `image` do Produto continua sendo a original: é a foto do produto, sem recorte.
 /* absoluta: o Google precisa BUSCAR essa imagem, e caminho relativo no schema não serve */
-const imagemUrl = img?.url ? urlMidia(img.url) : undefined
 const heroSrc = urlMidia(img?.sizes?.cartao?.url ?? img?.url)
 const heroSrcset = [
   img?.sizes?.cartao?.url ? `${urlMidia(img.sizes.cartao.url)} 640w` : null,
@@ -141,8 +134,8 @@ const heroSrcset = [
   .filter(Boolean)
   .join(', ')
 
-const logoLoja = loja?.logo && typeof loja.logo === 'object' ? loja.logo : null
-const beneficios = (oferta.beneficios ?? []).map((b) => b.texto).filter((t): t is string => Boolean(t))
+const logoLoja = loja?.logo
+const beneficios = editorial.content.highlights
 
 const rotuloTipo: Record<string, string> = {
   cupom: 'Cupom de desconto',
@@ -151,62 +144,10 @@ const rotuloTipo: Record<string, string> = {
   desconto_api: 'Desconto em API',
 }
 
-/**
- * JSON-LD em GRAFO com @id (regra do projeto): Offer com preço/moeda REAIS do banco +
- * BreadcrumbList. Sem preço no banco não se inventa `price` — o nó Offer sai sem ele.
- */
+/** Grafo derivado da ficha; sem preço/moeda/URL válidos não existe nó Offer. */
+const [produtoSchema, faqSchema] = schemaDaOferta(ficha, canonical)
 const nosDaPagina = [
-    /*
-     * PRODUCT com `offers` dentro, e não um `Offer` solto.
-     *
-     * O dado era o mesmo e o Google não aproveitava: rich result de preço exige `Product`
-     * com a propriedade `offers` — `Offer` na raiz do grafo não é elegível. A gente tinha
-     * preço, moeda, vendedor e data de conferência publicados num formato que nenhum
-     * buscador lê como produto.
-     */
-    {
-      '@type': 'Product',
-      '@id': `${canonical}#produto`,
-      name: oferta.titulo,
-      url: canonical,
-      ...(oferta.resumo ? { description: oferta.resumo } : {}),
-      ...(imagemUrl ? { image: imagemUrl } : {}),
-      // a marca do produto é a LOJA que o vende (Hostinger VPS → marca Hostinger)
-      ...(loja ? { brand: { '@type': 'Brand', name: loja.nome } } : {}),
-      /*
-       * `offers` só existe quando HÁ preço. O Google exige `price` + `priceCurrency` no
-       * Offer; sem eles o nó não vira rich result e ainda aparece como aviso no teste. Um
-       * Product sem offers é honesto — diz o que é, sem prometer preço que não temos.
-       */
-      ...(precoValido
-        ? {
-            offers: {
-              '@type': 'Offer',
-              '@id': `${canonical}#offer`,
-              url: canonical,
-              price: oferta.preco!.valor,
-              priceCurrency: moeda,
-              /*
-               * `priceValidUntil` fica FORA de propósito: a gente sabe quando o preço foi
-               * VISTO, não até quando ele vale. Inventar validade seria a única mentira
-               * possível neste nó.
-               */
-              availability: 'https://schema.org/InStock',
-              ...(precoEm ? { availabilityStarts: precoEm.toISOString() } : {}),
-              // seller SEM url: `lojas.url_site` foi derivado do link de afiliado na
-              // migração e costuma ser o domínio da REDE (m.do.co, anrdoezrs.net).
-              // Publicar isso seria link de afiliado cru no HTML — proibido. Volta quando
-              // o campo passar pela curadoria.
-              ...(loja ? { seller: { '@type': 'Organization', name: loja.nome } } : {}),
-              /*
-               * `discountCode` SAIU (ADR-0007): publicar o código no schema é entregá-lo
-               * pronto ao Google e à resposta de IA, que é exatamente o vazamento que a
-               * revelação por clique fecha.
-               */
-            },
-          }
-        : {}),
-    },
+    produtoSchema,
     {
       '@type': 'BreadcrumbList',
       '@id': `${canonical}#breadcrumb`,
@@ -217,30 +158,15 @@ const nosDaPagina = [
               {
                 '@type': 'ListItem',
                 position: 2,
-                name: `Cupons ${loja.nome}`,
+                name: `Cupons ${loja.name}`,
                 item: `https://${tenant.canonical_host}/cupom-${loja.slug}/`,
               },
             ]
           : []),
-        { '@type': 'ListItem', position: loja ? 3 : 2, name: oferta.titulo, item: canonical },
+        { '@type': 'ListItem', position: loja ? 3 : 2, name: editorial.name, item: canonical },
       ],
     },
-  /*
-   * FAQ do lifetime como `FAQPage`. São 50 páginas de oferta onde o WordPress declarava e
-   * a réplica não — e FAQPage é dos poucos rich results que ainda ganham espaço próprio na
-   * SERP. O dado já estava na página (`dados.faq`), renderizado em `<details>`; faltava
-   * dizer ao buscador o que ele é.
-   */
-  /*
-   * Duas fontes de FAQ, e a ordem importa: a do lifetime vem da estrutura da página
-   * (`dados.faq`, extraída da marcação asp-* do WP) e a outra do JSON-LD que o Rank Math
-   * publicava. Uma oferta pode ter as duas; `noFaq` recebe a união e descarta par
-   * incompleto, então não há risco de emitir Question sem Answer.
-   */
-  noFaq(canonical, [
-    ...ltFaq.map((f) => ({ pergunta: f.q ?? '', resposta: f.a ?? '' })),
-    ...(oferta.faq ?? []),
-  ]),
+  faqSchema,
 ]
 ---
 
@@ -255,8 +181,8 @@ const nosDaPagina = [
 >
   <nav class="trilha" aria-label="Você está em">
     <a href="/">Início</a>
-    {loja && <> › <a href={`/cupom-${loja.slug}/`}>Cupons {loja.nome}</a></>}
-    <span> › {oferta.titulo}</span>
+    {loja && <> › <a href={`/cupom-${loja.slug}/`}>Cupons {loja.name}</a></>}
+    <span> › {editorial.name}</span>
   </nav>
 
   <div class="oferta">
@@ -268,7 +194,7 @@ const nosDaPagina = [
             src={heroSrc}
             srcset={heroSrcset}
             sizes="(min-width: 62rem) 40rem, 100vw"
-            alt={img?.alt ?? oferta.titulo}
+            alt={img?.alt ?? editorial.name}
             width={img?.width ?? 1280}
             height={img?.height ?? 720}
             fetchpriority="high"
@@ -277,8 +203,8 @@ const nosDaPagina = [
         )
       }
 
-      <h1>{oferta.titulo}</h1>
-      {oferta.headline && <p class="headline">{oferta.headline}</p>}
+      <h1>{editorial.name}</h1>
+      {editorial.content.headline && <p class="headline">{editorial.content.headline}</p>}
     </div>
 
     {/*
@@ -293,7 +219,7 @@ const nosDaPagina = [
             <img
               class="logo"
               src={urlMidia(logoLoja.url)}
-              alt={loja?.nome ?? ''}
+              alt={loja?.name ?? ''}
               width={logoLoja.width ?? 160}
               height={logoLoja.height ?? 40}
               loading="lazy"
@@ -305,12 +231,12 @@ const nosDaPagina = [
         {/* "AppSumo · Lifetime Deal": diz o MODELO da oferta antes do preço. Sem essa
             linha, "$ 29" ao lado de "$ 144" riscado lê como desconto temporário, que é
             outra coisa — o lifetime não volta ao preço cheio, ele acaba */}
-        {lt?.sumo && <p class="selo-sumo">{lt.sumo}</p>}
+        {comercial.promotion?.badge && <p class="selo-sumo">{comercial.promotion.badge}</p>}
 
         {/* a headline se repete de propósito: aqui ela é a promessa ao lado da ação, e
             quem rolou até o card não tem mais o topo da página na tela */}
-        {oferta.headline ? (
-          <p class="lateral-headline">{oferta.headline}</p>
+        {editorial.content.headline ? (
+          <p class="lateral-headline">{editorial.content.headline}</p>
         ) : (
           lt?.tagline && <p class="lateral-headline">{lt.tagline}</p>
         )}
@@ -320,7 +246,7 @@ const nosDaPagina = [
           rótulo, desconto composto, desconto da loja, preço grande com data, raspadinha,
           condições, selo e botão. Numa coluna de 19rem isso vira parede.
         */}
-        {oferta.rotulo_oferta && <p class="rotulo-oferta">{oferta.rotulo_oferta}</p>}
+        {comercial.promotion?.label && <p class="rotulo-oferta">{comercial.promotion.label}</p>}
 
         {/* cupom sai no HTML inicial, com selo — nunca atrás de JS */}
         {/*
@@ -336,7 +262,7 @@ const nosDaPagina = [
               {precoFormatado && (
                 <p class="linha-dado">
                   <strong>a partir de {precoFormatado}</strong>
-                  {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                  {comercial.price?.billingCycle === 'mensal' && '/mês'}
                   {precoEm && (
                     <span class="quando">
                       {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
@@ -374,11 +300,11 @@ const nosDaPagina = [
                 {descontoLojaIsolado && <span class="off">-{descontoLojaIsolado.valor}%</span>}
               </p>
             )}
-            {lt?.once && <p class="uma-vez">{lt.once}</p>}
+            {comercial.promotion?.paymentLabel && <p class="uma-vez">{comercial.promotion.paymentLabel}</p>}
 
             <CtaAfiliado
               tipo="oferta"
-              docId={oferta.id}
+              docId={ficha.identity.id}
               rotulo={lt && precoFormatado ? `Pegar o ${ltNome} por ${precoFormatado} →` : 'Ver oferta na loja'}
               ref="oferta"
             />
@@ -396,7 +322,7 @@ const nosDaPagina = [
               : precoFormatado && (
                   <p class="linha-dado">
                     <strong>a partir de {precoFormatado}</strong>
-                    {oferta.preco?.ciclo === 'mensal' && '/mês'}
+                    {comercial.price?.billingCycle === 'mensal' && '/mês'}
                     {precoEm && (
                       <span class="quando">
                         {' '}· visto em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(precoEm)}
@@ -405,9 +331,9 @@ const nosDaPagina = [
                   </p>
                 )}
 
-            {(lt?.selos ?? []).length > 0 && (
+            {(comercial.promotion?.badges ?? []).length > 0 && (
               <p class="selos-lifetime">
-                {(lt?.selos ?? []).map((b) => (
+                {(comercial.promotion?.badges ?? []).map((b) => (
                   <span class="selo-lt">{b}</span>
                 ))}
               </p>
@@ -416,7 +342,7 @@ const nosDaPagina = [
         )}
       </div>
 
-      <Compartilhar url={canonical} titulo={oferta.titulo} />
+      <Compartilhar url={canonical} titulo={editorial.name} />
     </aside>
 
     <div class="conteudo">
@@ -435,7 +361,7 @@ const nosDaPagina = [
 
       {/* o título da introdução vem do template, não do corpo: assim as quatro seções do
           lifetime ficam todas em h2, sem o salto de h1 pra h3 */}
-      {lt?.intro_titulo && <h2>{lt.intro_titulo}</h2>}
+      {lt?.introTitle && <h2>{lt.introTitle}</h2>}
       {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
 
       {ltFeatures.length > 0 && (
@@ -444,28 +370,30 @@ const nosDaPagina = [
           <div class="grade-destaques">
             {ltFeatures.map((f) => (
               <article class="destaque-lt">
-                <h3>{f.t}</h3>
-                {f.d && <p>{f.d}</p>}
+                <h3>{f.title}</h3>
+                {f.description && <p>{f.description}</p>}
               </article>
             ))}
           </div>
         </section>
       )}
 
-      {lt?.veredito && (
+      {lt?.verdict && (
         <section class="veredito">
           <h2>Vale a pena? Nosso veredito</h2>
-          <p>{lt.veredito}</p>
+          <p>{lt.verdict}</p>
         </section>
       )}
+
+      <ProsContras pontos={editorial.prosCons} />
 
       {ltFaq.length > 0 && (
         <section class="faq-lt">
           <h2>Perguntas frequentes</h2>
           {ltFaq.map((f) => (
             <details>
-              <summary>{f.q}</summary>
-              <p>{f.a}</p>
+              <summary>{f.question}</summary>
+              <p>{f.answer}</p>
             </details>
           ))}
         </section>
@@ -476,10 +404,10 @@ const nosDaPagina = [
   {
     relacionadas.length > 0 && loja && (
       <section class="relacionadas">
-        <h2>Outras ofertas {loja.nome}</h2>
+        <h2>Outras ofertas {loja.name}</h2>
         <div class="grade-relacionadas">
           {relacionadas.map((o) => (
-            <CardOferta oferta={o} loja={loja.nome} />
+            <CardOferta oferta={o} loja={loja.name} />
           ))}
         </div>
       </section>
@@ -500,7 +428,7 @@ const nosDaPagina = [
     {cupomVisivel ? (
       <CtaAfiliado tipo="cupom" docId={cupomVisivel.id} rotulo="Pegar cupom" ref="barra" />
     ) : (
-      <CtaAfiliado tipo="oferta" docId={oferta.id} rotulo="Ver oferta" ref="barra" />
+      <CtaAfiliado tipo="oferta" docId={ficha.identity.id} rotulo="Ver oferta" ref="barra" />
     )}
   </div>
 
@@ -511,16 +439,16 @@ const nosDaPagina = [
   <Ferramentas
     tipo="oferta"
     dados={{
-      md: `/ofertas/${oferta.slug}.md`,
-      ofertaId: oferta.id,
+      md: `${caminhoDaOferta(oferta).replace(/\/$/, '')}.md`,
+      ofertaId: ficha.identity.id,
       cupomId: cupomVisivel?.id ?? null,
       oferta: {
-        titulo: oferta.titulo,
-        loja: loja?.nome ?? null,
+        titulo: editorial.name,
+        loja: loja?.name ?? null,
         preco: precoFormatado,
         preco_em: precoEm ? precoEm.toISOString() : null,
-        desconto_loja: oferta.desconto_loja?.valor ?? null,
-        rotulo: oferta.rotulo_oferta ?? null,
+        desconto_loja: comercial.storeDiscount?.value ?? null,
+        rotulo: comercial.promotion?.label ?? null,
         url: canonical,
       },
     }}
