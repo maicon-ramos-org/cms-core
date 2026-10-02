@@ -1,0 +1,12 @@
+---
+import type { EditorialFichaDTO } from '../../conteudo'
+interface Props { pontos: EditorialFichaDTO['prosCons'] }
+const { pontos } = Astro.props
+const pros = pontos.filter(p => p.kind === 'pro')
+const contras = pontos.filter(p => p.kind === 'con')
+---
+{pontos.length > 0 && <section class="pros-contras">
+  <h2>Prós e contras</h2>
+  {pros.length > 0 && <div><h3>Pontos a favor</h3><ul>{pros.map(p => <li>{p.text}</li>)}</ul></div>}
+  {contras.length > 0 && <div><h3>Pontos de atenção</h3><ul>{contras.map(p => <li>{p.text}</li>)}</ul></div>}
+</section>}

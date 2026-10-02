@@ -1,9 +1,9 @@
 import { validaSiteStripe, validaAmazonLink } from '@maicon-ramos-org/afflinks'
 import { variavel } from '@maicon-ramos-org/editorial/lib/ambiente'
 import { cmsFetch, urlMidia, type MidiaDTO } from './cms'
-import { produtoEditorialDTO, produtoJsonLd, type ProdutoEditorialFonte } from '../../conteudo'
+import { fichaDeProduto, fichaProdutoJsonLd, type FichaMonetizavelDTO, type ProdutoFichaFonte } from '../../conteudo'
 type Id = string | number
-export interface ProdutoFisico extends ProdutoEditorialFonte {
+export interface ProdutoFisico extends ProdutoFichaFonte {
   id: Id; tenant: Id | { id: Id }; estado: string; imagem?: MidiaDTO | Id | null
 }
 export interface Variante { id: Id; tenant: Id; produto: Id; nome: string; estado: string }
@@ -56,9 +56,30 @@ export async function getDestinoFisico(tenant: Id, id: string): Promise<string |
   if (!loja || !same(loja.tenant, tenant) || !same(loja.id, o.loja) || loja.programa !== 'amazon') return null
   return destinoAmazon(o)
 }
-export function schemaProduto(catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>>, canonical: string) {
+
+/** Ponte da leitura existente, sem alterar catálogo, preço ou política dos links. */
+export function fichaDoCatalogo(catalogo: { produto: ProdutoFisico; variantes?: Variante[]; ofertas: Listing[] }, tenant: Id): FichaMonetizavelDTO | null {
+  const { produto } = catalogo
+  const variantes = catalogo.variantes?.filter(v => same(v.tenant, tenant) && same(v.produto, produto.id) && v.estado === 'confirmada')
+  // Nas rotas, variantes sempre vêm da leitura tenant-scoped. A projeção JSON antiga
+  // também aceita listings previamente vinculados pelo chamador, sem grupos de variantes.
+  const ofertas = catalogo.ofertas.filter(o => same(o.tenant, tenant) && o.estado === 'ativa' &&
+    (!variantes || variantes.some(v => same(v.id, o.variante))))
+  return fichaDeProduto(produto, { tenantId: tenant, image: imagemProduto(produto),
+    ...(variantes ? { variants: variantes.map(v => ({ id: v.id, tenant: v.tenant, name: v.nome })) } : {}),
+    listings: ofertas.flatMap(o => {
+      const href = destinoAmazon(o)
+      return href ? [{ id: o.id, tenant: o.tenant, variantId: o.variante,
+        affiliateUrl: href, observedAt: o.observado_em, price: null, availability: 'unknown' as const }] : []
+    }),
+  })
+}
+
+export function schemaProduto(catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>>, canonical: string,
+  ficha?: FichaMonetizavelDTO | null) {
+  const dto = ficha ?? fichaDoCatalogo(catalogo, typeof catalogo.produto.tenant === 'object' ? catalogo.produto.tenant.id : catalogo.produto.tenant)
+  if (!dto || dto.identity.source !== 'product' || dto.identity.id !== String(catalogo.produto.id) || dto.slug !== catalogo.produto.slug ||
+    !same(catalogo.produto.tenant, dto.identity.tenantId)) return []
   // O conteúdo é do produto. Sem preço observado e datado, não inventar Offer no schema.
-  return produtoJsonLd(produtoEditorialDTO(catalogo.produto), {
-    canonical, imagem: imagemProduto(catalogo.produto)?.url,
-  })['@graph']
+  return fichaProdutoJsonLd(dto, { canonical })?.['@graph'] ?? []
 }

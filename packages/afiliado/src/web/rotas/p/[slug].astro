@@ -17,13 +17,12 @@
  * é justamente ele que precisa ler preço, data e loja no HTML inicial.
  */
 import { noImagem, noMigalhas } from '@maicon-ramos-org/schema'
-import { produtoEditorialDTO } from '../../../conteudo'
 
 import CtaAfiliado from '../../componentes/CtaAfiliado.astro'
 import CupomCard from '../../componentes/CupomCard.astro'
 import FichaProduto from '../../componentes/FichaProduto.astro'
 import Base from '@maicon-ramos-org/editorial/componentes/Base.astro'
-import { getCatalogoProduto, schemaProduto } from '../../lib/catalogo'
+import { fichaDoCatalogo, getCatalogoProduto, schemaProduto } from '../../lib/catalogo'
 import {
   caminhoCanonico,
   getProdutoBySlug,
@@ -42,7 +41,9 @@ const slug = Astro.params.slug ?? ''
 const catalogo = await getCatalogoProduto(tenant.id, slug)
 const produto = catalogo ? null : await getProdutoBySlug(tenant.id, slug)
 if (!catalogo && !produto) return new Response('Produto não encontrado.', { status: 404 })
-const editorialFisico = catalogo ? produtoEditorialDTO(catalogo.produto) : null
+const fichaFisica = catalogo ? fichaDoCatalogo(catalogo, tenant.id) : null
+if (catalogo && !fichaFisica) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
+const editorialFisico = fichaFisica?.editorial
 
 /** Canonical ABSOLUTO no host do tenant — staging nunca canoniza pra si mesmo. */
 const canonical = `https://${tenant.canonical_host}/p/${caminhoCanonico(
@@ -204,15 +205,15 @@ const nosDaPagina = produto
 {
   catalogo ? (
     <Base
-      titulo={editorialFisico?.content.metaTitle || catalogo.produto.nome}
+      titulo={editorialFisico!.content.metaTitle || editorialFisico!.name}
       descricao={editorialFisico?.content.metaDescription || editorialFisico?.content.summary || undefined}
       canonical={canonical}
       noindex={!editorialFisico?.indexable}
       markdown={`/p/${catalogo.produto.slug}.md`}
       json={`/p/${catalogo.produto.slug}.json`}
-      schema={schemaProduto(catalogo, canonical)}
+      schema={schemaProduto(catalogo, canonical, fichaFisica)}
     >
-      <FichaProduto catalogo={catalogo} />
+      <FichaProduto catalogo={catalogo} ficha={fichaFisica!} />
     </Base>
   ) : (
     <Base

@@ -1,7 +1,11 @@
 /** Fichas comerciais públicas derivadas do dado editorial; nunca devolvem o documento Payload. */
 import type { LojaDTO, OfertaDTO, ProdutoDTO } from './cms'
-import { destinoAmazon, imagemProduto, type ProdutoFisico, type Listing } from './catalogo'
-import { produtoEditorialDTO } from '../../conteudo'
+import { fichaDoCatalogo, type ProdutoFisico, type Listing } from './catalogo'
+import type { FichaMonetizavelDTO } from '../../conteudo'
+import { fichaDaOfertaPublica, type TenantDaOferta } from './oferta-ficha'
+import { urlMidia } from './cms'
+import { ehLinkDeAfiliado } from './links-de-afiliado'
+import { idOferta } from '../../ofertas-editoriais/contratos'
 
 type Tenant = { canonical_host: string }
 const id = (value: string | number) => String(value)
@@ -24,27 +28,36 @@ const cupomPublico = (value: OfertaDTO['cupom'] | ProdutoDTO['cupom']) => {
   }
 }
 
-export function ofertaPublicaJson(tenant: Tenant, oferta: OfertaDTO, path: string) {
-  const price = oferta.preco?.valor
-  const priceDate = date(oferta.preco?.preco_em)
-  const discount = oferta.desconto_loja?.valor
-  const discountDate = date(oferta.desconto_loja?.verificado_em)
-  const seller = loja(oferta.loja)
-  const coupon = cupomPublico(oferta.cupom)
+export function ofertaPublicaJson(tenant: TenantDaOferta, oferta: OfertaDTO, path: string, ficha?: FichaMonetizavelDTO | null) {
+  if (idOferta(oferta.tenant) !== String(tenant.id) || oferta._status !== 'published') return null
+  const dto = ficha ?? fichaDaOfertaPublica(oferta, tenant, { resolveMidia: urlMidia, ehLinkDeAfiliado })
+  if (!dto || dto.identity.source !== 'offer' || dto.slug !== oferta.slug ||
+    dto.identity.tenantId !== String(tenant.id) || dto.identity.id !== String(oferta.id)) return null
+  const editorial = dto.editorial, listing = dto.monetization.listings[0]
+  if (!listing) return null
+  const price = listing.price ? Number(listing.price.amount) : null
+  const priceDate = listing.observedAt
+  const discount = listing.storeDiscount?.value
+  const discountDate = listing.storeDiscount?.verifiedAt
+  const seller = listing.seller ? { name: text(listing.seller.name), slug: listing.seller.slug } : null
+  const c = listing.coupon
+  const coupon = c && ['publicado', 'expirando'].includes(c.state ?? '') ? {
+    discount: c.discount?.verifiedAt && ['percentual', 'valor', 'frete'].includes(c.discount.type)
+      ? { type: c.discount.type, value: c.discount.value, checkedAt: c.discount.verifiedAt } : null,
+    conditions: text(c.conditions), expiresAt: c.expiresAt,
+  } : null
   return {
-    url: url(tenant, path), slug: oferta.slug, contentType: 'offer', title: oferta.titulo,
-    offerType: oferta.tipo ?? null, summary: text(oferta.resumo),
+    url: url(tenant, path), slug: dto.slug, contentType: 'offer', title: editorial.name,
+    // Mantém a política pública anterior: resumo com URL não é exposto no JSON.
+    offerType: oferta.tipo ?? null, summary: text(oferta.resumo) ? text(editorial.content.summary) : null,
     price: typeof price === 'number' && Number.isFinite(price) && price > 0 && priceDate
-      ? { value: price, currency: oferta.preco?.moeda ?? 'BRL', observedAt: priceDate,
-        billingCycle: oferta.preco?.ciclo ?? null } : null,
+      ? { value: price, currency: listing.price!.currency, observedAt: priceDate,
+        billingCycle: listing.price?.billingCycle ?? null } : null,
     store: seller, coupon,
     storeDiscount: typeof discount === 'number' && Number.isFinite(discount) && discount >= 0 && discountDate
-      ? { value: discount, type: oferta.desconto_loja?.tipo ?? null, observedAt: discountDate } : null,
-    categories: (oferta.categorias ?? []).flatMap(category => category && typeof category === 'object'
-      ? [{ name: text(category.nome), slug: category.slug }] : []),
-    action: oferta.url_afiliado_fonte || (oferta.cupom && typeof oferta.cupom === 'object' && oferta.cupom.url_afiliado_fonte) ||
-      (oferta.loja && typeof oferta.loja === 'object' && oferta.loja.url_site)
-      ? { href: `/r/o${id(oferta.id)}?ref=json`, label: 'Abrir oferta' } : null,
+      ? { value: discount, type: listing.storeDiscount?.type ?? null, observedAt: discountDate } : null,
+    categories: (editorial.categories ?? []).map(category => ({ name: text(category.name), slug: category.slug })),
+    action: listing.affiliateUrl ? { href: listing.affiliateUrl, label: 'Abrir oferta' } : null,
   }
 }
 
@@ -60,19 +73,23 @@ export function produtoPublicoJson(tenant: Tenant, produto: ProdutoDTO, monetiza
   }
 }
 
-export function produtoFisicoPublicoJson(tenant: Tenant, produto: ProdutoFisico, ofertas: Listing[]) {
-  const editorial = produtoEditorialDTO(produto)
+export function produtoFisicoPublicoJson(tenant: TenantDaOferta, produto: ProdutoFisico, ofertas: Listing[], ficha?: FichaMonetizavelDTO | null) {
+  if (idOferta(produto.tenant) !== String(tenant.id) || produto.estado !== 'published' || produto._status === 'draft') return null
+  const dto = ficha ?? fichaDoCatalogo({ produto, ofertas }, tenant.id)
+  if (!dto || dto.identity.source !== 'product' || dto.identity.tenantId !== String(tenant.id) ||
+    dto.identity.id !== String(produto.id) || dto.slug !== produto.slug) return null
+  const editorial = dto.editorial
   return {
-    url: url(tenant, `/p/${encodeURIComponent(produto.slug)}/`), slug: produto.slug,
-    contentType: 'physical-product', title: produto.nome, summary: editorial.content.summary,
+    url: url(tenant, `/p/${encodeURIComponent(dto.slug)}/`), slug: dto.slug,
+    contentType: 'physical-product', title: editorial.name, summary: editorial.content.summary,
     descriptionMarkdown: editorial.content.descriptionMarkdown,
     highlights: editorial.content.highlights, faq: editorial.content.faq,
-    brand: text(produto.marca), model: text(produto.modelo), indexable: editorial.indexable,
-    image: imagemProduto(produto), identifiers: editorial.identifiers,
+    brand: text(editorial.brand), model: text(editorial.model), indexable: editorial.indexable,
+    image: editorial.image, identifiers: editorial.identifiers,
     specifications: editorial.specifications,
-    price: null, offers: ofertas.flatMap(offer => {
-      const href = destinoAmazon(offer)
-      return href ? [{ href, observedAt: date(offer.observado_em) }] : []
+    ...(editorial.prosCons.length ? { prosCons: editorial.prosCons } : {}),
+    price: null, offers: dto.monetization.listings.flatMap(offer => {
+      return offer.affiliateUrl ? [{ href: offer.affiliateUrl, observedAt: offer.observedAt }] : []
     }),
   }
 }

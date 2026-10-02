@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ofertaPublicaJson, produtoFisicoPublicoJson, produtoPublicoJson } from '../src/web/lib/publico-json'
 import { imagemProduto, schemaProduto } from '../src/web/lib/catalogo'
 import type { OfertaDTO, ProdutoDTO } from '../src/web/lib/cms'
+import { fichaDaOfertaPublica } from '../src/web/lib/oferta-ficha'
 
-const tenant = { canonical_host: 'site.example' }
-const offer = { id: 4, slug: 'oferta', titulo: 'Oferta', tipo: 'desconto_api',
+const tenant = { id: 1, canonical_host: 'site.example' }
+const offer = { id: 4, tenant: 1, _status: 'published', slug: 'oferta', titulo: 'Oferta', tipo: 'desconto_api',
   resumo: 'Resumo útil', preco: { valor: 120, moeda: 'BRL', preco_em: '2026-09-26T10:00:00Z' },
   desconto_loja: { valor: 20, tipo: 'percentual', verificado_em: '2026-09-26T10:00:00Z' },
   loja: { id: 2, nome: 'Loja', slug: 'loja', url_site: 'https://afiliado.example/?token=privado', programa: 'outro' },
@@ -16,7 +17,7 @@ const offer = { id: 4, slug: 'oferta', titulo: 'Oferta', tipo: 'desconto_api',
 
 describe('JSON comercial público: allowlist, data e CTA interno', () => {
   it('oferta nunca expõe destino, comissão ou literal do cupom', () => {
-    const result = ofertaPublicaJson(tenant, offer, '/ofertas/oferta/')
+    const result = ofertaPublicaJson(tenant, offer, '/ofertas/oferta/')!
     expect(result).toMatchObject({ url: 'https://site.example/ofertas/oferta/', contentType: 'offer',
       price: { value: 120, observedAt: '2026-09-26T10:00:00.000Z' },
       coupon: { discount: { value: 10 } }, action: { href: '/r/o4?ref=json' } })
@@ -26,11 +27,20 @@ describe('JSON comercial público: allowlist, data e CTA interno', () => {
 
   it('preço e desconto sem data não viram afirmação pública; resumo com URL não vaza', () => {
     const result = ofertaPublicaJson(tenant, { ...offer, resumo: 'Veja https://afiliado.example/p',
-      preco: { valor: 120, moeda: 'BRL' }, desconto_loja: { valor: 40, tipo: 'percentual' } }, '/apps/oferta/')
+      preco: { valor: 120, moeda: 'BRL' }, desconto_loja: { valor: 40, tipo: 'percentual' } }, '/apps/oferta/')!
     expect(result.price).toBeNull()
     expect(result.storeDiscount).toBeNull()
     expect(result.summary).toBeNull()
     expect(result.url).toBe('https://site.example/apps/oferta/')
+  })
+  it('a projeção pública não aceita ficha de outra origem, slug, tenant ou documento não publicado', () => {
+    const dto = fichaDaOfertaPublica(offer, tenant, { resolveMidia: url => url ?? undefined, ehLinkDeAfiliado: () => false })!
+    const project = (source: OfertaDTO, ficha = dto) => ofertaPublicaJson(tenant, source, '/ofertas/oferta/', ficha)
+    expect(project({ ...offer, tenant: 2 })).toBeNull()
+    expect(project({ ...offer, _status: 'draft' })).toBeNull()
+    expect(project(offer, { ...dto, identity: { ...dto.identity, source: 'product' } })).toBeNull()
+    expect(project(offer, { ...dto, slug: 'outra' })).toBeNull()
+    expect(project(offer, { ...dto, monetization: { listings: [] } })).toBeNull()
   })
 
   it('produto legado e físico preservam indexação e preço honesto', () => {
@@ -115,7 +125,8 @@ describe('rotas comerciais JSON', () => {
   it('produto físico tem Markdown sem preço e com link direto validado, sem cair no legado', async () => {
     vi.stubEnv('AMAZON_TAG', 'exemplo-20')
     mocks.physical.mockResolvedValue({ produto: { id: 5, tenant: 1, nome: 'Físico', slug: 'oferta',
-      marca: 'Marca', modelo: 'Modelo', estado: 'published' }, variantes: [],
+      marca: 'Marca', modelo: 'Modelo', estado: 'published' },
+      variantes: [{ id: 4, tenant: 1, produto: 5, nome: 'Variante', estado: 'confirmada' }],
       ofertas: [{ id: 7, tenant: 1, variante: 4, loja: 2, estado: 'ativa', fonte: 'amazon-manual-revisado',
         external_listing_id: 'B0ABCDEFGH', url_origem: 'https://www.amazon.com.br/dp/B0ABCDEFGH',
         observado_em: '2026-09-26T10:00:00Z', url_afiliado: 'https://www.amazon.com.br/dp/B0ABCDEFGH?tag=exemplo-20' }] })

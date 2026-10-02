@@ -88,7 +88,8 @@ export function produtoMarkdown(dto: ProdutoEditorialDTO): string {
   const c = dto.content
   const out = [`# ${linha(dto.name)}`, '']
   if (c.summary) out.push(c.summary, '')
-  out.push(`**Marca:** ${linha(dto.brand)}`, `**Modelo:** ${linha(dto.model)}`)
+  if (dto.brand) out.push(`**Marca:** ${linha(dto.brand)}`)
+  if (dto.model) out.push(`**Modelo:** ${linha(dto.model)}`)
   if (dto.category) out.push(`**Categoria:** ${linha(dto.category)}`)
   if (dto.identifiers.gtin) out.push(`**GTIN:** ${linha(dto.identifiers.gtin)}`)
   if (dto.identifiers.mpn) out.push(`**MPN:** ${linha(dto.identifiers.mpn)}`)
@@ -115,7 +116,8 @@ export function produtoJsonLd(dto: ProdutoEditorialDTO, opcoes: { canonical: str
   const produto = {
     '@type': 'Product', '@id': `${canonical}#produto`, url: canonical, name: dto.name,
     ...(dto.content.summary ? { description: dto.content.summary } : {}),
-    brand: { '@type': 'Brand', name: dto.brand }, model: dto.model,
+    ...(dto.brand ? { brand: { '@type': 'Brand', name: dto.brand } } : {}),
+    ...(dto.model ? { model: dto.model } : {}),
     ...(dto.category ? { category: dto.category } : {}),
     ...(opcoes.imagem ? { image: opcoes.imagem } : {}),
     ...(dto.identifiers.gtin ? { gtin: dto.identifiers.gtin } : {}),

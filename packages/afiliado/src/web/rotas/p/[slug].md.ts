@@ -6,10 +6,10 @@
  */
 import type { APIRoute } from 'astro'
 
-import { getCatalogoProduto } from '../../lib/catalogo'
+import { fichaDoCatalogo, getCatalogoProduto } from '../../lib/catalogo'
 import { getProdutoBySlug, PRODUTO_MONETIZAVEL, type CupomDTO, type LojaDTO } from '../../lib/cms'
 import { produtoFisicoPublicoJson } from '../../lib/publico-json'
-import { produtoEditorialDTO, produtoMarkdown } from '../../../conteudo'
+import { fichaMarkdown } from '../../../conteudo'
 
 const validSlug = (slug: string) => slug.length <= 200 && /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(slug)
 export const GET: APIRoute = async (context) => {
@@ -18,10 +18,12 @@ export const GET: APIRoute = async (context) => {
   if (!validSlug(slug)) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
   const catalogo = await getCatalogoProduto(tenant.id, slug)
   if (catalogo) {
-    const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas)
+    const ficha = fichaDoCatalogo(catalogo, tenant.id)
+    const body = produtoFisicoPublicoJson(tenant, catalogo.produto, catalogo.ofertas, ficha)
+    if (!ficha || !body) return new Response('Produto não encontrado.', { status: 404, headers: { 'Cache-Control': 'no-store' } })
     if (context.cache?.enabled) context.cache.set({ maxAge: 60, swr: 0,
       tags: [`tenant:${tenant.slug}`, `produtos_fisicos:${catalogo.produto.id}`] })
-    const linhas = [produtoMarkdown(produtoEditorialDTO(catalogo.produto)).trimEnd(), '',
+    const linhas = [fichaMarkdown(ficha).trimEnd(), '',
       '**Preço:** não publicado — consulte a loja pelo link abaixo.']
     for (const oferta of body.offers) linhas.push('', `**Link:** ${oferta.href}`)
     return new Response(`${linhas.join('\n')}\n`, { headers: {
