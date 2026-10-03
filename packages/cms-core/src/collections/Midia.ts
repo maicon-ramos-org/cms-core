@@ -3,6 +3,7 @@ import type { CollectionConfig } from 'payload'
 import { authenticated, podeEscreverConteudo, superAdminOnly } from '../access/roles'
 import { nomeBaseUnico } from '../hooks/nome-base-unico'
 import { ogSemTransparencia } from '../hooks/og-sem-transparencia'
+import { recusaSvgPerigoso } from '../hooks/svg-seguro'
 import { derivadosSemSharp } from '../midia/derivados-sem-sharp'
 
 export const Midia: CollectionConfig = {
@@ -15,8 +16,9 @@ export const Midia: CollectionConfig = {
     update: podeEscreverConteudo,
   },
   hooks: {
-    // dois registros não dividem o nome-base: os derivados herdam esse nome (PRD 18 RF5)
-    beforeOperation: [nomeBaseUnico],
+    // SVG com script recusado antes de tudo; depois, dois registros não dividem o nome-base:
+    // os derivados herdam esse nome (PRD 18 RF5)
+    beforeOperation: [recusaSvgPerigoso, nomeBaseUnico],
     /*
      * Sem `sharp` na config (num Worker), os derivados saem do gerador da fábrica (PRD 24 RF2);
      * com `sharp`, o Payload já os gerou e o primeiro hook não faz nada. Depois, o `og` de

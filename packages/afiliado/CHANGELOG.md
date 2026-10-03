@@ -1,5 +1,13 @@
 # @maicon-ramos-org/afiliado
 
+## 0.2.0-next.23 — 2026-10-03 (pré-lançamento; não publicado)
+
+- `uniqueCupomPorLoja` (cupons) e a validação de sinônimo de `categorias_oferta` consultam com
+  o `req` da escrita, dentro da transação. Sem ele, a consulta pedia uma 2ª conexão enquanto
+  a da transação estava presa: com uma conexão só (Hyperdrive com shard de uma vaga, Pool
+  `max: 1`), a gravação travava até o timeout. Sem mudança de schema, rota ou contrato.
+  Acompanha `cms-core@0.2.0-next.15`, que protege também o que ainda consulta sem `req`.
+
 ## 0.2.0-next.22 — 2026-10-02 (pré-lançamento; não publicado)
 
 - `FichaMonetizavelDTO` (`monetizable_content/v1`) e adaptadores de produto/oferta

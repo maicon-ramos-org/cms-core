@@ -35,7 +35,15 @@ export const TAGS_POR_POST = 100
 
 const getEndpoint = (): string | null => process.env.REVALIDATE_URL || null
 
-/** O `slug` do documento relacionado: do próprio valor, se veio populado, ou do banco. */
+/**
+ * O `slug` do documento relacionado: do próprio valor, se veio populado, ou do banco.
+ *
+ * A busca vai com o `req` da escrita (roda no `afterChange`/`afterDelete`, dentro da transação):
+ * sem ele, pedia outra conexão enquanto a da transação estava presa, e com uma conexão só
+ * (Hyperdrive, Pool max 1) a escrita travava até o timeout. `disableErrors`: com `req`, um
+ * `NotFound` lançado pelo `findByID` desfaria a transação inteira da escrita (`killTransaction`)
+ * — o relacionado que sumiu só deixa a tag de fora.
+ */
 export async function slugDeRelacao(req: PayloadRequest, collection: string, value: unknown): Promise<string | null> {
   if (!value) return null
   if (typeof value === 'object' && value !== null && 'slug' in value) {
@@ -43,7 +51,14 @@ export async function slugDeRelacao(req: PayloadRequest, collection: string, val
   }
   if (typeof value === 'string' || typeof value === 'number') {
     try {
-      const doc = await req.payload.findByID({ collection: collection as 'tenants', id: value, depth: 0 })
+      const doc = await req.payload.findByID({
+        collection: collection as 'tenants',
+        id: value,
+        depth: 0,
+        overrideAccess: true,
+        disableErrors: true,
+        req,
+      })
       return (doc as { slug?: string })?.slug ?? null
     } catch {
       return null

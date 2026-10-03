@@ -114,3 +114,45 @@ miss frio em torno de quatro segundos apesar do Pool estável. A deduplicação 
 request (PR #18) não faz parte desta entrega nem das releases `.4`/`.7` e permanece
 um recorte separado, a ser medido antes de ativação. Nenhum pin, deploy, tag ou
 versão publicada muda nesta PR.
+
+## Uma conexão por vez na invocação (cms-core 0.2.0-next.15)
+
+Achado em produção numa instância: o Hyperdrive reparte o limite de conexões de origem em
+shards de UMA conexão. Toda escrita do Payload abre uma transação (`pool.connect()`, BEGIN até
+o COMMIT) e, no meio dela, há consultas soltas sem `req` — o `checkDocumentLockStatus` do
+próprio Payload em todo PATCH/DELETE pela REST, hooks de terceiros e, até a 0.2.0-next.14, o
+`uniquePorTenant` e o `slugDeRelacao` do núcleo. Quando a 2ª consulta caía no shard que a
+transação segurava, esperava uma vaga que só abriria no COMMIT: FATAL 58000 ("Timed out while
+waiting for an open slot in the pool.") e 500 de ~15 s. Pool `max: 1` reproduz o mesmo.
+
+Garantias acrescentadas ao Pool real de cada invocação (`criaPoolDaInvocacao`):
+
+- Enquanto a invocação tem exatamente UM cliente emprestado em forma de promessa (a transação
+  do drizzle, ou o monitor do bootstrap), `pool.query` roda nesse cliente, na fila dele, dentro
+  da transação — o que o Payload faria se recebesse `req`. Com dois emprestados, ou com
+  callback, vai ao Pool como antes. A identidade continua isolando invocações: o cliente de
+  uma nunca recebe consulta de outra.
+- O desvio é incondicional, mesmo com `max` > 1: do lado do cliente não dá para saber se o
+  Hyperdrive teria outra vaga. Mudança de semântica para a consulta solta: ela passa a ver o
+  que a escrita já gravou (não commitado), como veria com `req`.
+- Quando o cliente está numa transação (estado `T` no último `readyForQuery` da `Connection`
+  do `pg`), a consulta desviada roda num `SAVEPOINT`: se ela falhar, `ROLLBACK TO SAVEPOINT`
+  devolve a transação ao estado de antes e o erro chega a quem chamou. Um hook que trata o erro
+  de uma consulta opcional (`try { … } catch {}`) não derruba o COMMIT, como não derrubava
+  quando a consulta ia por outra conexão. Custo: duas idas ao banco a mais por consulta
+  desviada (`SAVEPOINT` e `RELEASE`). Fora de transação (monitor do bootstrap), sem savepoint.
+- O cliente só volta ao Pool depois que as consultas desviadas para ele terminam.
+- **Limite:** só a consulta SOLTA é desviada. Um hook que GRAVA sem `req`
+  (`req.payload.create(...)` sem passar `req`) abre uma 2ª transação, e o `pool.connect()` dela
+  ainda espera outra conexão: com uma conexão só (Hyperdrive com shard de uma vaga, ou
+  `max: 1`), essa escrita ainda trava até o `connectionTimeoutMillis` e dá 500. Hook que grava
+  dentro de uma escrita precisa passar `req` — o que o Payload recomenda e o núcleo faz.
+- Ouvinte de `error` no Pool da invocação: o fechamento de socket pedido pelo próprio `pg`
+  (`client._ending`, rotina com `maxUses: 1` no `pg-cloudflare`) fica em silêncio; outra queda
+  de cliente ocioso vira um aviso JSON no `console.warn`, sem `unhandledRejection`.
+
+Prova: `tests/pool-uma-conexao.spec.ts` (unitários) e `tests/int/pool-uma-conexao.int.spec.ts`
+(Payload REST real + PostgreSQL com Pool `max: 1` e `connectionTimeoutMillis` de 2 s:
+create/update/delete de tags e posts, uma coleção com hook de terceiro que consulta (lê) sem
+`req`, e outra cujo hook tolera a falha de uma consulta solta; sem a correção, o próprio bootstrap da fixture falha com "timeout exceeded when trying
+to connect").

@@ -42,6 +42,8 @@ const validaSinonimo: CollectionBeforeValidateHook = async ({ data, originalDoc,
       depth: 0,
       overrideAccess: true,
       disableErrors: true,
+      // na transação da escrita (com uma conexão só, sem `req` a consulta esperava outra)
+      req,
     })) as { navegacao?: string } | null
     if (alvo && alvo.navegacao !== 'canonica') {
       erro(

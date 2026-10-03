@@ -22,6 +22,7 @@ export { editorFeatures } from './editor'
 export { configR2, configR2DaExecucao, endpointR2, urlPublica, VARIAVEIS_R2, type ConfigR2 } from './r2'
 export { paginas, TEMPLATES_DO_NUCLEO, type TemplateDePagina } from './collections/Pages'
 export { Midia } from './collections/Midia'
+export { recusaSvgPerigoso, svgPerigoso } from './hooks/svg-seguro'
 // o que as coleções de um site ou plugin usam (acesso, validação, revalidação, campos)
 export * from './access/roles'
 export * from './hooks/validations'
