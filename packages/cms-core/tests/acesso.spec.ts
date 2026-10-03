@@ -53,15 +53,32 @@ describe('users', () => {
     expect(acesso(Users, 'update', chave(1, 'super-admin'), 2)).toBe(true)
   })
 
-  it('por API key, nem o super-admin troca senha ou e-mail; o resto passa', async () => {
+  it('criação: só o super-admin em sessão; por API key, ninguém (nem a chave do super-admin)', () => {
+    expect(acesso(Users, 'create', sessao(1, 'super-admin'))).toBe(true)
+    expect(acesso(Users, 'create', chave(1, 'super-admin'))).toBe(false)
+    expect(acesso(Users, 'create', chave(2, 'agente'))).toBe(false)
+    expect(acesso(Users, 'create', sessao(4, 'editor'))).toBe(false)
+    expect(acesso(Users, 'create', null)).toBe(false)
+  })
+
+  it('por API key, nem o super-admin grava senha, e-mail ou chave; desligar a chave e o resto passam', async () => {
     const hook = Users.hooks!.beforeValidate![0]!
-    const roda = (user: U, data: Record<string, unknown>) =>
-      hook({ data, originalDoc: { id: 2, email: 'a@b.test' }, operation: 'update', req: req(user) } as never)
-    await expect(async () => roda(chave(1, 'super-admin'), { password: 'x' })).rejects.toMatchObject({ status: 403 })
-    await expect(async () => roda(chave(1, 'super-admin'), { email: 'c@d.test' })).rejects.toMatchObject({ status: 403 })
+    const original = { id: 2, email: 'a@b.test', enableAPIKey: true, apiKey: 'chave-antiga' }
+    const roda = (user: U, data: Record<string, unknown>, operation: 'create' | 'update' = 'update') =>
+      hook({ data, originalDoc: operation === 'update' ? original : undefined, operation, req: req(user) } as never)
+    for (const dados of [{ password: 'x' }, { email: 'c@d.test' }, { apiKey: 'chave-plantada' }]) {
+      await expect(async () => roda(chave(1, 'super-admin'), dados), JSON.stringify(dados)).rejects.toMatchObject({ status: 403 })
+    }
+    await expect(async () => roda(chave(1, 'super-admin'), { enableAPIKey: true }, 'create')).rejects.toMatchObject({ status: 403 })
+    await expect(async () => roda(chave(1, 'super-admin'), { email: 'n@b.test', password: 'x' }, 'create')).rejects.toMatchObject({ status: 403 })
+    await expect(async () => hook({ data: { enableAPIKey: true }, originalDoc: { ...original, enableAPIKey: false }, operation: 'update',
+      req: req(chave(1, 'super-admin')) } as never)).rejects.toMatchObject({ status: 403 })
     expect(await roda(chave(1, 'super-admin'), { email: 'a@b.test', nome: 'n' })).toEqual({ email: 'a@b.test', nome: 'n' })
+    expect(await roda(chave(1, 'super-admin'), { enableAPIKey: true, apiKey: 'chave-antiga' })).toEqual({ enableAPIKey: true, apiKey: 'chave-antiga' })
     expect(await roda(chave(1, 'super-admin'), { enableAPIKey: false })).toEqual({ enableAPIKey: false })
-    expect(await roda(sessao(1, 'super-admin'), { password: 'x' })).toEqual({ password: 'x' })
+    expect(await roda(chave(1, 'super-admin'), { apiKey: null })).toEqual({ apiKey: null })
+    expect(await roda(sessao(1, 'super-admin'), { password: 'x', apiKey: 'nova' })).toEqual({ password: 'x', apiKey: 'nova' })
+    expect(await roda(sessao(1, 'super-admin'), { email: 'n@b.test', password: 'x' }, 'create')).toEqual({ email: 'n@b.test', password: 'x' })
   })
 })
 

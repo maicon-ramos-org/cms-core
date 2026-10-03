@@ -26,11 +26,13 @@ class ClienteFalso {
 /** O mínimo do `pg.Pool`: EventEmitter (sem ouvinte, `emit('error')` lança, como no pg-pool). */
 class PoolFalso extends EventEmitter {
   static criados: PoolFalso[] = []
+  /** Quando definido, `connect` empresta este cliente (com `Connection`) em vez de um `ClienteFalso`. */
+  static proximoCliente: (() => ClienteFalso) | undefined
   clientes: ClienteFalso[] = []
   consultasDoPool: unknown[] = []
   constructor(readonly opcoes: Record<string, unknown> = {}) { super(); PoolFalso.criados.push(this) }
   connect(cb?: (erro: unknown, cliente: ClienteFalso, release: () => void) => void) {
-    const cliente = new ClienteFalso()
+    const cliente = PoolFalso.proximoCliente?.() ?? new ClienteFalso()
     this.clientes.push(cliente)
     if (cb) return void cb(undefined, cliente, () => cliente.release())
     return Promise.resolve(cliente)
@@ -104,6 +106,66 @@ describe('pool da invocação: uma conexão por vez', () => {
     const cliente = (await contexto.run(a, () => fachada.connect())) as unknown as ClienteFalso
     await expect(contexto.run(b, () => fachada.query('select de b'))).resolves.toEqual({ rows: [{ via: 'pool' }] })
     expect(cliente.consultas).toEqual([])
+  })
+})
+
+/** Cliente do pg com a `Connection` que informa o estado da transação a cada `readyForQuery`. */
+class ClienteComConexao {
+  consultas: unknown[] = []
+  soltou = 0
+  connection = new EventEmitter()
+  constructor(private readonly falha: (sql: unknown) => boolean = () => false) {}
+  async query(...args: unknown[]) {
+    this.consultas.push(args[0])
+    await new Promise((r) => setTimeout(r, 0))
+    if (args[0] === 'begin') this.connection.emit('readyForQuery', { status: 'T' })
+    if (this.falha(args[0])) throw new Error(`falhou: ${String(args[0])}`)
+    return { rows: [{ via: 'cliente' }] }
+  }
+  release() { this.soltou++ }
+}
+const comCliente = async (cliente: ClienteComConexao, f: (pool: PoolFalso) => Promise<void>) => {
+  PoolFalso.proximoCliente = () => cliente as unknown as ClienteFalso
+  try { await invocacao(async (pool) => f(pool)) } finally { PoolFalso.proximoCliente = undefined }
+}
+
+describe('pool da invocação: consulta desviada numa transação roda num SAVEPOINT', () => {
+  it('sucesso: SAVEPOINT, a consulta e RELEASE, nessa ordem, no cliente da transação', async () => {
+    const cliente = new ClienteComConexao()
+    await comCliente(cliente, async (pool) => {
+      const tx = (await pool.connect()) as unknown as ClienteComConexao
+      await tx.query('begin')
+      await expect(pool.query('select 1', [])).resolves.toEqual({ rows: [{ via: 'cliente' }] })
+      const [, savepoint, consulta, release] = cliente.consultas as string[]
+      expect(cliente.consultas[0]).toBe('begin')
+      expect(savepoint).toMatch(/^SAVEPOINT cms_core_consulta_solta_\d+$/)
+      expect(consulta).toBe('select 1')
+      expect(release).toBe(savepoint!.replace('SAVEPOINT', 'RELEASE SAVEPOINT'))
+    })
+  })
+
+  it('falha: ROLLBACK TO SAVEPOINT devolve a transação, e o erro da consulta chega a quem chamou', async () => {
+    const cliente = new ClienteComConexao((sql) => sql === 'select * from opcional')
+    await comCliente(cliente, async (pool) => {
+      const tx = (await pool.connect()) as unknown as ClienteComConexao
+      await tx.query('begin')
+      await expect(pool.query('select * from opcional')).rejects.toThrow('falhou: select * from opcional')
+      const [, savepoint, , volta] = cliente.consultas as string[]
+      expect(volta).toBe(savepoint!.replace('SAVEPOINT', 'ROLLBACK TO SAVEPOINT'))
+      tx.release()
+      expect(cliente.soltou).toBe(1)
+      expect(cliente.connection.listenerCount('readyForQuery')).toBe(0)
+    })
+  })
+
+  it('fora de transação (monitor do bootstrap), a consulta vai ao cliente sem SAVEPOINT', async () => {
+    const cliente = new ClienteComConexao()
+    await comCliente(cliente, async (pool) => {
+      await pool.connect()
+      cliente.connection.emit('readyForQuery', { status: 'I' })
+      await pool.query('select 1')
+      expect(cliente.consultas).toEqual(['select 1'])
+    })
   })
 })
 

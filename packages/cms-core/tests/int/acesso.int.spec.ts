@@ -154,6 +154,29 @@ describe.skipIf(semBanco)('acesso: users, mensagens, coleções internas e SVG (
       expect((await pede(`/users/${ids.editor}`, { jwt: 'editor' }, 'PATCH', { nome: 'Editor' })).status).toBe(200)
       expect((await pede(`/users/${ids.agente}`, { jwt: 'editor' }, 'PATCH', { nome: 'x' })).status).toBe(403)
     })
+
+    it('a chave do super-admin não cria usuário nem planta chave (acesso que sobreviveria à rotação)', async () => {
+      const intruso = { nome: 'Intruso', email: 'intruso@fixture.test', password: 'senha-intruso-123', roles: ['super-admin'], tenants: [{ tenant: tenant.id }] }
+      expect((await pede('/users', { chave: 'admin' }, 'POST', intruso)).status).toBe(403)
+      expect((await pede('/users/login', {}, 'POST', { email: intruso.email, password: intruso.password })).status).toBe(401)
+      const { password: _semSenha, ...semSenha } = intruso
+      expect((await pede('/users', { chave: 'admin' }, 'POST', { ...semSenha, enableAPIKey: true, apiKey: 'chave-plantada-criacao' })).status).toBe(403)
+      expect((await pede(`/users/${ids.editor}`, { chave: 'admin' }, 'PATCH', { enableAPIKey: true, apiKey: 'chave-plantada-revisor' })).status).toBe(403)
+      for (const plantada of ['chave-plantada-criacao', 'chave-plantada-revisor']) {
+        const me = await roda(() => handleEndpoints({ config, request: new Request('http://fixture.test/api/users/me', {
+          headers: { authorization: `users API-Key ${plantada}` } }) }))
+        expect((await me.json() as { user?: unknown }).user ?? null, plantada).toBeNull()
+      }
+      // revogar continua: desligar a própria chave do agente pela chave do super-admin, e religar em sessão
+      expect((await pede(`/users/${ids.agente}`, { chave: 'admin' }, 'PATCH', { enableAPIKey: false })).status).toBe(200)
+      expect((await pede('/users/me', { chave: 'agente' })).json.user ?? null).toBeNull()
+      expect((await pede(`/users/${ids.agente}`, { jwt: 'admin' }, 'PATCH', { enableAPIKey: true, apiKey: CHAVES.agente })).status).toBe(200)
+      expect((await pede('/users/me', { chave: 'agente' })).json.user.email).toBe('agente@fixture.test')
+      // em sessão, o super-admin cria usuário com senha, como no /admin
+      const criado = await pede('/users', { jwt: 'admin' }, 'POST', { ...intruso, email: 'novo@fixture.test', roles: ['editor'] })
+      expect(criado.status).toBe(201)
+      expect((await pede(`/users/${criado.json.doc.id}`, { jwt: 'admin' }, 'DELETE')).status).toBe(200)
+    })
   })
 
   describe('mensagens', () => {
@@ -217,6 +240,19 @@ describe.skipIf(semBanco)('acesso: users, mensagens, coleções internas e SVG (
   describe('mídia', () => {
     it('SVG com script de namespace é recusado (400) antes de chegar ao bucket', async () => {
       const svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:h="http://www.w3.org/2000/svg"><h:script>fetch("/x")</h:script></svg>'
+      const form = new FormData()
+      form.set('file', new Blob([svg], { type: 'image/svg+xml' }), 'prova-xss.svg')
+      form.set('_payload', JSON.stringify({ alt: 'prova', tenant: tenant.id }))
+      const r = await pede('/midia', { chave: 'agente' }, 'POST', form)
+      expect(r.status).toBe(400)
+      expect(r.texto).toContain('SVG com script')
+    })
+
+    it.each([
+      ['referência de caractere em href', '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="&#106;avascript:void(0)"><rect width="9" height="9"/></a></svg>'],
+      ['animação de href', '<svg xmlns="http://www.w3.org/2000/svg"><a><animate attributeName="href" values="&#106;avascript:void(0)"/><rect width="9" height="9"/></a></svg>'],
+      ['XSLT', '<?xml version="1.0"?><?xml-stylesheet type="text/xsl" href="x.svg"?><svg xmlns="http://www.w3.org/2000/svg"/>'],
+    ])('SVG com %s é recusado (400) antes de chegar ao bucket', async (_caso, svg) => {
       const form = new FormData()
       form.set('file', new Blob([svg], { type: 'image/svg+xml' }), 'prova-xss.svg')
       form.set('_payload', JSON.stringify({ alt: 'prova', tenant: tenant.id }))

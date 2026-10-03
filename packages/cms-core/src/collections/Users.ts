@@ -43,15 +43,35 @@ export const doDonoOuSuperAdmin: FieldAccess = ({ req, doc, id }) => {
 }
 
 /**
- * Por API key, nem o super-admin troca senha ou e-mail de usuário (nem o próprio): a chave é
- * credencial de máquina, e uma chave vazada não pode virar sessão permanente no /admin. A troca
- * de senha/e-mail é do /admin (sessão de login) ou da semente (API local, sem usuário).
+ * Criação de `users`: só o super-admin, e só numa sessão de login (ou a semente, pela API local).
+ * Por API key ninguém cria usuário: com a chave do super-admin dava para criar um super-admin
+ * NOVO, com senha (ou com chave) escolhida por quem tem a chave, e entrar no /admin com ele —
+ * acesso que sobrevivia à rotação de todas as chaves.
  */
-export const senhaEEmailSoEmSessao: CollectionBeforeValidateHook = ({ data, originalDoc, operation, req }) => {
-  if (operation !== 'update' || !data || !entrouPorChave(req.user)) return data
-  const trocaEmail = 'email' in data && data.email !== undefined && data.email !== (originalDoc as { email?: unknown } | undefined)?.email
-  if ('password' in data || trocaEmail) {
-    throw new APIError('Senha e e-mail de usuário não se alteram por API key: use uma sessão do /admin.', 403, undefined, true)
+export const criacaoDeUsuarios: Access = ({ req }) => isSuperAdmin(req.user) && !entrouPorChave(req.user)
+
+const mudou = (data: Record<string, unknown>, original: Record<string, unknown> | undefined, campo: string): boolean =>
+  campo in data && data[campo] !== undefined && data[campo] !== original?.[campo]
+
+/**
+ * Por API key, nem o super-admin grava credencial de usuário (nem do próprio): senha, e-mail
+ * (o login), chave nova (`apiKey` com valor) nem chave ligada (`enableAPIKey: true`). A chave é
+ * credencial de máquina; uma chave vazada não pode virar sessão permanente no /admin nem plantar
+ * outra chave em outro usuário — acessos que sobreviveriam à rotação. Desligar uma chave
+ * (`enableAPIKey: false`, `apiKey` vazio) continua: é revogação. Senha, e-mail e chave mudam no
+ * /admin (sessão de login) ou na semente (API local, sem usuário). Vale em `create` e `update`
+ * (o `create` por chave já é barrado no `access`; aqui é a 2ª trava).
+ */
+export const credenciaisSoEmSessao: CollectionBeforeValidateHook = ({ data, originalDoc, operation, req }) => {
+  if ((operation !== 'create' && operation !== 'update') || !data || !entrouPorChave(req.user)) return data
+  const original = operation === 'update' ? (originalDoc as Record<string, unknown> | undefined) : undefined
+  const dados = data as Record<string, unknown>
+  const gravaCredencial = 'password' in dados
+    || mudou(dados, original, 'email')
+    || (mudou(dados, original, 'enableAPIKey') && dados.enableAPIKey !== false)
+    || (mudou(dados, original, 'apiKey') && dados.apiKey !== null && dados.apiKey !== '')
+  if (gravaCredencial) {
+    throw new APIError('Senha, e-mail e API key de usuário não se gravam por API key: use uma sessão do /admin.', 403, undefined, true)
   }
   return data
 }
@@ -84,13 +104,13 @@ export const Users: CollectionConfig = {
   auth: { useAPIKey: true },
   admin: { useAsTitle: 'email', group: 'Sistema' },
   access: {
-    create: superAdminOnly,
+    create: criacaoDeUsuarios,
     delete: superAdminOnly,
     read: leituraDeUsuarios,
     update: edicaoDeUsuarios,
   },
   hooks: {
-    beforeValidate: [senhaEEmailSoEmSessao],
+    beforeValidate: [credenciaisSoEmSessao],
   },
   fields: [
     { name: 'nome', type: 'text', required: true },

@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
-import type { PostgresAdapter } from '@payloadcms/db-postgres'
+import { sql, type PostgresAdapter } from '@payloadcms/db-postgres'
 import { getPayload, handleEndpoints, type Payload, type Plugin, type SanitizedConfig } from 'payload'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { cmsCore } from '../../src/fabrica'
@@ -63,6 +63,21 @@ describe.skipIf(semBanco)('pool por requisição com max 1: create/update/delete
       afterChange: [async ({ doc, req }) => {
         await req.payload.count({ collection: 'tags', overrideAccess: true })
         return doc
+      }],
+    },
+  }, {
+    // consulta solta que FALHA e o hook tolera (recurso opcional): desviada para o cliente da
+    // transação, ela roda num SAVEPOINT, e a falha não derruba o COMMIT da escrita
+    slug: 'provas_falha_tolerada',
+    access: { create: () => true, read: () => true, update: () => true, delete: () => true },
+    fields: [{ name: 'titulo', type: 'text', required: true }, { name: 'depois', type: 'number' }],
+    hooks: {
+      beforeChange: [async ({ data, req }) => {
+        const drizzle = (req.payload.db as unknown as { drizzle: { execute: (q: unknown) => Promise<{ rows: Array<{ n: number }> }> } }).drizzle
+        try { await drizzle.execute(sql`select * from tabela_opcional_inexistente`) } catch { /* recurso opcional ausente */ }
+        // a transação continua válida: outra consulta solta, logo depois, funciona
+        const { rows } = await drizzle.execute(sql`select 1::int as n`)
+        return { ...data, depois: rows[0]!.n }
       }],
     },
   }] })
@@ -130,6 +145,15 @@ describe.skipIf(semBanco)('pool por requisição com max 1: create/update/delete
     expect(criada.status).toBe(201)
     expect((await pede(`/provas_sem_req/${criada.json.doc.id}`, 'PATCH', { titulo: 'sem req 2' })).status).toBe(200)
     expect((await pede(`/provas_sem_req/${criada.json.doc.id}`, 'DELETE')).status).toBe(200)
+  }, 30_000)
+
+  it('consulta solta que falha num hook que trata o erro não derruba a escrita (SAVEPOINT)', async () => {
+    const criada = await pede('/provas_falha_tolerada?depth=0', 'POST', { tenant: tenant.id, titulo: 'tolerada' })
+    expect(criada.status).toBe(201)
+    expect(criada.json.doc.depois).toBe(1)
+    const lida = await pede(`/provas_falha_tolerada/${criada.json.doc.id}?depth=0`)
+    expect(lida.json.titulo).toBe('tolerada')
+    expect((await pede(`/provas_falha_tolerada/${criada.json.doc.id}`, 'PATCH', { titulo: 'tolerada 2' })).status).toBe(200)
   }, 30_000)
 
   it('nenhuma conexão fica emprestada depois das escritas', async () => {
