@@ -51,6 +51,7 @@ export const validaSlugKebab = (
  * Unicidade composta (tenant, campo) — contrato colecoes.md: "slug unique POR tenant".
  * Primeira linha de defesa (erro 400 com `path` — o contrato pro agente); o índice
  * único composto `indexes` de cada coleção é o backstop contra corrida no banco.
+ * A consulta roda com o `req` da escrita, dentro da transação dela.
  */
 export const uniquePorTenant =
   (campo: string): CollectionBeforeValidateHook =>
@@ -71,6 +72,9 @@ export const uniquePorTenant =
       limit: 1,
       depth: 0,
       overrideAccess: true,
+      // na transação da escrita: sem `req`, a consulta pede OUTRA conexão enquanto a da
+      // transação está presa — com uma conexão só (Hyperdrive, Pool max 1), trava até o timeout
+      req,
     })
     if (existentes.totalDocs > 0) {
       throw new ValidationError({

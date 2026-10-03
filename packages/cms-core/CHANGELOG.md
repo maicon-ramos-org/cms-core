@@ -2,6 +2,62 @@
 
 ## Não lançado
 
+## 0.2.0-next.15 — 2026-10-03 (pré-lançamento; não publicado)
+
+Segurança e robustez. **Quebra de compatibilidade** para quem dependia das permissões
+antigas (ver "Migração" abaixo). Sem alteração de schema nem migration: só `access` de
+coleção/campo, hooks e o pool por requisição.
+
+- `users` (crítico): qualquer usuário autenticado lia `users` inteiro, e o Payload decifra
+  `apiKey` na leitura — qualquer API key (até a do servidor do site) listava a chave de todos,
+  inclusive a do super-admin. Agora: super-admin lê todos; os demais só o próprio documento
+  (`/users/<outro>` é 404, `/users/me` continua). `apiKey`/`enableAPIKey` só para o dono e o
+  super-admin; `apiKeyIndex` para ninguém. Os campos são fundidos aos do Payload pelo nome
+  (`mergeBaseFields`): mesmas colunas, mesma ordem.
+- `users` (crítico): por API key, ninguém edita usuário além do super-admin, e nem ele troca
+  senha ou e-mail (403). Antes, uma chave vazada gravava uma senha no próprio usuário e
+  entrava no /admin por ela — acesso que sobrevivia à rotação da chave. Em sessão de login,
+  cada um edita a si mesmo, como antes.
+- `mensagens` (dado pessoal): criação só por `sistema` (o endpoint de contato do site, com a
+  chave dele) e super-admin — a criação anônima direta em `/api/mensagens` pulava o honeypot
+  e o limite por IP. Leitura por super-admin, editor e `sistema`; edição por super-admin e
+  editor. `nome`, `email`, `mensagem`, `origem_url` e `user_agent` só para super-admin e
+  editor (para `sistema` saem da resposta; a contagem por `ip_hash` continua).
+- `payload-locked-documents` e `payload-preferences` (coleções internas do Payload): API key
+  não cria, altera nem apaga trava de documento — antes, qualquer chave criava trava em nome
+  de outro usuário e deixava o PATCH dos agentes em 423 por ~5 min, renovável. A trava sai
+  sempre em nome de quem pede. A REST padrão de preferências só grava em sessão de login. Como
+  essas coleções só existem depois da sanitização, a fábrica aplica as regras sobre a config
+  já montada (`access/internos.ts`).
+- Mídia: SVG com script de namespace (`<h:script>`), manipulador `on*=`, `javascript:`,
+  `foreignObject`, entidade XML ou `href` para `data:` não raster é recusado com 400 antes de
+  ir ao bucket (o `validateSvg` do Payload 3.88 deixa passar). `.svgz` também. Exporta
+  `svgPerigoso` e `recusaSvgPerigoso`.
+- `uniquePorTenant` e `slugDeRelacao` consultam com o `req` da escrita (dentro da transação).
+  `slugDeRelacao` usa `disableErrors`: com `req`, um `NotFound` desfaria a transação inteira.
+- `poolPostgresPorRequisicao`: o Pool de cada invocação usa UMA conexão por vez — consulta
+  solta (`pool.query`) feita enquanto a invocação segura um cliente (a transação de uma
+  escrita) roda nesse cliente, em vez de pedir outra conexão. Antes, com o Hyperdrive
+  repartindo o limite em shards de uma conexão (ou Pool `max: 1`), toda escrita pela REST
+  esperava uma 2ª conexão que só abriria no COMMIT (`checkDocumentLockStatus` do Payload,
+  hooks sem `req`): FATAL "Timed out while waiting for an open slot in the pool" e 500 de
+  ~15 s. O Pool da invocação também ganha ouvinte de `error` (o fechamento de socket do
+  `pg-cloudflare` com `maxUses: 1` virava `unhandledRejection`). Sem o plugin, nada muda.
+
+Migração (consumidores):
+
+- Site que posta em `/api/mensagens` sem API key, ou com chave de papel diferente de `sistema`,
+  passa a receber 403: poste pelo servidor do site com a chave do papel `sistema` (é o que o
+  endpoint de contato do `editorial` faz).
+- Agente/integração que lia `/api/users` (lista ou outro usuário), ou que trocava senha/e-mail
+  por API key, passa a receber só o próprio usuário / 403. Senha e chave de serviço são da
+  semente; o resto, pelo /admin.
+- Integração que criava trava (`payload-locked-documents`) ou preferência pela REST com API
+  key recebe 403.
+- Site com plugin próprio que já declara `enableAPIKey`/`apiKey`/`apiKeyIndex` em `users`
+  (como o endurecimento local de um site) deve removê-lo ao atualizar: os campos agora vêm
+  do núcleo.
+
 ## 0.2.0-next.14 — 2026-09-27 (pré-lançamento)
 
 - `protegerLeituraCustomSiteReader` permite endpoints GET locais de projeção

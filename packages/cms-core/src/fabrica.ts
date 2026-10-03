@@ -29,6 +29,7 @@ import { s3Storage } from '@payloadcms/storage-s3'
 import { en } from '@payloadcms/translations/languages/en'
 import { pt } from '@payloadcms/translations/languages/pt'
 import { buildConfig, type CollectionConfig, type Config, type Field, type Plugin, type SanitizedConfig } from 'payload'
+import { endureceColecoesInternas } from './access/internos'
 import { isSuperAdmin } from './access/roles'
 import { preparaPrincipalSiteReader } from './site-reader/provisionamento'
 import { aplicaPoliticaSiteReader } from './site-reader/politica'
@@ -313,6 +314,8 @@ export async function cmsCore(opcoes: OpcoesCmsCore): Promise<SanitizedConfig> {
       ...(opcoes.siteReader ? [preparaPrincipalSiteReader] : []),
     ],
   })
+  // as coleções internas do Payload só existem na config sanitizada (`access/internos.ts`)
+  endureceColecoesInternas(config)
   if (!opcoes.siteReader) return config
   const projectors = typeof opcoes.siteReader === 'object' ? opcoes.siteReader : undefined
   if (projectors && typeof projectors.renderV1 !== 'function') {

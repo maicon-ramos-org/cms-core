@@ -20,6 +20,8 @@ export const uniqueCupomPorLoja: CollectionBeforeValidateHook = async ({ data, o
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    // na transação da escrita (com uma conexão só, sem `req` a consulta esperava outra)
+    req,
   })
   if (existentes.totalDocs > 0) {
     throw new ValidationError({

@@ -24,6 +24,10 @@ export const hasRole = (user: unknown, role: Papel): boolean => {
 
 export const isSuperAdmin = (user: unknown): boolean => hasRole(user, 'super-admin')
 
+/** Quem entrou por API key (o Payload marca `req.user._strategy`): credencial de máquina, não sessão. */
+export const entrouPorChave = (user: unknown): boolean =>
+  (user as { _strategy?: unknown } | null | undefined)?._strategy === 'api-key'
+
 export const authenticated: Access = ({ req }) => Boolean(req.user) && !temPapelSiteReader(req.user)
 
 export const superAdminOnly: Access = ({ req }) => isSuperAdmin(req.user)
