@@ -4,7 +4,8 @@ Contrato de **leitura**, exportado por `@maicon-ramos-org/afiliado/conteudo`.
 A primeira etapa criou o DTO; a segunda conecta a oferta pública existente a ele;
 a terceira conecta a leitura pública do produto físico canônico.
 Não instala collection, altera banco ou URLs nem modifica a escrita REST dos
-publicadores. Os templates atuais da oferta e do produto físico são preservados.
+publicadores. As etapas iniciais preservaram os templates; o acabamento visual
+do produto físico descrito abaixo mantém os formatos e contratos de leitura.
 
 ## Contrato TypeScript
 
@@ -99,6 +100,42 @@ const template = campanhaCompacta ? LayoutCompacto : layouts[ficha.kind]
 ```
 
 O exemplo é pseudocódigo do consumidor, não alteração de rotas dos sites.
+
+### Apresentação compartilhada do produto físico (2026-10-05)
+
+`FichaProduto.astro` organiza imagem, identidade e opções de compra no topo,
+antes da análise. No celular esses blocos se empilham; não há hidratação nem
+consulta CMS por cartão. A foto só é mostrada quando cadastrada; sua ausência é
+explicitada. Especificações editoriais, prós/contras e FAQ continuam opcionais.
+O título visual é o único H1; headings da análise são subordinados sem alterar
+o Markdown armazenado ou sua projeção pública.
+
+Outros layouts podem importar o bloco de compra, sem copiar o template inteiro:
+
+```astro
+---
+import OpcoesCompraProduto from '@maicon-ramos-org/afiliado/web/componentes/OpcoesCompraProduto.astro'
+const { ficha } = Astro.props
+---
+<OpcoesCompraProduto monetizacao={ficha.monetization} />
+```
+
+Um cartão corresponde a um listing autorizado, com nome da loja, variante e
+URL preservada. Preço só aparece quando fornecido pelo leitor com moeda/valor
+e data válida, não futura. O catálogo físico Amazon mantém preço e estoque
+ausentes como antes; não passa a publicá-los por causa do novo layout. Cupom
+literal nunca é renderizado. O HTML marca links patrocinados, desativa prefetch
+e conserva link final direto quando esta é a política do leitor.
+
+`getCatalogoProduto` resolve loja junto do listing em `depth: 1` e normaliza IDs
+populados de tenant/variante/loja. A origem atual continua Amazon; o componente
+aceita outros sellers fornecidos por leitores autorizados sem ativar programas
+comerciais novos. Nenhuma collection/migration/API de escrita muda.
+
+Após release, cada site deve atualizar explicitamente sua dependência, validar
+as rotas e regenerar os snapshots HTML no R2: publicar o plugin não modifica
+automaticamente páginas já materializadas. A oferta de software/lifetime e o
+produto legado conservam seus próprios layouts.
 
 ## Renderizadores reaproveitados
 

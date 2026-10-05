@@ -13,26 +13,31 @@ beforeAll(async () => {
     { pattern: '/p/[slug]/', entrypoint: routePath('[slug].astro') },
     { pattern: '/p/[slug].json', entrypoint: routePath('[slug].json.ts') },
     { pattern: '/p/[slug].md', entrypoint: routePath('[slug].md.ts') },
+    { pattern: '/compras/[cenario]', entrypoint: fileURLToPath(new URL('./fixtures/produto/compras.astro', import.meta.url)) },
   ])
   server = result.server; origin = result.origin
 }, 30_000)
 afterAll(async () => { await server?.stop(); vi.unstubAllEnvs() })
 
 describe('produto físico: HTML real, Markdown e JSON', () => {
-  it('mantém layout, imagem, seções, disclosure e links finais com tag/variante', async () => {
+  it('mostra foto/compra no topo e preserva seções, disclosure e links finais com tag/variante', async () => {
     const response = await page('/p/produto/'), html = await response.text()
     expect(response.status, html.slice(0, 250)).toBe(200)
     expect(response.headers.get('x-robots-tag')).toBeNull()
     for (const text of ['class="ficha"', 'Equipamento exemplo', 'Fabricante · M1', 'Resumo editorial estável.',
       'class="produto-imagem"', 'https://media.example.test/equipamento.jpg', 'Destaques', 'Ficha técnica',
       '7891234567895', '500 g', 'Serve em casa?', 'Vantagem editorial', 'Limitação editorial',
-      'Como associado da Amazon', 'Preto', 'Branco', 'Ver preço na Amazon']) expect(html.includes(text), text).toBe(true)
+      'Como associado da Amazon', 'Preto', 'Branco', 'Ver preço na Amazon', 'Onde comprar']) expect(html.includes(text), text).toBe(true)
     expect(html).toContain('<strong>formatação</strong>')
     expect(html).toContain(`href="${ofertaFixture.url_afiliado!.replace(/&/g, '&amp;')}"`)
-    expect(html).toContain('rel="sponsored noopener noreferrer" target="_blank"')
+    expect(html).toContain('rel="sponsored nofollow noopener noreferrer"')
+    expect(html).toContain('data-astro-prefetch="false"')
     expect(html).not.toContain('href="/r/')
     expect(html.indexOf('class="resumo"')).toBeLessThan(html.indexOf('class="corpo"'))
     expect(html.indexOf('class="corpo"')).toBeLessThan(html.indexOf('aria-label="Ficha técnica"'))
+    expect(html.indexOf('id="onde-comprar"')).toBeLessThan(html.indexOf('class="corpo"'))
+    expect(html.match(/<main\b/g)).toHaveLength(1)
+    expect(html.match(/<h1\b/g)).toHaveLength(1)
     expect(graph(html)[0]).not.toHaveProperty('offers')
   }, 20_000)
   it('as três representações compartilham conteúdo, identidade, SEO e ação comercial', async () => {
@@ -53,6 +58,43 @@ describe('produto físico: HTML real, Markdown e JSON', () => {
     expect(mdResponse.headers.get('link')).toBe('<https://site.example.test/p/produto/>; rel="canonical"')
     expect(graph(html)[0]).toMatchObject({ name: json.title, image: json.image.url, gtin: json.identifiers.gtin })
     expect(`${JSON.stringify(json)}${md}`).not.toMatch(/url_origem|external_listing_id|amazon-manual|\/r\/f/)
+  })
+  it('sem foto cadastrado mostra estado explícito, sem inventar URL ou duplicar H1 da análise', async () => {
+    const html = await (await page('/p/sem-foto/')).text()
+    expect(html).toContain('Foto ainda não cadastrada')
+    expect(html).not.toContain('class="produto-imagem"')
+    expect(html.match(/<h1\b/g)).toHaveLength(1)
+    expect(html).toContain('Detalhes da análise')
+    expect(html).toContain('Como usar')
+  })
+  it('o bloco reutilizável renderiza várias lojas/variantes, sem assumir Amazon', async () => {
+    const html = await (await page('/compras/multilojas')).text()
+    for (const text of ['Onde comprar', 'Loja de equipamentos', 'Outra loja', 'Preto', 'Branco',
+      'Ver preço na Loja de equipamentos', 'Ver preço na Outra loja']) expect(html).toContain(text)
+    expect(html).toContain('href="https://loja.example.test/produto?sku=preto&amp;ref=afiliado"')
+    expect(html).toContain('href="/r/o2?ref=produto"')
+    expect(html).not.toContain('Amazon')
+    expect(html).not.toContain('Menor preço')
+    expect(html).not.toContain('R$')
+  })
+  it('preço e disponibilidade só aparecem quando autorizados no DTO com data válida', async () => {
+    const html = await (await page('/compras/preco')).text()
+    expect(html).toContain('199,90')
+    expect(html).toContain('Disponível')
+    expect(html).toContain('2026-09-26T10:00:00.000Z')
+    expect(html).toContain('Ver oferta na Loja de equipamentos')
+    expect(html).not.toContain('CUPOM-LITERAL-NAO-PUBLICO')
+  })
+  it.each(['sem-data', 'data-futura'])('não expõe preço sem observação válida: %s', async cenario => {
+    const html = await (await page(`/compras/${cenario}`)).text()
+    expect(html).not.toContain('199,90')
+    expect(html).toContain('Ver preço na Loja de equipamentos')
+  })
+  it('destinos inválidos não geram botão de compra e campos opcionais não são inventados', async () => {
+    const html = await (await page('/compras/link-invalido')).text()
+    expect(html).not.toContain('href="javascript:')
+    expect(html).not.toContain('href="//')
+    expect(html).toContain('Nenhuma oferta revisada disponível para consulta.')
   })
   it('sem oferta comercial mantém conteúdo/variantes e não fabrica preço ou Offer', async () => {
     const html = await (await page('/p/sem-ofertas/')).text()

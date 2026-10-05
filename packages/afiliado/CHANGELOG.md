@@ -2,6 +2,19 @@
 
 ## 0.2.0-next.23 — 2026-10-03 (pré-lançamento; não publicado)
 
+- A ficha física `/p/{slug}` ganha apresentação responsiva com imagem/estado sem
+  foto, identidade e opções de compra antes da análise. Cada listing tem cartão
+  de loja/variante e CTA; especificações públicas, destaques, prós/contras e FAQ
+  continuam separados, com navegação por âncoras e um único H1/main. Cores/fontes
+  vêm do tenant, sem JavaScript adicional, dados inventados ou mudanças de URL/schema.
+- `OpcoesCompraProduto.astro` é reutilizável por layouts consumidores e recebe
+  apenas a monetização do DTO. Preserva destinos/parâmetros, desativa prefetch e
+  marca links patrocinados; cupom literal nunca entra no componente. Preço já
+  autorizado exige moeda/valor/data válidos; o reader Amazon conserva preço e
+  estoque ausentes. Loja é resolvida com `depth: 1`, sem consulta por cartão, e
+  relações populadas de outro tenant são recusadas. Testes de HTML real, múltiplas
+  lojas/variantes e integração Payload/Postgres protegem esse comportamento.
+
 - `uniqueCupomPorLoja` (cupons) e a validação de sinônimo de `categorias_oferta` consultam com
   o `req` da escrita, dentro da transação. Sem ele, a consulta pedia uma 2ª conexão enquanto
   a da transação estava presa: com uma conexão só (Hyperdrive com shard de uma vaga, Pool

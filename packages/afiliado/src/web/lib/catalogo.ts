@@ -7,8 +7,12 @@ export interface ProdutoFisico extends ProdutoFichaFonte {
   id: Id; tenant: Id | { id: Id }; estado: string; imagem?: MidiaDTO | Id | null
 }
 export interface Variante { id: Id; tenant: Id; produto: Id; nome: string; estado: string }
-export interface Listing { id: Id; tenant: Id; variante: Id; loja: Id; estado: string; fonte: string; external_listing_id: string; url_origem: string; url_afiliado?: string; observado_em: string }
+interface LojaListing { id: Id; tenant: Id | { id: Id }; nome?: string; programa?: string }
+export interface Listing { id: Id; tenant: Id | { id: Id }; variante: Id | { id: Id }; loja: Id | LojaListing; estado: string; fonte: string; external_listing_id: string; url_origem: string; url_afiliado?: string; observado_em: string }
+const idRelacao = (value: Id | { id: Id }) => typeof value === 'object' ? value.id : value
 const same = (a: Id | { id: Id }, b: Id) => String(typeof a === 'object' ? a.id : a) === String(b)
+const lojaDoTenant = (o: Listing, tenant: Id) => typeof o.loja !== 'object' ||
+  (same(o.loja.tenant, tenant) && o.loja.programa === 'amazon')
 async function find<T>(collection: string, tenant: Id, filters: Record<string, string>, depth = 0): Promise<T[]> {
   const q = new URLSearchParams({ 'where[and][0][tenant][equals]': String(tenant), depth: String(depth), limit: '100', ...filters })
   return (await cmsFetch<{ docs: T[] }>(`/api/${collection}?${q}`)).docs
@@ -42,18 +46,19 @@ export async function getCatalogoProduto(tenant: Id, slug: string) {
   })).filter(v => same(v.tenant, tenant) && same(v.produto, produto.id) && v.estado === 'confirmada')
   const ofertas = variantes.length ? (await find<Listing>('ofertas_produto', tenant, {
     'where[and][1][variante][in]': variantes.map(v => v.id).join(','), 'where[and][2][estado][equals]': 'ativa',
-  })).filter(o => same(o.tenant, tenant) && o.estado === 'ativa' && variantes.some(v => same(v.id, o.variante)) && destinoAmazon(o)) : []
+  }, 1)).filter(o => same(o.tenant, tenant) && lojaDoTenant(o, tenant) && o.estado === 'ativa' &&
+    variantes.some(v => same(o.variante, v.id)) && destinoAmazon(o)) : []
   return { produto, variantes, ofertas }
 }
 export async function getDestinoFisico(tenant: Id, id: string): Promise<string | null> {
   const [o] = await find<Listing>('ofertas_produto', tenant, { 'where[and][1][id][equals]': id, 'where[and][2][estado][equals]': 'ativa' })
   if (!o || !same(o.tenant, tenant) || o.estado !== 'ativa') return null
-  const [v] = await find<Variante>('variantes_produto', tenant, { 'where[and][1][id][equals]': String(o.variante), 'where[and][2][estado][equals]': 'confirmada' })
-  if (!v || !same(v.tenant, tenant) || !same(v.id, o.variante) || v.estado !== 'confirmada') return null
+  const [v] = await find<Variante>('variantes_produto', tenant, { 'where[and][1][id][equals]': String(idRelacao(o.variante)), 'where[and][2][estado][equals]': 'confirmada' })
+  if (!v || !same(v.tenant, tenant) || !same(o.variante, v.id) || v.estado !== 'confirmada') return null
   const [p] = await find<ProdutoFisico>('produtos_fisicos', tenant, { 'where[and][1][id][equals]': String(v.produto), 'where[and][2][estado][equals]': 'published' })
   if (!p || !same(p.tenant, tenant) || !same(p.id, v.produto) || p.estado !== 'published') return null
-  const [loja] = await find<{ id: Id; tenant: Id; programa: string }>('lojas', tenant, { 'where[and][1][id][equals]': String(o.loja) })
-  if (!loja || !same(loja.tenant, tenant) || !same(loja.id, o.loja) || loja.programa !== 'amazon') return null
+  const [loja] = await find<{ id: Id; tenant: Id; programa: string }>('lojas', tenant, { 'where[and][1][id][equals]': String(idRelacao(o.loja)) })
+  if (!loja || !same(loja.tenant, tenant) || !same(o.loja, loja.id) || loja.programa !== 'amazon') return null
   return destinoAmazon(o)
 }
 
@@ -63,13 +68,14 @@ export function fichaDoCatalogo(catalogo: { produto: ProdutoFisico; variantes?: 
   const variantes = catalogo.variantes?.filter(v => same(v.tenant, tenant) && same(v.produto, produto.id) && v.estado === 'confirmada')
   // Nas rotas, variantes sempre vêm da leitura tenant-scoped. A projeção JSON antiga
   // também aceita listings previamente vinculados pelo chamador, sem grupos de variantes.
-  const ofertas = catalogo.ofertas.filter(o => same(o.tenant, tenant) && o.estado === 'ativa' &&
-    (!variantes || variantes.some(v => same(v.id, o.variante))))
+  const ofertas = catalogo.ofertas.filter(o => same(o.tenant, tenant) && lojaDoTenant(o, tenant) && o.estado === 'ativa' &&
+    (!variantes || variantes.some(v => same(o.variante, v.id))))
   return fichaDeProduto(produto, { tenantId: tenant, image: imagemProduto(produto),
     ...(variantes ? { variants: variantes.map(v => ({ id: v.id, tenant: v.tenant, name: v.nome })) } : {}),
     listings: ofertas.flatMap(o => {
       const href = destinoAmazon(o)
-      return href ? [{ id: o.id, tenant: o.tenant, variantId: o.variante,
+      return href ? [{ id: o.id, tenant: idRelacao(o.tenant), variantId: idRelacao(o.variante),
+        seller: { id: idRelacao(o.loja), name: typeof o.loja === 'object' ? o.loja.nome?.trim() || 'Amazon' : 'Amazon' },
         affiliateUrl: href, observedAt: o.observado_em, price: null, availability: 'unknown' as const }] : []
     }),
   })

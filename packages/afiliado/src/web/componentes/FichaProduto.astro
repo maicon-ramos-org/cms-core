@@ -2,6 +2,7 @@
 import { fichaDoCatalogo, type getCatalogoProduto } from '../lib/catalogo'
 import { produtoMarkdownHtml, type FichaMonetizavelDTO } from '../../conteudo'
 import ProsContras from './ProsContras.astro'
+import OpcoesCompraProduto from './OpcoesCompraProduto.astro'
 interface Props { catalogo: NonNullable<Awaited<ReturnType<typeof getCatalogoProduto>>>; ficha?: FichaMonetizavelDTO }
 const { catalogo, ficha: recebida } = Astro.props
 const ficha = recebida ?? fichaDoCatalogo(catalogo, Astro.locals.tenant.id)
@@ -11,51 +12,120 @@ if (!ficha || ficha.identity.tenantId !== String(Astro.locals.tenant.id) || fich
 }
 const editorial = ficha.editorial
 const variantes = ficha.monetization.variants ?? []
-const ofertas = ficha.monetization.listings
-const corpoHtml = editorial.content.descriptionMarkdown ? produtoMarkdownHtml(editorial.content.descriptionMarkdown) : null
+// O título da página é o único H1. Não reescreve o Markdown salvo no CMS.
+const corpoHtml = editorial.content.descriptionMarkdown ? produtoMarkdownHtml(editorial.content.descriptionMarkdown)
+  .replace(/<(\/?)h([1-6])>/g, (_, fechamento, nivel) => `<${fechamento}h${Math.min(Number(nivel) + 1, 6)}>`): null
 const imagem = editorial.image
+const temFichaTecnica = editorial.specifications.length > 0 || editorial.identifiers.gtin || editorial.identifiers.mpn
+const marcaModelo = [editorial.brand, editorial.model].filter(Boolean).join(' · ')
+const secoes = [
+  ...(corpoHtml ? [{ id: 'analise', label: 'Análise' }] : []),
+  ...(editorial.content.highlights.length ? [{ id: 'destaques', label: 'Destaques' }] : []),
+  ...(temFichaTecnica ? [{ id: 'ficha-tecnica', label: 'Ficha técnica' }] : []),
+  ...(editorial.prosCons.length ? [{ id: 'pros-contras', label: 'Prós e contras' }] : []),
+  ...(editorial.content.faq.length ? [{ id: 'perguntas-frequentes', label: 'Perguntas frequentes' }] : []),
+]
 ---
-<main class="ficha">
-  <h1>{editorial.name}</h1>
-  {imagem && <img class="produto-imagem" src={imagem.url} alt={imagem.alt}
-    width={imagem.width ?? 900} height={imagem.height ?? 900} fetchpriority="high" decoding="async" />}
-  <p>{editorial.brand} · {editorial.model}</p>
-  {editorial.content.summary && <p class="resumo">{editorial.content.summary}</p>}
-  {corpoHtml && <div class="corpo" set:html={corpoHtml} />}
-  {editorial.content.highlights.length > 0 && <section aria-label="Destaques">
-    <h2>Destaques</h2>
-    <ul>{editorial.content.highlights.map(destaque => <li>{destaque}</li>)}</ul>
-  </section>}
-  {(editorial.specifications.length > 0 || editorial.identifiers.gtin || editorial.identifiers.mpn) && <section aria-label="Ficha técnica">
-    <h2>Ficha técnica</h2>
-    <dl>
-      {editorial.identifiers.gtin && <><dt>GTIN</dt><dd>{editorial.identifiers.gtin}</dd></>}
-      {editorial.identifiers.mpn && <><dt>MPN</dt><dd>{editorial.identifiers.mpn}</dd></>}
-      {editorial.specifications.map(spec => <><dt>{spec.name}</dt><dd>{spec.value}</dd></>)}
-    </dl>
-  </section>}
-  <ProsContras pontos={editorial.prosCons} />
-  {editorial.content.faq.length > 0 && <section aria-label="Perguntas frequentes">
-    <h2>Perguntas frequentes</h2>
-    {editorial.content.faq.map(item => <details><summary>{item.question}</summary><p>{item.answer}</p></details>)}
-  </section>}
-  <p>Como associado da Amazon, eu recebo por compras qualificadas.</p>
-  {variantes.map(v => <section>
-    <h2>{v.name}</h2>
-    {ofertas.filter(o => o.variantId === v.id).map(o => {
-      const href = o.affiliateUrl
-      return href ? <p><a href={href} rel="sponsored noopener noreferrer" target="_blank">Ver preço na Amazon</a></p> : null
-    })}
-  </section>)}
-  {ofertas.length === 0 && <p>Nenhuma oferta revisada disponível para consulta.</p>}
-</main>
+<article class="ficha">
+  <div class="produto-topo">
+    <header class="produto-identidade">
+      {editorial.category && <p class="produto-categoria">{editorial.category}</p>}
+      <h1>{editorial.name}</h1>
+      {marcaModelo && <p class="marca-modelo">{marcaModelo}</p>}
+      {editorial.content.summary && <p class="resumo">{editorial.content.summary}</p>}
+      {variantes.length > 0 && <div class="variantes" aria-label="Versões cadastradas">
+        {variantes.map(v => <span>{v.name}</span>)}
+      </div>}
+    </header>
+    <div class="produto-foto">
+      {imagem ? <img class="produto-imagem" src={imagem.url} alt={imagem.alt}
+        width={imagem.width ?? 900} height={imagem.height ?? 900} fetchpriority="high" decoding="async" /> : <div class="foto-ausente">
+        <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="6" width="36" height="36" rx="5" /><circle cx="17" cy="17" r="3" /><path d="M7 35l12-12 9 9 7-7 7 7" /></svg>
+        <span>Foto ainda não cadastrada</span>
+      </div>}
+    </div>
+    <div class="produto-compras">
+      <OpcoesCompraProduto monetizacao={ficha.monetization} />
+      <p class="transparencia">Como associado da Amazon, eu recebo por compras qualificadas.</p>
+    </div>
+  </div>
+  {secoes.length > 0 && <nav class="produto-navegacao" aria-label="Seções do produto">
+    <a href="#onde-comprar">Onde comprar</a>{secoes.map(secao => <a href={`#${secao.id}`}>{secao.label}</a>)}
+  </nav>}
+  <div class="produto-conteudo">
+    {corpoHtml && <section id="analise" class="painel" aria-label="Análise">
+      <h2>Análise do produto</h2><div class="corpo" set:html={corpoHtml} />
+    </section>}
+    {editorial.content.highlights.length > 0 && <section id="destaques" class="painel" aria-label="Destaques">
+      <h2>Destaques</h2>
+      <ul class="destaques">{editorial.content.highlights.map(destaque => <li>{destaque}</li>)}</ul>
+    </section>}
+    {temFichaTecnica && <section id="ficha-tecnica" class="painel" aria-label="Ficha técnica">
+      <h2>Ficha técnica</h2>
+      <dl>
+        {editorial.identifiers.gtin && <div><dt>GTIN</dt><dd>{editorial.identifiers.gtin}</dd></div>}
+        {editorial.identifiers.mpn && <div><dt>MPN</dt><dd>{editorial.identifiers.mpn}</dd></div>}
+        {editorial.specifications.map(spec => <div><dt>{spec.name}</dt><dd>{spec.value}</dd></div>)}
+      </dl>
+    </section>}
+    {editorial.prosCons.length > 0 && <div id="pros-contras" class="painel"><ProsContras pontos={editorial.prosCons} /></div>}
+    {editorial.content.faq.length > 0 && <section id="perguntas-frequentes" class="painel" aria-label="Perguntas frequentes">
+      <h2>Perguntas frequentes</h2>
+      {editorial.content.faq.map(item => <details><summary>{item.question}</summary><p>{item.answer}</p></details>)}
+    </section>}
+  </div>
+</article>
 <style>
-  .ficha { max-width: 70rem; margin: 0 auto; padding: 2rem 1rem; }
-  section { margin-block: 2rem; }
-  .resumo, .corpo { max-width: 72ch; line-height: 1.6; }
-  .produto-imagem { display: block; max-width: min(100%, 36rem); height: auto; margin-block: 1rem 2rem; }
-  dl { display: grid; grid-template-columns: minmax(8rem, 1fr) 2fr; gap: .5rem 1rem; max-width: 48rem; }
-  dt { font-weight: 700; } dd { margin: 0; }
-  details { margin-block: .75rem; }
-  a { display: inline-block; padding: .8rem 1rem; background: var(--rz-action); color: var(--rz-on-action); border-radius: .5rem; }
+  .ficha { max-width: 72rem; margin: 0 auto; padding: 2rem 1rem 4rem; color: var(--rz-ink); }
+  .produto-topo { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); grid-template-areas: 'foto identidade' 'foto compras'; gap: 1.5rem 3rem; align-items: start; }
+  .produto-identidade { grid-area: identidade; min-width: 0; }
+  .produto-categoria { color: var(--rz-brand); text-transform: uppercase; font-size: .75rem; font-weight: 700; letter-spacing: .08em; margin: 0 0 .75rem; }
+  h1 { font-family: var(--rz-fonte-titulos); font-size: clamp(1.65rem, 3vw, 2.6rem); line-height: 1.15; margin: 0; letter-spacing: -.025em; overflow-wrap: anywhere; }
+  .marca-modelo { font-size: .9rem; color: var(--rz-muted); margin: .8rem 0; }
+  .resumo { line-height: 1.65; margin: 1rem 0; color: var(--rz-muted); }
+  .variantes { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+  .variantes span { font-size: .75rem; padding: .4rem .7rem; border: 1px solid var(--rz-borda); border-radius: 2rem; background: var(--rz-surface); }
+  .produto-foto { grid-area: foto; min-width: 0; aspect-ratio: 1; display: grid; place-items: center; background: var(--rz-surface); border: 1px solid var(--rz-borda); border-radius: 1rem; overflow: hidden; }
+  .produto-imagem { display: block; width: 100%; height: 100%; max-height: 34rem; object-fit: contain; }
+  .foto-ausente { display: grid; justify-items: center; gap: 1rem; padding: 1.5rem; text-align: center; color: var(--rz-muted); font-size: .9rem; }
+  .foto-ausente svg { width: 3.5rem; height: 3.5rem; opacity: .65; }
+  .produto-compras { grid-area: compras; min-width: 0; }
+  .transparencia { color: var(--rz-muted); font-size: .75rem; line-height: 1.5; margin: .85rem 0 0; }
+  .produto-navegacao { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; border-block: 1px solid var(--rz-borda); padding: .6rem 0; margin: 2.5rem 0 1.5rem; }
+  .produto-navegacao a { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--rz-ink); font-size: .85rem; font-weight: 600; text-decoration: none; }
+  .produto-navegacao a:hover { color: var(--rz-brand); text-decoration: underline; }
+  .produto-navegacao a:focus-visible { outline: 3px solid var(--rz-brand); outline-offset: 3px; }
+  .produto-conteudo { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
+  .painel { min-width: 0; padding: clamp(1.1rem, 3vw, 2rem); background: var(--rz-surface); border: 1px solid var(--rz-borda); border-radius: .9rem; scroll-margin-top: 5rem; }
+  h2, .painel :global(h2) { font-family: var(--rz-fonte-titulos); font-size: 1.35rem; margin: 0 0 1.2rem; }
+  .corpo { max-width: 78ch; line-height: 1.75; overflow-wrap: anywhere; }
+  .corpo :global(h2), .corpo :global(h3), .corpo :global(h4) { font-family: var(--rz-fonte-titulos); line-height: 1.3; margin-top: 1.75rem; margin-bottom: .75rem; }
+  .corpo :global(a) { color: var(--rz-brand); text-underline-offset: .2em; }
+  .corpo :global(img) { max-width: 100%; height: auto; }
+  .corpo :global(table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+  .corpo :global(th), .corpo :global(td) { border: 1px solid var(--rz-borda); padding: .6rem; }
+  .corpo :global(pre) { max-width: 100%; overflow-x: auto; }
+  .destaques { display: grid; gap: .6rem; padding-left: 1.2rem; margin: 0; line-height: 1.65; }
+  .destaques li::marker { color: var(--rz-brand); }
+  dl { margin: 0; }
+  dl > div { display: grid; grid-template-columns: minmax(8rem, 1fr) 2fr; gap: 1rem; padding: .85rem; border-bottom: 1px solid var(--rz-borda); }
+  dl > div:last-child { border-bottom: 0; }
+  dt { font-weight: 600; font-size: .9rem; } dd { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+  .painel :global(.pros-contras) { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .painel :global(.pros-contras h2) { grid-column: 1 / -1; margin: 0; }
+  .painel :global(.pros-contras h3) { font-size: 1rem; margin: 0 0 .75rem; }
+  .painel :global(.pros-contras ul) { padding-left: 1.2rem; line-height: 1.7; margin: 0; }
+  details { border-bottom: 1px solid var(--rz-borda); padding: .75rem 0; }
+  details:last-child { border-bottom: 0; }
+  summary { cursor: pointer; font-weight: 600; min-height: 2.75rem; align-content: center; line-height: 1.5; }
+  summary:focus-visible { outline: 3px solid var(--rz-brand); outline-offset: 3px; }
+  details p { color: var(--rz-muted); max-width: 78ch; line-height: 1.7; }
+  @media (max-width: 48rem) {
+    .ficha { padding-top: 1.5rem; }
+    .produto-topo { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'identidade' 'foto' 'compras'; gap: 1.5rem; }
+    .produto-foto { width: 100%; max-width: 24rem; justify-self: center; }
+    .produto-navegacao { margin-top: 1.5rem; }
+    .painel :global(.pros-contras) { grid-template-columns: minmax(0, 1fr); }
+    dl > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: .75rem; padding-inline: 0; }
+  }
 </style>
