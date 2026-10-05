@@ -28,4 +28,6 @@ export const produtosFixture: ProdutoFisico[] = [
   { ...produtoFixture, id: 14, slug: 'rascunho', estado: 'draft' },
   { ...produtoFixture, id: 15, slug: 'draft-meta', _status: 'draft' },
   { ...produtoFixture, id: 16, slug: 'colisao' },
+  { ...produtoFixture, id: 17, slug: 'sem-foto', imagem: null,
+    descricao_markdown: '# Detalhes da análise\n\nCorpo aprovado.\n\n## Como usar\n\nInstruções.' },
 ]

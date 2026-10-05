@@ -1,0 +1,88 @@
+---
+import type { FichaMonetizavelDTO, ListingFichaDTO } from '../../conteudo'
+import { urlHTTP } from '../../ofertas-editoriais/contratos'
+interface Props { monetizacao: FichaMonetizavelDTO['monetization'] }
+const { monetizacao } = Astro.props
+// O DTO já normaliza as URLs. A fronteira HTML também recusa esquemas executáveis,
+// credenciais e URLs relativas que o navegador interpretaria como outro domínio.
+function destino(value: string | null): string | null {
+  if (!value || /[\\\u0000-\u0020\u007f]/.test(value)) return null
+  if (/^\/(?!\/)/.test(value)) return value
+  return urlHTTP(value)
+}
+function preco(listing: ListingFichaDTO): string | null {
+  if (!listing.price || !listing.observedAt || !Number.isFinite(Date.parse(listing.observedAt)) ||
+    Date.parse(listing.observedAt) > Date.now() || !/^\d+(?:\.\d+)?$/.test(listing.price.amount) ||
+    !/^[A-Z]{3}$/.test(listing.price.currency)) return null
+  const amount = Number(listing.price.amount)
+  if (!Number.isFinite(amount)) return null
+  try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: listing.price.currency }).format(amount) }
+  catch { return null }
+}
+const variantes = new Map((monetizacao.variants ?? []).map(v => [v.id, v.name]))
+const opcoes = monetizacao.listings.flatMap(listing => {
+  const href = destino(listing.affiliateUrl)
+  if (!href) return []
+  const valor = preco(listing)
+  return [{ listing, href, valor, loja: listing.seller?.name || 'Loja parceira',
+    variante: listing.variantId ? variantes.get(listing.variantId) : null }]
+})
+---
+<section id="onde-comprar" class="opcoes-compra" aria-label="Onde comprar">
+  <div class="compras-cabecalho">
+    <h2>Onde comprar</h2>
+    {opcoes.length > 0 && <span>{opcoes.length} {opcoes.length === 1 ? 'opção' : 'opções'}</span>}
+  </div>
+  {opcoes.length ? <ul class="lojas">
+    {opcoes.map(({ listing, href, loja, variante, valor }) => <li class="loja">
+      <div class="loja-identidade">
+        <span class="loja-icone" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M4 10v10h16V10M3 10l2-6h14l2 6M8 20v-6h8v6M3 10c0 3 4 3 4 0 0 3 5 3 5 0 0 3 5 3 5 0 0 3 4 3 4 0" />
+          </svg>
+        </span>
+        <div><h3>{loja}</h3>{variante && <p class="variante">{variante}</p>}</div>
+      </div>
+      <div class="loja-destino">
+        {valor ? <div class="preco">
+          <strong>{valor}</strong>
+          {listing.availability === 'in-stock' && <span>Disponível</span>}
+          {listing.availability === 'out-of-stock' && <span>Indisponível</span>}
+          <small>Consultado em <time datetime={listing.observedAt!}>{new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(listing.observedAt!))}</time></small>
+        </div> : <p class="consultar">Confira o preço e as condições na loja.</p>}
+        <a class="botao-loja" href={href} rel="sponsored nofollow noopener noreferrer" target="_blank" data-astro-prefetch="false">
+          {valor ? 'Ver oferta na' : 'Ver preço na'} {loja}
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 17L17 7M7 7h10v10" /></svg>
+        </a>
+      </div>
+    </li>)}
+  </ul> : <p class="sem-ofertas">Nenhuma oferta revisada disponível para consulta.</p>}
+  {opcoes.length > 0 && <p class="compra-aviso">A compra é feita na loja parceira. Preço, frete e disponibilidade devem ser confirmados no destino.</p>}
+</section>
+<style>
+  .opcoes-compra { color: var(--rz-ink); scroll-margin-top: 5rem; }
+  .compras-cabecalho { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+  h2 { font-family: var(--rz-fonte-titulos); font-size: 1.2rem; margin: 0; }
+  .compras-cabecalho > span { color: var(--rz-muted); font-size: .8rem; white-space: nowrap; }
+  .lojas { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+  .loja { min-width: 0; border: 1px solid var(--rz-borda); border-radius: .9rem; padding: 1.15rem; background: var(--rz-surface); }
+  .loja-identidade { display: flex; gap: .75rem; align-items: center; margin-bottom: 1rem; }
+  .loja-identidade > div { min-width: 0; }
+  .loja-icone { display: grid; place-items: center; flex: 0 0 2.5rem; height: 2.5rem; border-radius: .65rem; background: var(--rz-surface-brand); color: var(--rz-brand); }
+  .loja-icone svg { width: 1.5rem; height: 1.5rem; }
+  h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+  .variante { margin: .3rem 0 0; font-size: .8rem; color: var(--rz-muted); overflow-wrap: anywhere; }
+  .loja-destino { display: flex; align-items: center; justify-content: space-between; gap: .9rem; flex-wrap: wrap; }
+  .consultar { flex: 1 1 9rem; font-size: .85rem; line-height: 1.5; margin: 0; color: var(--rz-muted); }
+  .preco { display: grid; gap: .25rem; }
+  .preco strong { font-size: 1.45rem; font-family: var(--rz-fonte-titulos); }
+  .preco span { font-size: .8rem; color: var(--rz-muted); }
+  .preco small { color: var(--rz-muted); font-size: .7rem; }
+  .botao-loja { display: flex; align-items: center; justify-content: center; gap: .45rem; min-height: 2.75rem; box-sizing: border-box; padding: .65rem .85rem; border-radius: .5rem; background: var(--rz-action); color: var(--rz-on-action); text-decoration: none; font-weight: 700; font-size: .85rem; overflow-wrap: anywhere; }
+  .botao-loja:hover { filter: brightness(.95); }
+  .botao-loja:focus-visible { outline: 3px solid var(--rz-brand); outline-offset: 3px; }
+  .botao-loja svg { flex: 0 0 1.1rem; width: 1.1rem; height: 1.1rem; }
+  .compra-aviso, .sem-ofertas { color: var(--rz-muted); line-height: 1.5; font-size: .8rem; margin: .9rem 0 0; }
+  .sem-ofertas { padding: 1rem; border: 1px dashed var(--rz-borda); border-radius: .75rem; }
+  @media (max-width: 30rem) { .botao-loja { width: 100%; } .loja { padding: 1rem; } }
+</style>
