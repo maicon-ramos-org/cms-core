@@ -27,7 +27,7 @@ function media(value: MidiaDTO | null, leitura: LeituraDaOferta): NonNullable<Op
   const variants: NonNullable<OpcoesFicha['image']>['variants'] = {}
   for (const [source, target] of [['cartao', 'card'], ['capa', 'cover'], ['og', 'social']] as const) {
     const item = value.sizes?.[source], resolved = item && leitura.resolveMidia(item.url)
-    if (item && resolved) variants[target] = { url: resolved, width: item.width, height: item.height }
+    if (item && resolved) variants[target] = { url: resolved, width: item.width, height: item.height, mimeType: item.mimeType }
   }
   return { url, alt: value.alt, width: value.width, height: value.height, variants }
 }

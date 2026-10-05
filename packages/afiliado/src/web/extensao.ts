@@ -65,13 +65,14 @@ export const sitemaps: Record<string, GeradorDeSitemap> = {
       listarParaSitemap('produtos', tenant.id, 'updatedAt', [
         { campo: 'indexavel', operador: 'equals', valor: 'true' },
       ]),
+      // Sem drafts/_status: o catálogo físico publica pelo campo estado.
       listarParaSitemap('produtos_fisicos', tenant.id, 'updatedAt', [
         { campo: 'estado', operador: 'equals', valor: 'published' },
-      ]),
+      ], false),
       listarParaSitemap('produtos_fisicos', tenant.id, 'updatedAt', [
         { campo: 'estado', operador: 'equals', valor: 'published' },
         { campo: 'indexavel', operador: 'equals', valor: 'true' },
-      ]),
+      ], false),
     ])
     const porId = new Map(cats.map((c) => [String(c.id), c]))
     const ocupadosPeloFisico = new Set(fisicosPublicados.map(p => p.slug))

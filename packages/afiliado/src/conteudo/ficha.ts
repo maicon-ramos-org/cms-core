@@ -12,10 +12,10 @@ export const FICHA_SCHEMA = 'monetizable_content/v1'
 /** Tipo do assunto, não do template: uma mesma ficha pode ter vários layouts. */
 export type TipoFicha = 'product' | 'software' | 'service' | 'other'
 export interface ImagemFichaDTO {
-  url: string; alt: string; width?: number; height?: number
+  url: string; alt: string; width?: number; height?: number; mimeType?: string
   variants?: Partial<Record<'card' | 'cover' | 'social', ImagemFichaDTO>>
 }
-type ImagemFonte = { url?: string | null; alt?: string | null; width?: number | null; height?: number | null
+type ImagemFonte = { url?: string | null; alt?: string | null; width?: number | null; height?: number | null; mimeType?: string | null
   variants?: Partial<Record<'card' | 'cover' | 'social', Omit<ImagemFonte, 'variants'>>> }
 type ProContraFonte = { tipo: 'pro' | 'con'; texto: string }
 export type ConteudoFichaDTO = ProdutoEditorialDTO['content'] & {
@@ -135,6 +135,7 @@ function imagem(value: ImagemFonte | IdOferta | null | undefined, nome: string):
     if (resolved) variants[key] = resolved
   }
   return { url, alt: texto(value.alt) ?? nome,
+    ...(texto(value.mimeType) ? { mimeType: texto(value.mimeType)! } : {}),
     ...(Object.keys(variants).length ? { variants } : {}),
     ...(typeof value.width === 'number' && Number.isFinite(value.width) && value.width > 0 ? { width: value.width } : {}),
     ...(typeof value.height === 'number' && Number.isFinite(value.height) && value.height > 0 ? { height: value.height } : {}) }
