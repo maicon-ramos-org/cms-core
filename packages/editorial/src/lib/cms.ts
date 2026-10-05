@@ -374,6 +374,8 @@ export async function listarParaSitemap(
   // `not_in` existe por causa das pastas próprias: `not_equals` só exclui UM template, e
   // mais de um pode ter rota fora da raiz
   filtros: Array<{ campo: string; operador: 'equals' | 'not_equals' | 'not_in'; valor: string }> = [],
+  // Desative apenas em coleções sem drafts; a publicação deve vir nos filtros próprios.
+  comStatus = true,
 ): Promise<Array<{ id: string | number; slug: string; lastmod?: string | null; wordpress_id?: string | null }>> {
   const saida: Array<{ id: string | number; slug: string; lastmod?: string | null; wordpress_id?: string | null }> = []
   let pagina = 1
@@ -381,7 +383,6 @@ export async function listarParaSitemap(
   do {
     const q = new URLSearchParams({
       'where[and][0][tenant][equals]': String(tenantId),
-      'where[and][1][_status][equals]': 'published',
       'select[slug]': 'true',
       // o caminho público de alguns tipos depende da origem do documento
       'select[wordpress_id]': 'true',
@@ -390,7 +391,8 @@ export async function listarParaSitemap(
       page: String(pagina),
       depth: '0',
     })
-    filtros.forEach((f, idx) => q.set(`where[and][${idx + 2}][${f.campo}][${f.operador}]`, f.valor))
+    if (comStatus) q.set('where[and][1][_status][equals]', 'published')
+    filtros.forEach((f, idx) => q.set(`where[and][${idx + (comStatus ? 2 : 1)}][${f.campo}][${f.operador}]`, f.valor))
     const r = await cmsFetch<
       FindResult<Record<string, unknown>> & { totalPages?: number }
     >(`/api/${colecao}?${q}`)

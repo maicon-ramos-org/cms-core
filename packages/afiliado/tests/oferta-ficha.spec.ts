@@ -90,6 +90,21 @@ describe('oferta existente → ficha compartilhada', () => {
     expect(imagemDaFicha(dto.editorial.image)).toMatchObject({ url: 'https://media.example.test/foto.jpg',
       sizes: { cartao: { url: 'https://media.example.test/foto-640.avif', width: 640 }, og: { width: 1200, height: 630 } } })
   })
+  it.each(['image/jpeg', 'image/avif', undefined])('preserva MIME dos derivados sem presumir JPEG: %s', mimeType => {
+    const dto = fichaDaOfertaPublica({ ...ofertaFixture, imagem: { url: '/foto.avif', alt: 'Foto',
+      sizes: {
+        cartao: { url: '/foto-640.avif', mimeType: 'image/avif' },
+        capa: { url: '/foto-1600.avif', mimeType: 'image/avif' },
+        og: { url: '/foto-og.jpg', width: 1200, height: 630, mimeType },
+      } } }, tenant, leitura)!
+    expect(dto.editorial.image?.variants?.social?.mimeType).toBe(mimeType)
+    const imagem = imagemDaFicha(dto.editorial.image)
+    expect(imagem?.sizes?.cartao?.mimeType).toBe('image/avif')
+    expect(imagem?.sizes?.capa?.mimeType).toBe('image/avif')
+    expect(imagem?.sizes?.og).toMatchObject({ url: 'https://media.example.test/foto-og.jpg', width: 1200, height: 630 })
+    // Base.astro exige este valor exato para emitir og:image; AVIF/ausente continuam recusados.
+    expect(imagem?.sizes?.og?.mimeType).toBe(mimeType)
+  })
   it('não gera texto ou bloqueia oferta vazia e não exige FAQ/revisão', () => {
     const dto = fichaDaOfertaPublica({ id: 1, tenant: 7, _status: 'published', titulo: 'Vazia', slug: 'vazia' }, tenant, leitura)!
     expect(dto.editorial.content).toMatchObject({ summary: null, descriptionMarkdown: null, renderedHtml: '', faq: [], features: [] })
